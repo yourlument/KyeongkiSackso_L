@@ -1,0 +1,612 @@
+
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OFFICIAL
+  SUPPLIER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  WITHDRAWN
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  role         UserRole
+  status       UserStatus @default(ACTIVE)
+  name         String
+  phone        String?
+
+  organizationId String?       @map("organization_id")
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  departmentName String?       @map("department_name")
+  position       String?
+
+  supplierCompanyId String?          @map("supplier_company_id")
+  supplierCompany   SupplierCompany? @relation(fields: [supplierCompanyId], references: [id])
+
+  refreshTokens RefreshToken[]
+  agreements    UserTermAgreement[]
+  cart          Cart?
+  quoteRequests QuoteRequest[]
+  notifications Notification[]
+  posts         Post[]
+  comments      Comment[]
+  inquiries     Inquiry[]
+  reports       Report[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([role])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Organization {
+  id                     String   @id @default(cuid())
+  name                   String
+  businessRegistrationNo String?  @unique @map("business_registration_no")
+  type                   String?
+  region                 String?
+
+  representativeName String? @map("representative_name")
+  taxEmail           String? @map("tax_email")
+  address            String?
+
+  users     User[]
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("organizations")
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model SupplierCompany {
+  id                     String         @id @default(cuid())
+  name                   String
+  representativeName     String         @map("representative_name")
+  businessRegistrationNo String         @unique @map("business_registration_no")
+  businessLicenseFileUrl String?        @map("business_license_file_url")
+  corporateRegistrationNo String?       @map("corporate_registration_no")
+  businessType           String?        @map("business_type")
+  businessItem           String?        @map("business_item")
+  address                String?
+  phone                  String?
+  approvalStatus         ApprovalStatus @default(PENDING) @map("approval_status")
+  approvalMemo           String?        @map("approval_memo")
+
+  region            String?
+  establishedYear   Int?     @map("established_year")
+  dealCount         Int?     @map("deal_count")
+  intro             String?
+  description       String?
+  certifications    String[] @default([])
+  portfolioFileName String?  @map("portfolio_file_name")
+
+  users          User[]
+  products       Product[]
+  quoteResponses QuoteResponse[]
+  settlements    Settlement[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([approvalStatus])
+  @@map("supplier_companies")
+}
+
+enum TermType {
+  SERVICE
+  PRIVACY
+  SUPPLIER
+  MARKETING
+}
+
+model Term {
+  id        String              @id @default(cuid())
+  type      TermType
+  version   String
+  title     String
+  summary   String?
+  content   String
+  required  Boolean             @default(true)
+  isActive  Boolean             @default(true) @map("is_active")
+  agreements UserTermAgreement[]
+  createdAt DateTime            @default(now()) @map("created_at")
+
+  @@unique([type, version])
+  @@map("terms")
+}
+
+model UserTermAgreement {
+  id       String   @id @default(cuid())
+  userId   String   @map("user_id")
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  termId   String   @map("term_id")
+  term     Term     @relation(fields: [termId], references: [id])
+  agreedAt DateTime @default(now()) @map("agreed_at")
+
+  @@unique([userId, termId])
+  @@map("user_term_agreements")
+}
+
+enum CategoryItemType {
+  GOODS
+  SERVICE
+}
+
+model Category {
+  id       String     @id @default(cuid())
+  code     String     @unique
+  name     String
+  level    Int
+  parentId String?    @map("parent_id")
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+  products Product[]
+
+  itemType CategoryItemType? @map("item_type")
+
+  sortOrder Int @default(0) @map("sort_order")
+
+  @@index([parentId])
+  @@index([level])
+  @@map("categories")
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  HIDDEN
+  SOLD_OUT
+}
+
+model Product {
+  id                String          @id @default(cuid())
+  supplierCompanyId String          @map("supplier_company_id")
+  supplierCompany   SupplierCompany @relation(fields: [supplierCompanyId], references: [id])
+  categoryId        String?         @map("category_id")
+  category          Category?       @relation(fields: [categoryId], references: [id])
+
+  name        String
+  description String?
+  price       Decimal       @db.Decimal(14, 2)
+  unit        String?
+  status      ProductStatus @default(DRAFT)
+
+  npsCode           String?  @map("nps_code")
+  rating            Float?
+  reviewCount       Int?     @map("review_count")
+  badges            String[]
+  minOrderQty       Int?     @map("min_order_qty")
+  deliveryDays      Int?     @map("delivery_days")
+  deliveryCondition String?  @map("delivery_condition")
+  specs             Json?
+
+  images    ProductImage[]
+  inventory Inventory?
+  cartItems CartItem[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([supplierCompanyId])
+  @@index([categoryId])
+  @@index([status])
+  @@map("products")
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String  @map("product_id")
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  sortOrder Int     @default(0) @map("sort_order")
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+model Inventory {
+  productId String  @id @map("product_id")
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Int     @default(0)
+
+  @@map("inventories")
+}
+
+model Cart {
+  id     String     @id @default(cuid())
+  userId String     @unique @map("user_id")
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items  CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String  @id @default(cuid())
+  cartId    String  @map("cart_id")
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId String  @map("product_id")
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int     @default(1)
+
+  @@unique([cartId, productId])
+  @@map("cart_items")
+}
+
+enum QuoteRequestStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  AWARDED
+  CANCELLED
+}
+
+model QuoteRequest {
+  id          String             @id @default(cuid())
+  officialId  String             @map("official_id")
+  official    User               @relation(fields: [officialId], references: [id])
+  title       String
+  description String?
+  status      QuoteRequestStatus @default(DRAFT)
+  deadline    DateTime?
+
+  items       QuoteRequestItem[]
+  attachments QuoteRequestAttachment[]
+  responses   QuoteResponse[]
+
+  awardedResponseId String?        @unique @map("awarded_response_id")
+  awardedResponse   QuoteResponse? @relation("AwardedResponse", fields: [awardedResponseId], references: [id])
+
+  order Order?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([officialId])
+  @@index([status])
+  @@map("quote_requests")
+}
+
+model QuoteRequestItem {
+  id             String       @id @default(cuid())
+  quoteRequestId String       @map("quote_request_id")
+  quoteRequest   QuoteRequest @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
+  productId      String?      @map("product_id")
+  name           String
+  spec           String?
+  quantity       Int          @default(1)
+
+  responseItems QuoteResponseItem[]
+
+  @@index([quoteRequestId])
+  @@map("quote_request_items")
+}
+
+model QuoteRequestAttachment {
+  id             String       @id @default(cuid())
+  quoteRequestId String       @map("quote_request_id")
+  quoteRequest   QuoteRequest @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
+  fileUrl        String       @map("file_url")
+  fileName       String       @map("file_name")
+
+  @@index([quoteRequestId])
+  @@map("quote_request_attachments")
+}
+
+enum QuoteResponseStatus {
+  SUBMITTED
+  AWARDED
+  REJECTED
+  WITHDRAWN
+}
+
+model QuoteResponse {
+  id                String              @id @default(cuid())
+  quoteRequestId    String              @map("quote_request_id")
+  quoteRequest      QuoteRequest        @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
+  supplierCompanyId String              @map("supplier_company_id")
+  supplierCompany   SupplierCompany     @relation(fields: [supplierCompanyId], references: [id])
+  totalAmount       Decimal             @db.Decimal(14, 2) @map("total_amount")
+  status            QuoteResponseStatus @default(SUBMITTED)
+  validUntil        DateTime?           @map("valid_until")
+  memo              String?
+
+  items       QuoteResponseItem[]
+  awardedFor  QuoteRequest?       @relation("AwardedResponse")
+  order       Order?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([quoteRequestId, supplierCompanyId])
+  @@index([supplierCompanyId])
+  @@map("quote_responses")
+}
+
+model QuoteResponseItem {
+  id                 String           @id @default(cuid())
+  quoteResponseId    String           @map("quote_response_id")
+  quoteResponse      QuoteResponse    @relation(fields: [quoteResponseId], references: [id], onDelete: Cascade)
+  quoteRequestItemId String           @map("quote_request_item_id")
+  quoteRequestItem   QuoteRequestItem @relation(fields: [quoteRequestItemId], references: [id])
+  unitPrice          Decimal          @db.Decimal(14, 2) @map("unit_price")
+  amount             Decimal          @db.Decimal(14, 2)
+
+  @@index([quoteResponseId])
+  @@map("quote_response_items")
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CONTRACTED
+  DELIVERED
+  COMPLETED
+  CANCELLED
+}
+
+model Order {
+  id              String        @id @default(cuid())
+  quoteRequestId  String        @unique @map("quote_request_id")
+  quoteRequest    QuoteRequest  @relation(fields: [quoteRequestId], references: [id])
+  quoteResponseId String        @unique @map("quote_response_id")
+  quoteResponse   QuoteResponse @relation(fields: [quoteResponseId], references: [id])
+
+  totalAmount Decimal     @db.Decimal(14, 2) @map("total_amount")
+  status      OrderStatus @default(PENDING)
+
+  items    OrderItem[]
+  contract Contract?
+  payments Payment[]
+
+  settlementId String?     @map("settlement_id")
+  settlement   Settlement? @relation(fields: [settlementId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String  @map("order_id")
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  name      String
+  spec      String?
+  quantity  Int
+  unitPrice Decimal @db.Decimal(14, 2) @map("unit_price")
+  amount    Decimal @db.Decimal(14, 2)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model Contract {
+  id       String    @id @default(cuid())
+  orderId  String    @unique @map("order_id")
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  terms    String?
+  signedAt DateTime? @map("signed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("contracts")
+}
+
+enum PaymentProvider {
+  MOCK
+  TOSS
+}
+
+enum PaymentStatus {
+  READY
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+model Payment {
+  id            String          @id @default(cuid())
+  orderId       String          @map("order_id")
+  order         Order           @relation(fields: [orderId], references: [id])
+  provider      PaymentProvider @default(MOCK)
+  status        PaymentStatus   @default(READY)
+  amount        Decimal         @db.Decimal(14, 2)
+  method        String?
+  transactionId String?         @map("transaction_id")
+  metadata      Json?
+  paidAt        DateTime?       @map("paid_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([orderId])
+  @@index([status])
+  @@map("payments")
+}
+
+enum SettlementStatus {
+  PENDING
+  PAID
+}
+
+model Settlement {
+  id                String           @id @default(cuid())
+  supplierCompanyId String           @map("supplier_company_id")
+  supplierCompany   SupplierCompany  @relation(fields: [supplierCompanyId], references: [id])
+  periodStart       DateTime         @map("period_start")
+  periodEnd         DateTime         @map("period_end")
+  amount            Decimal          @db.Decimal(14, 2)
+  status            SettlementStatus @default(PENDING)
+  paidAt            DateTime?        @map("paid_at")
+
+  orders Order[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([supplierCompanyId])
+  @@map("settlements")
+}
+
+model Notification {
+  id     String  @id @default(cuid())
+  userId String  @map("user_id")
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type   String
+  title  String
+  body   String?
+  link   String?
+  isRead Boolean @default(false) @map("is_read")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model Post {
+  id       String    @id @default(cuid())
+  authorId String    @map("author_id")
+  author   User      @relation(fields: [authorId], references: [id])
+  category String?
+  title    String
+  content  String
+  comments Comment[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([authorId])
+  @@map("posts")
+}
+
+model Comment {
+  id       String @id @default(cuid())
+  postId   String @map("post_id")
+  post     Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId String @map("author_id")
+  author   User   @relation(fields: [authorId], references: [id])
+  content  String
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([postId])
+  @@map("comments")
+}
+
+model Notice {
+  id        String  @id @default(cuid())
+  title     String
+  content   String
+  isPinned  Boolean @default(false) @map("is_pinned")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("notices")
+}
+
+model Event {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  startsAt    DateTime? @map("starts_at")
+  endsAt      DateTime? @map("ends_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("events")
+}
+
+model Banner {
+  id        String   @id @default(cuid())
+  imageUrl  String   @map("image_url")
+  link      String?
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  startsAt  DateTime? @map("starts_at")
+  endsAt    DateTime? @map("ends_at")
+
+  @@map("banners")
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWING
+  RESOLVED
+  DISMISSED
+}
+
+model Report {
+  id         String       @id @default(cuid())
+  reporterId String       @map("reporter_id")
+  reporter   User         @relation(fields: [reporterId], references: [id])
+  targetType String       @map("target_type")
+  targetId   String       @map("target_id")
+  reason     String
+  status     ReportStatus @default(OPEN)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([status])
+  @@map("reports")
+}
+
+enum InquiryStatus {
+  OPEN
+  ANSWERED
+  CLOSED
+}
+
+model Inquiry {
+  id       String        @id @default(cuid())
+  userId   String        @map("user_id")
+  user     User          @relation(fields: [userId], references: [id])
+  title    String
+  content  String
+  answer   String?
+  status   InquiryStatus @default(OPEN)
+
+  createdAt  DateTime  @default(now()) @map("created_at")
+  answeredAt DateTime? @map("answered_at")
+
+  @@index([userId])
+  @@index([status])
+  @@map("inquiries")
+}
