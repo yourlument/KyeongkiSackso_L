@@ -37,7 +37,6 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     images: product.images.map((img) => img.url),
     breadcrumb,
     stock: product.inventory?.quantity ?? 0,
-
     npsCode: product.npsCode,
     rating: product.rating,
     reviewCount: product.reviewCount,

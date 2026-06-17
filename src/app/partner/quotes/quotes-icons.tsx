@@ -1,3 +1,4 @@
+
 type IconProps = { className?: string; style?: React.CSSProperties };
 
 export function BoxIcon({ color = "#FFFFFF", ...props }: IconProps & { color?: string }) {

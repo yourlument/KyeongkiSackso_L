@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FooterLogo } from "@/components/footer-logo";
 
 const PORTAL_OFFICIAL = [
   { label: "물품 검색", href: "/search" },
@@ -43,13 +44,9 @@ export function SiteFooter() {
   return (
     <footer className="bg-field">
       <div className="px-[48.8px] py-[78.08px]">
-
         <div className="flex gap-x-[48.8px]">
-
           <div className="w-[299px]">
-
-            <img src="/korlink-logo.svg" alt="KORLINK" className="mb-[19.52px] h-9 w-auto" />
-
+            <FooterLogo />
             <div className="flex w-full flex-wrap text-[13px] font-normal leading-[21.125px] tracking-[-0.195px] text-ink/50">
               <span className="w-full">지자체 공공조달의 새로운 표준.</span>
               <span>공무원과 공급업체를 연결하는</span>
@@ -78,12 +75,10 @@ export function SiteFooter() {
                 </li>
               ))}
               <li>
-
                 <Link
                   href="/report?type=신고"
                   className="inline-flex items-center gap-[4.88px] text-[13px] font-normal leading-[23.4px] tracking-[-0.293px] text-[#0071e3]"
                 >
-
                   <img src="/icons/land-footer-report.svg" alt="" aria-hidden="true" width={18} height={18} />
                   신고 / 문의하기
                 </Link>
@@ -112,7 +107,6 @@ export function SiteFooter() {
               </p>
             </div>
             <nav className="flex items-center gap-[19.52px]">
-
               <span className="text-[12px] font-normal leading-[21px] tracking-[-0.18px] text-ink/40">
                 이용약관
               </span>

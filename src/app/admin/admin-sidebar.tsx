@@ -48,7 +48,6 @@ export function AdminSidebar() {
       style={{ width: "273.27px", height: "100vh", background: "#FFFFFF", borderRight: "1px solid #F3F4F6" }}
     >
       <div>
-
         <div
           className="flex items-center"
           style={{ gap: "9.76px", paddingLeft: "19.52px", paddingRight: "19.52px", paddingTop: "19.52px", paddingBottom: "20.52px" }}
@@ -122,7 +121,6 @@ function rowStyle(active: boolean): React.CSSProperties {
 }
 
 function NavRow({ item, active }: { item: NavItem; active: boolean }) {
-
   const color = active ? "#111827" : "#4B5563";
   const fw = active ? 500 : 400;
   return (

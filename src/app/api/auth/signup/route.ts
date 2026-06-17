@@ -90,7 +90,6 @@ export async function POST(req: Request) {
         skipDuplicates: true,
       });
     });
-
     return NextResponse.json({ autoApproved: true });
   }
 
@@ -126,6 +125,5 @@ export async function POST(req: Request) {
       skipDuplicates: true,
     });
   });
-
   return NextResponse.json({ autoApproved: false, status: "PENDING" });
 }

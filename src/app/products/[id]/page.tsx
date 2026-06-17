@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSessionClaims } from "@/lib/auth/session";
 import { decrypt } from "@/lib/crypto/pii";
+import { hasPurchasedProduct } from "@/lib/reviews";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { KakaoChat } from "@/components/kakao-chat";
@@ -41,6 +42,8 @@ export default async function ProductDetailPage({
   const claims = await getSessionClaims();
   const unit = product.unit ?? "개";
 
+  const hasPurchaseRecord = claims ? await hasPurchasedProduct(claims.sub, product.id) : false;
+
   const company = product.supplierCompany;
   const registeredCount = await prisma.product.count({
     where: { supplierCompanyId: company.id, status: "ACTIVE" },
@@ -63,12 +66,14 @@ export default async function ProductDetailPage({
 
   const specs = (product.specs as Spec[] | null) ?? [];
 
+  const thumbnail = product.images.find((i) => i.type === "THUMBNAIL") ?? product.images[0];
+  const detailImages = product.images.filter((i) => i.type === "DETAIL").map((i) => i.url);
+
   return (
     <div className="flex min-h-screen flex-col" style={{ background: "#f9fafb" }}>
       <SiteHeader />
 
       <main className="mx-auto w-full max-w-[1152px] flex-1 px-[32px] py-[24px]">
-
         <nav
           aria-label="카테고리 경로"
           className="mb-[16px] flex flex-wrap items-center gap-[8px]"
@@ -90,7 +95,6 @@ export default async function ProductDetailPage({
         </nav>
 
         <div className="mb-[24px] flex flex-col gap-[24px] lg:flex-row lg:flex-wrap lg:items-start">
-
           <div
             className="w-full lg:flex-[420_1_0%]"
             style={{
@@ -103,10 +107,9 @@ export default async function ProductDetailPage({
               className="flex items-center justify-center overflow-hidden"
               style={{ background: "rgba(29,29,31,0.05)", borderRadius: "19.52px", height: "398px" }}
             >
-              {product.images[0] ? (
-
+              {thumbnail ? (
                 <img
-                  src={product.images[0].url}
+                  src={thumbnail.url}
                   alt={product.name}
                   className="h-full w-full object-cover"
                 />
@@ -131,8 +134,11 @@ export default async function ProductDetailPage({
             deliveryCondition={product.deliveryCondition ?? undefined}
             specs={specs}
             company={companyInfo}
+            detailImages={detailImages}
             isLoggedIn={!!claims}
             isSupplier={claims?.role === "SUPPLIER"}
+            hasPurchaseRecord={hasPurchaseRecord}
+            supplierCompanyId={company.id}
           />
         </div>
       </main>

@@ -21,7 +21,6 @@ export function ProposalDetailModal({ proposal, onClose, onChat }: { proposal: P
         style={{ width: "625px", maxHeight: "calc(100vh - 39.04px)", borderRadius: "19.52px", background: "#fff", overflow: "hidden" }}
         onClick={(e) => e.stopPropagation()}
       >
-
         <div className="flex items-start justify-between" style={{ padding: "19.52px 29.28px 20.52px", borderBottom: "1px solid rgba(210,210,215,0.1)" }}>
           <div>
             <p style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "-0.448px", lineHeight: "20px", color: "#1D1D1F", margin: 0 }}>제출 견적서 상세</p>
@@ -33,7 +32,6 @@ export function ProposalDetailModal({ proposal, onClose, onChat }: { proposal: P
         </div>
 
         <div style={{ padding: "29.28px", overflowY: "auto" }}>
-
           <div style={{ borderRadius: "14.64px", background: "rgba(29,29,31,0.02)", padding: "19.52px" }}>
             <div className="flex items-center justify-between" style={{ gap: "9.76px" }}>
               <span style={{ fontSize: "14px", fontWeight: 600, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "#1D1D1F" }}>{proposal.title}</span>

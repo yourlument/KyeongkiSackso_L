@@ -44,7 +44,6 @@ export function CheckoutView() {
     if (!canPay) return;
     setSubmitting(true);
     try {
-
       const order = {
         id: `MOCK-${Date.now()}`,
         date: new Date().toISOString(),
@@ -59,7 +58,6 @@ export function CheckoutView() {
         const prev = JSON.parse(localStorage.getItem("korink_mock_orders") ?? "[]");
         localStorage.setItem("korink_mock_orders", JSON.stringify([order, ...prev]));
       } catch {  }
-
       await Promise.all((items ?? []).map((it) => fetch(`/api/cart/${it.id}`, { method: "DELETE" }).catch(() => {})));
       router.push("/orders?paid=1");
     } finally {
@@ -79,9 +77,7 @@ export function CheckoutView() {
 
   return (
     <div className="flex flex-col gap-[24.4px] lg:flex-row" style={{ marginTop: "29.28px" }}>
-
       <div className="flex flex-1 flex-col gap-[24.4px]">
-
         <div style={CARD}>
           <p style={{ fontSize: "15px", fontWeight: 600, letterSpacing: "-0.225px", color: "#1D1D1F", margin: "0 0 19.52px" }}>주문 상품</p>
           <div className="flex flex-col gap-[19.52px]">
@@ -188,7 +184,6 @@ function AddressSearchModal({ onClose, onSelect }: { onClose: () => void; onSele
         onClick={(e) => e.stopPropagation()}
         style={{ position: "relative", width: "625px", maxWidth: "100%", maxHeight: "calc(100vh - 32px)", borderRadius: "19.52px", background: "#fff", display: "flex", flexDirection: "column", overflow: "hidden" }}
       >
-
         <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "19.52px 29.28px 20.52px", borderBottom: "1px solid rgba(210,210,215,0.2)" }}>
           <h2 style={{ fontSize: "16px", fontWeight: 600, lineHeight: "20px", letterSpacing: "-0.448px", color: "#1D1D1F", margin: 0 }}>주소 검색</h2>
           <button type="button" aria-label="닫기" onClick={onClose}
@@ -201,14 +196,12 @@ function AddressSearchModal({ onClose, onSelect }: { onClose: () => void; onSele
           <div ref={embedRef} style={{ width: "100%", height: "400px", borderRadius: "14.64px", overflow: "hidden" }} />
           {!loaded && (
             <div style={{ position: "absolute", top: "24.4px", left: "24.4px", right: "24.4px", display: "flex", flexDirection: "column" }}>
-
               <div style={{ position: "relative", paddingBottom: "14.64px" }}>
                 <span style={{ position: "absolute", left: "20.52px", top: "50%", transform: "translateY(-50%)", display: "flex", pointerEvents: "none" }}><AddrSearchIcon /></span>
                 <div style={{ display: "flex", alignItems: "center", height: "54px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.4)", background: "#fff", paddingLeft: "44.92px", paddingRight: "20.52px" }}>
                   <span style={{ fontSize: "13px", fontWeight: 500, lineHeight: "22.75px", letterSpacing: "-0.293px", color: "rgba(29,29,31,0.3)" }}>도로명, 지번, 건물명, 우편번호로 검색</span>
                 </div>
               </div>
-
               <div style={{ padding: "39.04px 0", display: "flex", flexDirection: "column", alignItems: "center" }}>
                 <span style={{ fontSize: "13px", fontWeight: 400, lineHeight: "23.4px", letterSpacing: "-0.195px", color: "rgba(29,29,31,0.4)", textAlign: "center" }}>기관명, 도로명, 지번을 입력하세요</span>
                 <span style={{ marginTop: "4.88px", fontSize: "12px", fontWeight: 400, lineHeight: "21.6px", letterSpacing: "-0.18px", color: "rgba(29,29,31,0.3)", textAlign: "center" }}>예: 화성시청, 테헤란로, 서초동</span>

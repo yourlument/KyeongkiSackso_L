@@ -1,155 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-
-type ClaimType = "신고" | "문의";
-type ClaimStatus = "접수" | "처리중" | "완료" | "반려";
-type Priority = "긴급" | "높음" | "보통" | "낮음";
-
-type Answer = { author: string; date: string; body: string };
-
-type Claim = {
-  id: number;
-  type: ClaimType;
-  title: string;
-  category: string;
-  author: string;
-  affiliation: string;
-  date: string;
-  status: ClaimStatus;
-  priority: Priority;
-
-  contact?: string;
-  email?: string;
-  content?: string;
-  answer?: Answer;
-};
-
-const CLAIMS: Claim[] = [
-  {
-    id: 1,
-    type: "문의",
-    title: "견적 공고 마감일 연장 가능한가요?",
-    category: "견적문의",
-    author: "김주무관",
-    affiliation: "화성시청 도로관리과",
-    date: "2026-05-10",
-    status: "접수",
-    priority: "보통",
-    contact: "031-123-4567",
-    email: "official@ggseso.go.kr",
-    content:
-      "화성시청 도로과에서 공고한 안전난간 설치 견적 공고의 마감일을 3일 연장하고 싶습니다. 내부 검토가 지연되어 참여 업체들에게 충분한 시간을 드리기 위함입니다.",
-  },
-  {
-    id: 2,
-    type: "신고",
-    title: "등록된 상품의 사양이 실제와 상이함",
-    category: "허위상품",
-    author: "김주무관",
-    affiliation: "화성시청 정보통신과",
-    date: "2026-05-09",
-    status: "처리중",
-    priority: "높음",
-  },
-  {
-    id: 3,
-    type: "문의",
-    title: "입점 신청 심사 기간이 얼마나 걸리나요?",
-    category: "입점신청",
-    author: "이사장",
-    affiliation: "포장산업(주)",
-    date: "2026-05-08",
-    status: "완료",
-    priority: "보통",
-    contact: "031-567-8901",
-    email: "lee@pojang.co.kr",
-    content:
-      "저희 회사가 5월 1일에 입점 신청을 제출했는데 아직 결과를 받지 못했습니다. 보통 심사에 얼마나 걸리는지, 추가 서류가 필요한지 확인 부탁드립니다.",
-    answer: {
-      author: "관리자",
-      date: "2026-05-09",
-      body: "안녕하세요. 입점 신청 심사는 통상 3~5 영업일이 소요됩니다. 현재 제출하신 서류는 검토 중이며, 추가 서류가 필요할 경우 별도로 연락드리겠습니다. 감사합니다.",
-    },
-  },
-  {
-    id: 4,
-    type: "신고",
-    title: "견적 제출 업체 간 담합 의심",
-    category: "부정거래",
-    author: "최주임",
-    affiliation: "화성시청 정보통신과",
-    date: "2026-05-07",
-    status: "처리중",
-    priority: "긴급",
-  },
-  {
-    id: 5,
-    type: "문의",
-    title: "가상계좌 입금 후 결제 완료 처리가 안 됩니다",
-    category: "결제문의",
-    author: "김주무관",
-    affiliation: "화성시청 도로관리과",
-    date: "2026-05-06",
-    status: "완료",
-    priority: "높음",
-  },
-  {
-    id: 6,
-    type: "신고",
-    title: "특정 업체의 반복적인 저가 견적 제출",
-    category: "악성유저",
-    author: "박대리",
-    affiliation: "화성시청 안전총괄과",
-    date: "2026-05-05",
-    status: "접수",
-    priority: "높음",
-  },
-  {
-    id: 7,
-    type: "문의",
-    title: "상품 등록 시 이미지 업로드가 실패합니다",
-    category: "시스템오류",
-    author: "오실장",
-    affiliation: "오피스텍(주)",
-    date: "2026-05-04",
-    status: "완료",
-    priority: "보통",
-  },
-  {
-    id: 8,
-    type: "신고",
-    title: "인증서 위조 의심",
-    category: "허위상품",
-    author: "이주임",
-    affiliation: "화성시청 안전총괄과",
-    date: "2026-05-03",
-    status: "반려",
-    priority: "긴급",
-  },
-  {
-    id: 9,
-    type: "문의",
-    title: "구독 플랜 변경 방법",
-    category: "구독문의",
-    author: "최실장",
-    affiliation: "경기건설(주)",
-    date: "2026-05-02",
-    status: "완료",
-    priority: "낮음",
-  },
-  {
-    id: 10,
-    type: "신고",
-    title: "공고 직후 특정 업체에게만 내부 정보 유출 의심",
-    category: "부정거래",
-    author: "김과장",
-    affiliation: "화성시청 정보통신과",
-    date: "2026-05-01",
-    status: "접수",
-    priority: "긴급",
-  },
-];
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import type { AdminClaimData, Claim, ClaimType, ClaimStatus, ClaimPriority as Priority } from "@/lib/admin-claim";
 
 const STATUS_BADGE: Record<ClaimStatus, { bg: string; border: string; color: string }> = {
   접수: { bg: "#F3F4F6", border: "#D1D5DB", color: "#374151" },
@@ -179,10 +32,10 @@ const CATEGORY_FILTERS = [
   "악성유저",
 ] as const;
 
-const KPIS = [
-  { value: "8", label: "접수 대기", icon: "kpi1" as const, accent: false },
-  { value: "8", label: "처리중", icon: "kpi2" as const, accent: false },
-  { value: "9", label: "처리 완료", icon: "kpi3" as const, accent: false },
+const KPI_META = [
+  { icon: "kpi1" as const, accent: false },
+  { icon: "kpi2" as const, accent: false },
+  { icon: "kpi3" as const, accent: false },
 ];
 
 function KpiIcon({ kind }: { kind: "kpi1" | "kpi2" | "kpi3" | "kpi4" }) {
@@ -331,16 +184,18 @@ function Chip({
   );
 }
 
-export function ClaimView() {
+export function ClaimView({ data }: { data: AdminClaimData }) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const [typeFilter, setTypeFilter] = useState<(typeof TYPE_FILTERS)[number]>("전체 유형");
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("전체 상태");
   const [categoryFilter, setCategoryFilter] = useState<(typeof CATEGORY_FILTERS)[number]>("전체");
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<number>(1);
+  const [selectedId, setSelectedId] = useState<string | null>(data.claims[0]?.id ?? null);
   const [answerDraft, setAnswerDraft] = useState("");
 
   const rows = useMemo(() => {
-    return CLAIMS.filter((c) => {
+    return data.claims.filter((c) => {
       if (typeFilter !== "전체 유형" && c.type !== typeFilter) return false;
       if (statusFilter !== "전체 상태" && c.status !== statusFilter) return false;
       if (categoryFilter !== "전체" && c.category !== categoryFilter) return false;
@@ -352,13 +207,25 @@ export function ClaimView() {
       }
       return true;
     });
-  }, [typeFilter, statusFilter, categoryFilter, query]);
+  }, [data.claims, typeFilter, statusFilter, categoryFilter, query]);
 
-  const selected = useMemo(() => CLAIMS.find((c) => c.id === selectedId) ?? null, [selectedId]);
+  const selected = useMemo(() => data.claims.find((c) => c.id === selectedId) ?? null, [data.claims, selectedId]);
+
+  async function submitAnswer() {
+    if (!selected || !answerDraft.trim()) return;
+    const res = await fetch("/api/admin/claim/answer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: selected.id, type: selected.type, answer: answerDraft.trim() }),
+    });
+    if (res.ok) {
+      setAnswerDraft("");
+      startTransition(() => router.refresh());
+    }
+  }
 
   return (
     <div style={{ width: "100%" }}>
-
       <div style={{ marginBottom: "32px" }}>
         <h1
           style={{
@@ -387,7 +254,7 @@ export function ClaimView() {
       </div>
 
       <div style={{ display: "flex", gap: "14.64px", marginBottom: "30px" }}>
-        {KPIS.map((k) => (
+        {data.kpis.map((k, i) => (
           <div
             key={k.label}
             style={{
@@ -404,14 +271,14 @@ export function ClaimView() {
                 width: "39px",
                 height: "39px",
                 borderRadius: "9.76px",
-                background: k.accent ? "#FEF2F2" : "rgba(29,29,31,0.04)",
+                background: KPI_META[i].accent ? "#FEF2F2" : "rgba(29,29,31,0.04)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 marginBottom: "14px",
               }}
             >
-              <KpiIcon kind={k.icon} />
+              <KpiIcon kind={KPI_META[i].icon} />
             </div>
             <div
               style={{
@@ -449,7 +316,6 @@ export function ClaimView() {
           marginBottom: "19px",
         }}
       >
-
         <div style={{ display: "flex", alignItems: "center", gap: "14.64px" }}>
           <div style={{ position: "relative", flex: 1 }}>
             <span
@@ -569,11 +435,9 @@ export function ClaimView() {
                     cursor: "pointer",
                   }}
                 >
-
                   <td style={{ padding: "14.64px 24.4px", verticalAlign: "middle" }}>
                     <TypeBadge type={c.type} />
                   </td>
-
                   <td style={{ padding: "14.64px 24.4px", verticalAlign: "middle" }}>
                     <div
                       style={{
@@ -602,7 +466,6 @@ export function ClaimView() {
                       {c.category}
                     </div>
                   </td>
-
                   <td style={{ padding: "14.64px 24.4px", verticalAlign: "middle" }}>
                     <div
                       style={{
@@ -631,7 +494,6 @@ export function ClaimView() {
                       {c.affiliation}
                     </div>
                   </td>
-
                   <td style={{ padding: "14.64px 24.4px", verticalAlign: "middle" }}>
                     <span
                       style={{
@@ -645,15 +507,12 @@ export function ClaimView() {
                       {c.date}
                     </span>
                   </td>
-
                   <td style={{ padding: "14.64px 24.4px", verticalAlign: "middle" }}>
                     <Badge text={c.status} bg={sb.bg} border={sb.border} color={sb.color} />
                   </td>
-
                   <td style={{ padding: "14.64px 24.4px", verticalAlign: "middle" }}>
                     <Badge text={c.priority} bg={pb.bg} border={pb.border} color={pb.color} />
                   </td>
-
                   <td style={{ padding: "14.64px 24.4px", verticalAlign: "middle" }}>
                     <button
                       type="button"
@@ -741,7 +600,6 @@ export function ClaimView() {
             overflow: "hidden",
           }}
         >
-
           <div
             style={{
               display: "flex",
@@ -768,7 +626,7 @@ export function ClaimView() {
             </div>
             <button
               type="button"
-              onClick={() => setSelectedId(0)}
+              onClick={() => setSelectedId(null)}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -786,7 +644,6 @@ export function ClaimView() {
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "29.28px", padding: "24.4px" }}>
-
             <div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14.64px" }}>
                 <Field label="작성자" value={selected.author} sub={selected.affiliation} />
@@ -817,7 +674,6 @@ export function ClaimView() {
 
             <div>
               {selected.answer ? (
-
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
                     <span
@@ -861,7 +717,6 @@ export function ClaimView() {
                   </div>
                 </div>
               ) : (
-
                 <div
                   style={{
                     background: "#F9FAFB",
@@ -977,6 +832,7 @@ export function ClaimView() {
                     <button
                       type="button"
                       disabled={!answerDraft.trim()}
+                      onClick={submitAnswer}
                       style={{
                         flex: 1,
                         height: "50px",

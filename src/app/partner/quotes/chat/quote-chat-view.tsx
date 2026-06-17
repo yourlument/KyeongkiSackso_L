@@ -23,7 +23,6 @@ export function QuoteChatView() {
 
   return (
     <div className="flex" style={{ height: "100vh", background: "#fff", overflow: "hidden" }}>
-
       <div className="flex flex-col" style={{ width: "351px", flexShrink: 0, borderRight: "1px solid rgba(210,210,215,0.2)" }}>
         <div style={{ padding: "19.52px 24.4px 20.52px", borderBottom: "1px solid rgba(210,210,215,0.1)" }}>
           <p style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "-0.392px", lineHeight: "17.5px", color: "#1D1D1F", margin: 0 }}>대화 목록</p>
@@ -69,7 +68,6 @@ function ChatRoom({ thread }: { thread: ChatThread }) {
   const canSend = draft.trim() !== "";
   return (
     <div className="flex flex-col flex-1 min-w-0" style={{ background: "#fff" }}>
-
       <div className="flex items-center" style={{ gap: "14.64px", padding: "19.52px 24.4px 20.52px", borderBottom: "1px solid rgba(210,210,215,0.15)" }}>
         <span className="inline-flex items-center justify-center" style={{ width: "44px", height: "44px", flexShrink: 0, borderRadius: "9999px", background: "rgba(30,58,95,0.1)" }}>
           <PersonIcon opacity={1} />
@@ -85,7 +83,6 @@ function ChatRoom({ thread }: { thread: ChatThread }) {
       </div>
 
       <div className="flex-1" style={{ overflowY: "auto", padding: "19.52px" }}>
-
         <div className="flex">
           <span style={{ borderRadius: "9999px", border: "1px solid rgba(210,210,215,0.2)", background: "rgba(29,29,31,0.02)", padding: "5.88px 15.64px", fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)" }}>{CHAT_SYSTEM_NOTE}</span>
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 const NAVY = "#1E3A5F";
 const TEXT = "#1D1D1F";
@@ -123,7 +124,6 @@ export function QuotePreviewModal({ onClose }: { onClose: () => void }) {
               <span style={{ textAlign: "right" }}>{value}</span>
             </div>
           ))}
-
           <div style={{ borderTop: "1px solid rgba(210,210,215,0.15)", marginTop: "12.2px", paddingTop: "15.64px" }}>
             <p style={{ fontSize: "12px", fontWeight: 600, letterSpacing: "-0.18px", color: "rgba(29,29,31,0.4)", margin: "0 0 9.76px" }}>공고 정보</p>
             <p style={{ fontSize: "14px", fontWeight: 600, letterSpacing: "-0.21px", color: TEXT, margin: "0 0 7.32px" }}>수지 보강 프로젝트 발전기 및 베어링 구매</p>
@@ -149,24 +149,43 @@ const STATUS_OPTIONS = [
   { key: "탈락", desc: "제안 불채택" },
 ];
 
-export function ProposalStatusModal({ onClose, current = "접수" }: { onClose: () => void; current?: string }) {
+const STATUS_DB: Record<string, string> = {
+  "접수": "SUBMITTED", "검토중": "UNDER_REVIEW", "선정": "AWARDED", "탈락": "REJECTED",
+};
+
+export function ProposalStatusModal({ onClose, quoteId, responseId, company, totalAmount, current = "접수" }: { onClose: () => void; quoteId: string; responseId: string; company: string; totalAmount: string; current?: string }) {
+  const router = useRouter();
   const [selected, setSelected] = useState(current);
+  const [saving, setSaving] = useState(false);
   const changed = selected !== current;
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/quotes/${quoteId}/responses/${responseId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: STATUS_DB[selected] }),
+      });
+      if (!res.ok) { const d = await res.json() as { error?: string }; alert(d.error ?? "오류"); return; }
+      onClose();
+      router.refresh();
+    } finally { setSaving(false); }
+  }
+
   return (
     <Overlay onClose={onClose} width="547px">
       <ModalHeader title="제안서 상태 변경" onClose={onClose} />
       <div style={{ overflowY: "auto" }}>
-
         <div style={{ borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.2)", padding: "15.64px" }}>
           <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", color: "rgba(29,29,31,0.4)", margin: 0 }}>업체명</p>
-          <p style={{ fontSize: "14px", fontWeight: 600, letterSpacing: "-0.21px", color: TEXT, margin: "2.44px 0 0" }}>기계공업(주)</p>
-          <p style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", color: "rgba(29,29,31,0.5)", margin: "2.44px 0 0" }}>14,800,000원</p>
+          <p style={{ fontSize: "14px", fontWeight: 600, letterSpacing: "-0.21px", color: TEXT, margin: "2.44px 0 0" }}>{company}</p>
+          <p style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", color: "rgba(29,29,31,0.5)", margin: "2.44px 0 0" }}>{totalAmount}</p>
         </div>
         <p style={{ fontSize: "12px", fontWeight: 600, letterSpacing: "-0.18px", color: "rgba(29,29,31,0.5)", margin: "19.52px 0 9.76px" }}>변경할 상태를 선택하세요</p>
         <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "9.76px" }}>
           {STATUS_OPTIONS.map((o) => {
             const on = selected === o.key;
-
             const TH = ({
               "접수": { bg: "rgba(29,29,31,0.05)", bd: "rgba(210,210,215,0.2)", tc: TEXT, to: 0.6, dco: 0.22 },
               "검토중": { bg: "#FFFBEB", bd: "#FDE68A", tc: "#B45309", to: 1, dco: 0.36 },
@@ -175,14 +194,7 @@ export function ProposalStatusModal({ onClose, current = "접수" }: { onClose: 
             } as Record<string, { bg: string; bd: string; tc: string; to: number; dco: number }>)[o.key];
             return (
               <button key={o.key} type="button" onClick={() => setSelected(o.key)}
-                style={{
-                  textAlign: "left",
-                  borderRadius: "14.64px",
-                  border: on ? `2px solid ${TH.bd}` : "1px solid rgba(210,210,215,0.2)",
-                  background: on ? TH.bg : "#fff",
-                  cursor: "pointer",
-                  padding: on ? "16.64px 21.52px" : "15.64px 20.52px",
-                }}>
+                style={{ textAlign: "left", borderRadius: "14.64px", border: on ? `2px solid ${TH.bd}` : "1px solid rgba(210,210,215,0.2)", background: on ? TH.bg : "#fff", cursor: "pointer", padding: on ? "16.64px 21.52px" : "15.64px 20.52px" }}>
                 <span style={{ display: "block", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.195px", color: on ? TH.tc : TEXT, opacity: on ? TH.to : 1 }}>{o.key}</span>
                 <span style={{ display: "block", fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", color: on ? TH.tc : TEXT, opacity: on ? TH.dco : 0.36, marginTop: "2.44px" }}>{o.desc}</span>
               </button>
@@ -199,15 +211,31 @@ export function ProposalStatusModal({ onClose, current = "접수" }: { onClose: 
         )}
         <div className="flex items-center" style={{ gap: "14.64px", marginTop: selected === "선정" ? "19.52px" : "24.4px" }}>
           <button type="button" onClick={onClose} style={outlineBtn()}>취소</button>
-          <button type="button" onClick={onClose} disabled={!changed}
-            style={{ ...primaryBtn(), background: changed ? NAVY : "rgba(30,58,95,0.4)", color: changed ? "#fff" : "rgba(255,255,255,0.16)", cursor: changed ? "pointer" : "default" }}>상태 저장</button>
+          <button type="button" onClick={handleSave} disabled={!changed || saving}
+            style={{ ...primaryBtn(), background: changed && !saving ? NAVY : "rgba(30,58,95,0.4)", color: changed && !saving ? "#fff" : "rgba(255,255,255,0.16)", cursor: changed && !saving ? "pointer" : "default" }}>
+            {saving ? "저장 중..." : "상태 저장"}
+          </button>
         </div>
       </div>
     </Overlay>
   );
 }
 
-export function DeleteNoticeModal({ onClose }: { onClose: () => void }) {
+export function DeleteNoticeModal({ onClose, quoteId, quoteTitle }: { onClose: () => void; quoteId: string; quoteTitle: string }) {
+  const router = useRouter();
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/quotes/${quoteId}`, { method: "DELETE" });
+      if (!res.ok) { const d = await res.json() as { error?: string }; alert(d.error ?? "삭제 중 오류"); return; }
+      onClose();
+      router.push("/quotes");
+      router.refresh();
+    } finally { setDeleting(false); }
+  }
+
   return (
     <Overlay onClose={onClose} width="547px">
       <div className="flex justify-center" style={{ paddingBottom: "19.52px" }}>
@@ -218,14 +246,16 @@ export function DeleteNoticeModal({ onClose }: { onClose: () => void }) {
       <p style={{ textAlign: "center", fontSize: "17px", fontWeight: 700, letterSpacing: "-0.476px", lineHeight: "21.25px", color: TEXT, margin: "0 0 9.76px" }}>공고 삭제</p>
       <div style={{ paddingBottom: "29.28px" }}>
         <p style={{ textAlign: "center", margin: 0, lineHeight: "25.2px" }}>
-          <span style={{ fontSize: "14px", fontWeight: 600, letterSpacing: "-0.21px", color: TEXT }}>&quot;수지 보강 프로젝트 발전기 및 베어링 구매&quot;</span>
+          <span style={{ fontSize: "14px", fontWeight: 600, letterSpacing: "-0.21px", color: TEXT }}>&quot;{quoteTitle}&quot;</span>
           <span style={{ fontSize: "14px", fontWeight: 400, letterSpacing: "-0.21px", color: "rgba(29,29,31,0.6)" }}> 공고를 삭제하시겠습니까?</span>
         </p>
         <p style={{ textAlign: "center", margin: 0, fontSize: "14px", fontWeight: 400, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "rgba(29,29,31,0.6)" }}>삭제 후 복구가 불가능합니다.</p>
       </div>
       <div className="flex items-center" style={{ gap: "14.64px" }}>
         <button type="button" onClick={onClose} style={outlineBtn()}>취소</button>
-        <button type="button" onClick={onClose} style={{ ...primaryBtn(), background: "#EF4444" }}>삭제</button>
+        <button type="button" onClick={handleDelete} disabled={deleting} style={{ ...primaryBtn(), background: "#EF4444", cursor: deleting ? "default" : "pointer" }}>
+          {deleting ? "삭제 중..." : "삭제"}
+        </button>
       </div>
     </Overlay>
   );
@@ -277,7 +307,6 @@ function CalendarIcon() {
     </svg>
   );
 }
-
 function DownloadIcon() {
   return (
     <svg width={13} height={13} viewBox="0 0 13 13" fill="none" aria-hidden>

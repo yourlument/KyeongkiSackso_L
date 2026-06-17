@@ -1,14 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ORDER_DETAIL, STATUS_STYLE } from "./orders-data";
+import { STATUS_STYLE, type OrderDetail } from "./orders-data";
 
 const INK = "#1D1D1F";
 const NAVY = "#1E3A5F";
 
-export function OrderDetailModal() {
+export function OrderDetailModal({ order }: { order: OrderDetail }) {
   const router = useRouter();
-  const d = ORDER_DETAIL;
+  const d = order;
   const sStyle = STATUS_STYLE[d.status];
   const close = () => router.push("/partner/orders");
 
@@ -22,7 +22,6 @@ export function OrderDetailModal() {
         onClick={(e) => e.stopPropagation()}
         style={{ width: "625px", borderRadius: "19.52px", background: "#fff", border: "1px solid rgba(210,210,215,0.2)", overflow: "hidden" }}
       >
-
         <div className="flex items-start justify-between" style={{ background: "rgba(255,255,255,0.95)", borderBottom: "1px solid rgba(210,210,215,0.1)", padding: "19.52px 24.4px 20.52px" }}>
           <div>
             <p style={{ fontSize: "15px", fontWeight: 700, letterSpacing: "-0.42px", lineHeight: "18.75px", color: INK, margin: 0 }}>주문 상세</p>
@@ -38,7 +37,6 @@ export function OrderDetailModal() {
         </div>
 
         <div style={{ padding: "24.4px" }}>
-
           <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "19.52px" }}>
             <SummaryField label="주문번호" value={d.orderNo} valueSize={12} />
             <SummaryField label="결제 일시" value={d.payDate} valueSize={13} />

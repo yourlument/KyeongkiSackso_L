@@ -11,11 +11,31 @@ type SubmitTarget =
   | { kind: "announcement"; row: AnnouncementRow }
   | { kind: "product"; row: ProductRequest };
 
-export function QuoteSubmitModal({ target, onClose }: { target: SubmitTarget; onClose: () => void }) {
+export function QuoteSubmitModal({ target, onClose, onSubmitted }: { target: SubmitTarget; onClose: () => void; onSubmitted: () => void }) {
   const [amount, setAmount] = useState("");
   const [spec, setSpec] = useState("");
   const [content, setContent] = useState("");
-  const canSubmit = amount.trim() !== "" && spec.trim() !== "";
+  const [submitting, setSubmitting] = useState(false);
+  const canSubmit = amount.trim() !== "" && spec.trim() !== "" && !submitting;
+
+  async function handleSubmit() {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/partner/quotes/${target.row.id}/responses`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          totalAmount: Number(amount.replace(/[^\d]/g, "")),
+          specSummary: spec.trim(),
+          memo: content.trim() || null,
+        }),
+      });
+      if (res.ok) onSubmitted();
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   const heading = target.kind === "product" ? "견적 제출 (상품)" : "견적 제출 (공고)";
   const targetTitle = target.kind === "product" ? target.row.product : target.row.title;
@@ -31,7 +51,6 @@ export function QuoteSubmitModal({ target, onClose }: { target: SubmitTarget; on
         style={{ width: "624px", maxHeight: "calc(100vh - 39.04px)", borderRadius: "14.64px", background: "#fff", overflow: "hidden" }}
         onClick={(e) => e.stopPropagation()}
       >
-
         <div className="flex items-center justify-between" style={{ padding: "19.52px 29.28px 20.52px", borderBottom: "1px solid #F3F4F6" }}>
           <span style={{ fontSize: "19.52px", fontWeight: 700, letterSpacing: "-0.5466px", lineHeight: "29.28px", color: "#111827" }}>{heading}</span>
           <button type="button" onClick={onClose} aria-label="닫기" className="inline-flex items-center justify-center" style={{ width: "39px", height: "39px", border: "none", background: "none", cursor: "pointer" }}>
@@ -40,7 +59,6 @@ export function QuoteSubmitModal({ target, onClose }: { target: SubmitTarget; on
         </div>
 
         <div style={{ padding: "29.28px", overflowY: "auto" }}>
-
           <div style={{ borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.2)", background: "rgba(29,29,31,0.02)", padding: "15.64px" }}>
             <p style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "rgba(29,29,31,0.4)", margin: "0 0 2.44px" }}>대상 공고</p>
             <p style={{ fontSize: "17.08px", fontWeight: 600, letterSpacing: "-0.2562px", lineHeight: "24.4px", color: "#1D1D1F", margin: 0 }}>{targetTitle}</p>
@@ -107,7 +125,7 @@ export function QuoteSubmitModal({ target, onClose }: { target: SubmitTarget; on
             <button
               type="button"
               disabled={!canSubmit}
-              onClick={onClose}
+              onClick={handleSubmit}
               style={{
                 flex: 1,
                 borderRadius: "9.76px",

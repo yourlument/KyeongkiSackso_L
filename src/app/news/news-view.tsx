@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { NEWS, NEWS_TAB_COUNTS, type NewsItem, type NewsCategory } from "./data";
+import type { NewsItem, NewsCategory } from "@/lib/news";
 import {
   PinIcon,
   MediaIcon,
@@ -15,15 +15,14 @@ import {
 type Tab = "전체" | NewsCategory;
 const TABS: Tab[] = ["전체", "공지", "이벤트"];
 
-export function NewsView() {
+export function NewsView({ allNews, tabCounts }: { allNews: NewsItem[]; tabCounts: { 전체: number; 공지: number; 이벤트: number } }) {
   const [tab, setTab] = useState<Tab>("전체");
 
-  const items = NEWS.filter((n) => tab === "전체" || n.category === tab);
-  const featured = NEWS.filter((n) => n.pinned && (tab === "전체" || n.category === tab));
+  const items = allNews.filter((n) => tab === "전체" || n.category === tab);
+  const featured = allNews.filter((n) => n.pinned && (tab === "전체" || n.category === tab));
 
   return (
     <div>
-
       <div className="flex flex-wrap items-center" style={{ gap: "4.88px", marginBottom: "39.04px" }}>
         {TABS.map((t) => {
           const active = t === tab;
@@ -63,7 +62,7 @@ export function NewsView() {
                   color: active ? "rgba(255,255,255,0.6)" : "rgba(29,29,31,0.3)",
                 }}
               >
-                {NEWS_TAB_COUNTS[t]}
+                {tabCounts[t]}
               </span>
             </button>
           );

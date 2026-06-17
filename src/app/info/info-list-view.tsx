@@ -2,15 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import {
-  CATEGORIES,
-  CATEGORY_DESC,
-  HOT_POSTS,
-  POSTS,
-  type Category,
-  type HotPost,
-  type Post,
-} from "./data";
+import { CATEGORIES, CATEGORY_DESC, type Category } from "./data";
+import type { InfoPost, InfoHotPost } from "@/lib/info";
 import {
   SearchIcon,
   FireIcon,
@@ -30,11 +23,11 @@ const TABS: Tab[] = ["전체", ...CATEGORIES];
 
 const RANK_BG = ["#1E3A5F", "rgba(30,58,95,0.8)", "rgba(30,58,95,0.6)", "rgba(30,58,95,0.4)", "rgba(30,58,95,0.25)"];
 
-export function InfoListView() {
+export function InfoListView({ posts: allPosts, hotPosts }: { posts: InfoPost[]; hotPosts: InfoHotPost[] }) {
   const [tab, setTab] = useState<Tab>("전체");
   const [q, setQ] = useState("");
 
-  const posts = POSTS.filter((p) => {
+  const posts = allPosts.filter((p) => {
     if (tab !== "전체" && p.category !== tab) return false;
     if (q.trim()) {
       const k = q.trim();
@@ -45,7 +38,6 @@ export function InfoListView() {
 
   return (
     <div>
-
       <div className="flex flex-wrap items-center" style={{ gap: "9.76px", paddingBottom: "29.28px" }}>
         {TABS.map((t) => {
           const active = t === tab;
@@ -111,7 +103,7 @@ export function InfoListView() {
           </span>
         </div>
         <div>
-          {HOT_POSTS.map((h, i) => (
+          {hotPosts.map((h, i) => (
             <HotRow key={h.rank} post={h} bg={RANK_BG[i] ?? RANK_BG[4]} first={i === 0} />
           ))}
         </div>
@@ -158,10 +150,10 @@ function pageBtn(active: boolean): React.CSSProperties {
   };
 }
 
-function HotRow({ post, bg, first }: { post: HotPost; bg: string; first: boolean }) {
+function HotRow({ post, bg, first }: { post: InfoHotPost; bg: string; first: boolean }) {
   return (
     <Link
-      href={`/info/${post.rank}`}
+      href={`/info/${post.id}`}
       className="flex items-center"
       style={{ gap: "14.64px", padding: first ? "17.08px 24.4px" : "18.08px 24.4px 17.08px", borderTop: first ? "none" : "1px solid rgba(210,210,215,0.1)" }}
     >
@@ -202,14 +194,13 @@ function HotRow({ post, bg, first }: { post: HotPost; bg: string; first: boolean
   );
 }
 
-function PostCard({ post }: { post: Post }) {
+function PostCard({ post }: { post: InfoPost }) {
   return (
     <Link
       href={`/info/${post.id}`}
       className="block transition-colors hover:bg-[rgba(29,29,31,0.015)]"
       style={{ borderRadius: "14.64px", padding: "24.4px 19.52px 25.4px" }}
     >
-
       <div className="flex items-center" style={{ gap: "9.76px", marginBottom: "9.76px" }}>
         <span style={{ background: "#F5F5F7", borderRadius: "7.32px", padding: "2.44px 9.76px", fontSize: "11px", fontWeight: 500, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.5)" }}>
           {post.category}
@@ -221,15 +212,12 @@ function PostCard({ post }: { post: Post }) {
         )}
         <span style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)" }}>{post.date}</span>
       </div>
-
       <h3 style={{ fontSize: "15px", fontWeight: 600, letterSpacing: "-0.225px", lineHeight: "27px", color: "#1D1D1F", margin: "0 0 7.32px" }}>
         {post.title}
       </h3>
-
       <p style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "21.06px", color: "rgba(29,29,31,0.5)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
         {post.excerpt}
       </p>
-
       <div className="flex items-center" style={{ gap: "19.52px", marginTop: "14.64px", color: "rgba(29,29,31,0.3)" }}>
         <Meta icon={<UserIcon />} text={post.author} />
         <Meta icon={<CommentIcon />} text={String(post.comments)} />

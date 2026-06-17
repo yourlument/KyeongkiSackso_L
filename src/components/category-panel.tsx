@@ -39,14 +39,12 @@ const CATEGORIES: Category[] = [
 ];
 
 export function CategoryPanel() {
-
   const [selected, setSelected] = useState<number | null>(null);
 
   const cat = selected !== null ? CATEGORIES[selected] : null;
   const hasData = cat?.subs != null;
 
   return (
-
     <div className="flex flex-col gap-[24.4px] lg:flex-row">
 
       <div
@@ -87,9 +85,7 @@ export function CategoryPanel() {
         }}
       >
         {cat && cat.subs ? (
-
           <div>
-
             <p
               className="mb-[24.4px]"
               style={{
@@ -109,12 +105,10 @@ export function CategoryPanel() {
                   key={sub.name}
                   style={{ paddingTop: si > 0 ? "19.5px" : 0 }}
                 >
-
                   <div
                     className="flex items-center"
                     style={{ gap: "9.8px", marginBottom: sub.open ? "9.76px" : 0 }}
                   >
-
                     <img
                       src={sub.open ? "/icons/land-subcat-open.svg" : "/icons/land-subcat-closed.svg"}
                       alt=""
@@ -122,7 +116,6 @@ export function CategoryPanel() {
                       width={18}
                       height={18}
                     />
-
                     <span
                       style={{
                         fontSize: "14px",
@@ -134,7 +127,6 @@ export function CategoryPanel() {
                     >
                       {sub.name}
                     </span>
-
                     <span
                       style={{
                         fontSize: "12px",
@@ -155,7 +147,6 @@ export function CategoryPanel() {
                         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
                         gap: "7.32px",
                         paddingLeft: "29.28px",
-
                         paddingTop: "9.76px",
                       }}
                     >
@@ -167,11 +158,9 @@ export function CategoryPanel() {
                             borderRadius: "14.64px",
                             padding: "9.76px 14.64px",
                             gap: "9.76px",
-
                             width: "100%",
                           }}
                         >
-
                           <span
                             style={{
                               display: "block",
@@ -182,7 +171,6 @@ export function CategoryPanel() {
                               flexShrink: 0,
                             }}
                           />
-
                           <span
                             className="min-w-0 flex-1 overflow-hidden whitespace-nowrap"
                             style={{
@@ -195,7 +183,6 @@ export function CategoryPanel() {
                           >
                             {item.name}
                           </span>
-
                           <span
                             style={{
                               background: "rgba(29,29,31,0.05)",
@@ -220,7 +207,6 @@ export function CategoryPanel() {
             </div>
           </div>
         ) : (
-
           <div className="flex h-full flex-col items-center justify-center text-center">
             <span
               className="mb-[14.64px] flex items-center justify-center rounded-full"
@@ -230,7 +216,6 @@ export function CategoryPanel() {
                 background: "rgba(29,29,31,0.05)",
               }}
             >
-
               <img
                 src="/icons/land-cat-empty.svg"
                 alt=""

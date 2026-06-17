@@ -5,10 +5,14 @@ import { SiteFooter } from "@/components/site-footer";
 import { KakaoChat } from "@/components/kakao-chat";
 import { PencilIcon } from "./info-icons";
 import { InfoListView } from "./info-list-view";
+import { loadInfo } from "@/lib/info";
+
+export const dynamic = "force-dynamic";
 
 export default async function InfoPage() {
   const claims = await getSessionClaims();
   if (!claims) redirect("/login");
+  const { posts, hotPosts } = await loadInfo(claims.sub);
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">
@@ -25,7 +29,6 @@ export default async function InfoPage() {
                 익명 기반 조달 업무 노하우, 업체 납품 평판 공유
               </p>
             </div>
-
             <span
               className="inline-flex shrink-0 items-center"
               style={{ gap: "7.32px", background: "#1E3A5F", borderRadius: "14.64px", padding: "12.2px 24.4px", color: "#fff" }}
@@ -35,7 +38,7 @@ export default async function InfoPage() {
             </span>
           </div>
           <div style={{ marginTop: "29.28px" }} />
-          <InfoListView />
+          <InfoListView posts={posts} hotPosts={hotPosts} />
         </div>
       </main>
       <SiteFooter />

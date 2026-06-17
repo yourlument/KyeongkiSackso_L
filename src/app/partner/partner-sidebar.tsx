@@ -36,7 +36,6 @@ export function PartnerSidebar({ companyName, location }: { companyName: string;
 
   function isActive(href: string): boolean {
     if (href === "/partner") return pathname === "/partner";
-
     if (pathname.startsWith("/partner/quotes/chat")) return false;
     return pathname === href || pathname.startsWith(`${href}/`);
   }
@@ -51,7 +50,6 @@ export function PartnerSidebar({ companyName, location }: { companyName: string;
       className="flex flex-col"
       style={{ width: "234px", flex: "0 0 234px", background: "#FFFFFF", borderRight: "1px solid rgba(210,210,215,0.15)", position: "sticky", top: 0, height: "100vh", alignSelf: "flex-start" }}
     >
-
       <div
         className="flex flex-col"
         style={{ padding: "19.52px 14.64px 20.52px", borderBottom: "1px solid rgba(210,210,215,0.1)" }}

@@ -16,10 +16,8 @@ export function getRedis(): Redis | null {
       maxRetriesPerRequest: 1,
       enableOfflineQueue: false,
       connectTimeout: 1500,
-
       retryStrategy: (times) => (times > 3 ? null : Math.min(times * 200, 1000)),
     });
-
     client.on("error", (e) => {
       if (process.env.NODE_ENV !== "production") {
         console.warn("[redis] unavailable — graceful fallback:", e.message);

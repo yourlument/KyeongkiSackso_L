@@ -11,15 +11,18 @@ import { KakaoChat } from "@/components/kakao-chat";
 const SORT_OPTIONS = [{ value: "relevance", label: "관련도순" }] as const;
 type SortKey = "relevance" | "latest" | "priceLow" | "priceHigh";
 
-const CATEGORIES = [
-  { id: "cat-1", name: "도로교통 및 토목 분야" },
-  { id: "cat-2", name: "건축시설 및 전기/설비 분야" },
-  { id: "cat-3", name: "일반행정 및 교육/지원 분야" },
-  { id: "cat-4", name: "재난안전 및 소방/보건 분야" },
-  { id: "cat-5", name: "정보통신 및 디지털/4차산업 분야" },
-  { id: "cat-6", name: "환경/산림 및 조경/청소 분야" },
-  { id: "cat-7", name: "복지/식품 및 문화/관광 분야" },
-];
+type CatNode = { id: string; name: string; children?: CatNode[] };
+
+function findCatPath(tree: CatNode[], id: string): string[] {
+  for (const t of tree) {
+    if (t.id === id) return [t.id];
+    for (const m of t.children ?? []) {
+      if (m.id === id) return [t.id, m.id];
+      for (const l of m.children ?? []) if (l.id === id) return [t.id, m.id, l.id];
+    }
+  }
+  return [];
+}
 
 type Product = {
   id: string;
@@ -50,7 +53,6 @@ const S_FILTER_BTN: React.CSSProperties = {
   borderRadius: "14.64px",
   backgroundColor: "rgba(30,58,95,0.05)",
 };
-
 const DIVIDER = "1px solid rgba(210,210,215,0.2)";
 
 const S_CHIP: React.CSSProperties = {
@@ -75,6 +77,16 @@ function SearchInner() {
   const [maxPrice, setMaxPrice] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [catTree, setCatTree] = useState<CatNode[]>([]);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    fetch("/api/categories", { signal: ac.signal })
+      .then((r) => r.json())
+      .then((d: { categories: CatNode[] }) => setCatTree(d.categories ?? []))
+      .catch(() => {  });
+    return () => ac.abort();
+  }, []);
 
   useEffect(() => {
     const q = params.get("q") ?? "";
@@ -121,6 +133,18 @@ function SearchInner() {
 
   const count = visible.length;
 
+  const [topId, midId, leafId] = useMemo(() => {
+    const p = findCatPath(catTree, category);
+    return [p[0] ?? "", p[1] ?? "", p[2] ?? ""];
+  }, [catTree, category]);
+  const topNode = catTree.find((t) => t.id === topId);
+  const midNode = topNode?.children?.find((m) => m.id === midId);
+
+  function selectCategory(id: string) {
+    setCategory(id);
+    pushParams({ category: id });
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-bg">
       <SiteHeader />
@@ -139,7 +163,6 @@ function SearchInner() {
                 aria-label="검색"
                 className="flex h-[54px] w-[54px] shrink-0 items-center justify-center"
               >
-
                 <img src="/icons/srch-search.svg" alt="" width={18} height={19} aria-hidden="true" />
               </button>
               <input
@@ -173,7 +196,6 @@ function SearchInner() {
                 color: "#1E3A5F",
               }}
             >
-
               <img src="/icons/srch-filter.svg" alt="" width={11} height={11} aria-hidden="true" />
               필터
             </button>
@@ -187,46 +209,53 @@ function SearchInner() {
 
             <div className="relative" style={{ width: "219px", height: "49px" }}>
               <select
-                value={category}
-                onChange={(e) => { setCategory(e.target.value); pushParams({ category: e.target.value }); }}
+                value={topId}
+                onChange={(e) => selectCategory(e.target.value)}
                 aria-label="대분류"
                 className="h-full w-full cursor-pointer appearance-none outline-none"
                 style={{ ...S_FIELD, padding: "13.2px 34px 13.2px 15.64px", fontSize: "13px", fontWeight: 400, lineHeight: "19px", letterSpacing: "-0.29px", color: "#1D1D1F" }}
               >
                 <option value="">전체 대분류</option>
-                {CATEGORIES.map((c) => (
+                {catTree.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
-
               <img src="/icons/srch-chevron.svg" alt="" width={8} height={4} aria-hidden="true"
                 className="pointer-events-none absolute right-[15.64px] top-1/2 -translate-y-1/2" />
             </div>
 
-            <div className="relative" style={{ width: "219px", height: "49px", opacity: 0.5 }}>
+            <div className="relative" style={{ width: "219px", height: "49px", opacity: topNode ? 1 : 0.5 }}>
               <select
-                disabled
+                disabled={!topNode}
+                value={midId}
+                onChange={(e) => selectCategory(e.target.value || topId)}
                 aria-label="중분류"
-                className="h-full w-full cursor-not-allowed appearance-none outline-none"
-                style={{ ...S_FIELD, padding: "13.2px 34px 13.2px 15.64px", fontSize: "13px", fontWeight: 400, lineHeight: "19px", letterSpacing: "-0.29px", color: "rgba(29,29,31,0.5)" }}
+                className={`h-full w-full appearance-none outline-none ${topNode ? "cursor-pointer" : "cursor-not-allowed"}`}
+                style={{ ...S_FIELD, padding: "13.2px 34px 13.2px 15.64px", fontSize: "13px", fontWeight: 400, lineHeight: "19px", letterSpacing: "-0.29px", color: topNode ? "#1D1D1F" : "rgba(29,29,31,0.5)" }}
               >
-                <option>전체 중분류</option>
+                <option value="">전체 중분류</option>
+                {topNode?.children?.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
               </select>
-
               <img src="/icons/srch-chevron.svg" alt="" width={8} height={4} aria-hidden="true"
                 className="pointer-events-none absolute right-[15.64px] top-1/2 -translate-y-1/2" />
             </div>
 
-            <div className="relative" style={{ width: "219px", height: "49px", opacity: 0.5 }}>
+            <div className="relative" style={{ width: "219px", height: "49px", opacity: midNode ? 1 : 0.5 }}>
               <select
-                disabled
+                disabled={!midNode}
+                value={leafId}
+                onChange={(e) => selectCategory(e.target.value || midId)}
                 aria-label="소분류"
-                className="h-full w-full cursor-not-allowed appearance-none outline-none"
-                style={{ ...S_FIELD, padding: "13.2px 34px 13.2px 15.64px", fontSize: "13px", fontWeight: 400, lineHeight: "19px", letterSpacing: "-0.29px", color: "rgba(29,29,31,0.5)" }}
+                className={`h-full w-full appearance-none outline-none ${midNode ? "cursor-pointer" : "cursor-not-allowed"}`}
+                style={{ ...S_FIELD, padding: "13.2px 34px 13.2px 15.64px", fontSize: "13px", fontWeight: 400, lineHeight: "19px", letterSpacing: "-0.29px", color: midNode ? "#1D1D1F" : "rgba(29,29,31,0.5)" }}
               >
-                <option>전체 소분류</option>
+                <option value="">전체 소분류</option>
+                {midNode?.children?.map((l) => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
               </select>
-
               <img src="/icons/srch-chevron.svg" alt="" width={8} height={4} aria-hidden="true"
                 className="pointer-events-none absolute right-[15.64px] top-1/2 -translate-y-1/2" />
             </div>
@@ -265,7 +294,6 @@ function SearchInner() {
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
-
               <img src="/icons/srch-chevron.svg" alt="" width={8} height={4} aria-hidden="true"
                 className="pointer-events-none absolute right-[15.64px] top-1/2 -translate-y-1/2" />
             </div>
@@ -283,7 +311,6 @@ function SearchInner() {
             </div>
 
             {loading ? (
-
               <div className="grid" style={{ gridTemplateColumns: "repeat(5,minmax(0,1fr))", gap: "39.04px 24.4px" }}>
                 {Array.from({ length: 10 }).map((_, i) => (
                   <div key={i} className="flex flex-col" style={{ width: "211px" }}>
@@ -297,13 +324,10 @@ function SearchInner() {
                 ))}
               </div>
             ) : count === 0 ? (
-
               <div className="flex items-center justify-center py-[120px]">
-
                 <img src="/icons/srch-search.svg" alt="" width={40} height={40} style={{ opacity: 0.15 }} aria-hidden="true" />
               </div>
             ) : (
-
               <div className="grid" style={{ gridTemplateColumns: "repeat(5,minmax(0,1fr))", gap: "39.04px 24.4px" }}>
                 {visible.map((p) => (
                   <ProductCard key={p.id} product={p} />
@@ -378,7 +402,6 @@ function ProductCard({ product: p }: { product: Product }) {
           <div className="flex items-center" style={{ gap: "4.88px" }}>
             {p.rating !== null && (
               <>
-
                 <img src="/icons/srch-star.svg" alt="" width={9} height={9} aria-hidden="true" />
                 <span style={{ fontSize: "12px", fontWeight: 400, lineHeight: "21.6px", letterSpacing: "-0.18px", color: "rgba(29,29,31,0.5)" }}>
                   {p.rating.toFixed(1)}
@@ -421,7 +444,6 @@ function ProductCard({ product: p }: { product: Product }) {
 
       <div style={{ paddingTop: "7.32px" }}>
         <div className="flex items-center" style={{ gap: "4.88px" }}>
-
           <img src="/icons/srch-building.svg" alt="" width={10} height={9} aria-hidden="true" className="shrink-0" />
           <span
             className="truncate"

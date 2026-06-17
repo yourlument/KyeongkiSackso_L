@@ -18,25 +18,16 @@ import {
 import {
   OFFICIAL_TABS,
   SUPPLIER_TABS,
-  OFFICIAL_HEADER_SUB,
-  SUPPLIER_HEADER_SUB,
   PURCHASES,
   ORDER_DETAIL_O001,
   ORDER_DETAIL_O002,
   QUOTE_NOTICES,
   PRODUCT_QUOTES,
   QUOTE_REQUEST_DETAIL,
-  DEMAND_POSTS,
-  INFO_POSTS,
-  INQUIRIES,
-  SUPPLIER_INQUIRIES,
   ALARM_SETTINGS,
-  BASIC_INFO,
-  SUPPLIER_BASIC_INFO,
   TERMS_REQUIRED,
   TERMS_OPTIONAL,
   WITHDRAW_NOTES,
-  DEMAND_ANSWERS,
   type OfficialTabKey,
   type SupplierTabKey,
   type PurchaseStatus,
@@ -47,18 +38,18 @@ import {
   type ProductQuoteRow,
   type InquiryKind,
   type InquiryStatus,
-  type InquiryRow,
   type OrderDetail,
   type Term,
 } from "./mypage-data";
+import type { MyPageData, MyDemandPost, MyInfoPost, MyInquiryRow, MyBasicInfo, MySupplierField, MyDemandAnswer } from "@/lib/mypage";
 
 const NAVY = "#1E3A5F";
 const INK = "#1D1D1F";
 
 type Role = "official" | "supplier";
 
-export function MyPageView({ role = "official" }: { role?: Role }) {
-  return role === "supplier" ? <SupplierView /> : <OfficialView />;
+export function MyPageView({ role = "official", data }: { role?: Role; data: MyPageData }) {
+  return role === "supplier" ? <SupplierView data={data} /> : <OfficialView data={data} />;
 }
 
 function PageShell({
@@ -180,13 +171,11 @@ const PRODUCT_BADGE: Record<ProductQuoteStatus, BadgeT> = {
 };
 const GREEN_BADGE: BadgeT = { bg: "#ECFDF5", border: "#A7F3D0", color: "#047857" };
 const NAVY_SOFT_BADGE: BadgeT = { bg: "rgba(30,58,95,0.1)", border: "rgba(30,58,95,0.2)", color: NAVY };
-
 const INQUIRY_BADGE: Record<InquiryStatus, BadgeT> = {
   접수: { bg: "#F3F4F6", border: "#D1D5DB", color: "#374151" },
   처리중: { bg: "#E5E7EB", border: "#D1D5DB", color: "#1F2937" },
   완료: { bg: "#111827", border: "#E5E7EB", color: "#fff" },
 };
-
 const SUPPLIER_INQUIRY_BADGE: Record<InquiryStatus, BadgeT> = {
   접수: { bg: "#F3F4F6", border: "#D1D5DB", color: "#374151" },
   처리중: { bg: "#E5E7EB", border: "#D1D5DB", color: "#1F2937" },
@@ -216,16 +205,16 @@ function Pill({ t, children }: { t: BadgeT; children: React.ReactNode }) {
   );
 }
 
-function OfficialView() {
+function OfficialView({ data }: { data: MyPageData }) {
   const [tab, setTab] = useState<OfficialTabKey>("purchase");
   return (
-    <PageShell headerSub={OFFICIAL_HEADER_SUB} sidebar={<Sidebar items={OFFICIAL_TABS} active={tab} onSelect={setTab} />}>
-      {tab === "info" && <InfoTab email={BASIC_INFO.email} />}
+    <PageShell headerSub={data.headerSub} sidebar={<Sidebar items={OFFICIAL_TABS} active={tab} onSelect={setTab} />}>
+      {tab === "info" && <InfoTab basicInfo={data.basicInfo} />}
       {tab === "purchase" && <PurchaseTab />}
       {tab === "quote" && <QuoteTab />}
-      {tab === "demand" && <DemandTab />}
-      {tab === "infoshare" && <InfoShareTab />}
-      {tab === "inquiry" && <InquiryTab />}
+      {tab === "demand" && <DemandTab posts={data.demandPosts} />}
+      {tab === "infoshare" && <InfoShareTab posts={data.infoPosts} />}
+      {tab === "inquiry" && <InquiryTab items={data.inquiries} />}
       {tab === "alarm" && <AlarmTab />}
       {tab === "withdraw" && <WithdrawTab />}
     </PageShell>
@@ -462,7 +451,6 @@ function QuoteTab() {
   const [sub, setSub] = useState<"notice" | "product">("notice");
   return (
     <Panel>
-
       <div className="flex" style={{ gap: "4.88px", padding: "0 9.76px", borderBottom: `1px solid rgba(210,210,215,0.2)` }}>
         {([
           { key: "notice", label: "견적 공고 현황" },
@@ -634,12 +622,12 @@ function KVStatusProduct({ label, status }: { label: string; status: ProductQuot
   );
 }
 
-function DemandTab() {
+function DemandTab({ posts }: { posts: MyDemandPost[] }) {
   return (
     <Panel>
       <PanelHead title="수요 게시판 글" />
       <div style={{ padding: "0 29.28px 8px" }}>
-        {DEMAND_POSTS.map((p, i) => (
+        {posts.map((p, i) => (
           <div key={i} className="flex items-start justify-between" style={{ gap: "16px", padding: "20px 0", borderTop: i === 0 ? "none" : `1px solid rgba(210,210,215,0.1)` }}>
             <div style={{ minWidth: 0 }}>
               <p style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.195px", lineHeight: "21px", color: INK, margin: 0 }}>{p.title}</p>
@@ -653,12 +641,12 @@ function DemandTab() {
   );
 }
 
-function InfoShareTab() {
+function InfoShareTab({ posts }: { posts: MyInfoPost[] }) {
   return (
     <Panel>
       <PanelHead title="정보공유 게시판 글" />
       <div style={{ padding: "0 29.28px 8px" }}>
-        {INFO_POSTS.map((p, i) => (
+        {posts.map((p, i) => (
           <div key={i} style={{ padding: "20px 0", borderTop: i === 0 ? "none" : `1px solid rgba(210,210,215,0.1)` }}>
             <p style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.195px", lineHeight: "21px", color: INK, margin: 0 }}>{p.title}</p>
             <p style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)", margin: "8px 0 0" }}>{p.meta}</p>
@@ -674,7 +662,7 @@ const INQUIRY_KIND_BADGE: Record<InquiryKind, BadgeT> = {
   문의: NAVY_SOFT_BADGE,
   신고: NAVY_SOFT_BADGE,
 };
-function InquiryTab({ items = INQUIRIES, badge = INQUIRY_BADGE }: { items?: InquiryRow[]; badge?: Record<InquiryStatus, BadgeT> } = {}) {
+function InquiryTab({ items = [], badge = INQUIRY_BADGE }: { items?: MyInquiryRow[]; badge?: Record<InquiryStatus, BadgeT> } = {}) {
   return (
     <Panel>
       <PanelHead title="문의/신고 내역" />
@@ -780,21 +768,20 @@ function WithdrawConfirmModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function InfoTab({ email, supplier = false }: { email?: string; supplier?: boolean }) {
+function InfoTab({ basicInfo, supplierFields, supplier = false }: { basicInfo?: MyBasicInfo; supplierFields?: MySupplierField[]; supplier?: boolean }) {
   return (
     <div className="flex flex-col" style={{ gap: "19.52px" }}>
-
       <div style={{ borderRadius: "19.52px", background: "#fff", border: `1px solid rgba(210,210,215,0.2)`, padding: "30.28px" }}>
         <h2 style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "-0.392px", lineHeight: "17.5px", color: INK, margin: 0 }}>기본 정보</h2>
         <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "20px 40px", marginTop: "20px" }}>
           {supplier ? (
-            SUPPLIER_BASIC_INFO.map((f) => <Field key={f.label} label={f.label} value={f.value} />)
+            (supplierFields ?? []).map((f) => <Field key={f.label} label={f.label} value={f.value} />)
           ) : (
             <>
-              <Field label="이메일" value={email ?? ""} />
-              <Field label="소속 기관" value={BASIC_INFO.org} />
-              <Field label="소속 부서" value={BASIC_INFO.dept} />
-              <Field label="부서 전화" value={BASIC_INFO.deptPhone} />
+              <Field label="이메일" value={basicInfo?.email ?? ""} />
+              <Field label="소속 기관" value={basicInfo?.org ?? ""} />
+              <Field label="소속 부서" value={basicInfo?.dept ?? ""} />
+              <Field label="부서 전화" value={basicInfo?.deptPhone ?? "-"} />
             </>
           )}
         </div>
@@ -866,7 +853,6 @@ function TermCard({ term }: { term: Term }) {
   const [on, setOn] = useState(!!term.on);
   const checked = term.required || on;
   const tag = TERM_TAG_STYLE[term.tag.tone];
-
   const cardBg = !term.required && on ? "rgba(30,58,95,0.02)" : "#FAFAFA";
   const cardBorder = !term.required && on ? "rgba(30,58,95,0.2)" : "rgba(210,210,215,0.2)";
   return (
@@ -910,31 +896,30 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
   );
 }
 
-function SupplierView() {
+function SupplierView({ data }: { data: MyPageData }) {
   const [tab, setTab] = useState<SupplierTabKey>("answer");
   return (
-    <PageShell headerSub={SUPPLIER_HEADER_SUB} sidebar={<Sidebar items={SUPPLIER_TABS} active={tab} onSelect={setTab} />}>
-      {tab === "info" && <InfoTab supplier />}
-      {tab === "answer" && <DemandAnswerTab />}
-      {tab === "inquiry" && <InquiryTab items={SUPPLIER_INQUIRIES} badge={SUPPLIER_INQUIRY_BADGE} />}
+    <PageShell headerSub={data.headerSub} sidebar={<Sidebar items={SUPPLIER_TABS} active={tab} onSelect={setTab} />}>
+      {tab === "info" && <InfoTab supplierFields={data.supplierFields} supplier />}
+      {tab === "answer" && <DemandAnswerTab answers={data.demandAnswers} />}
+      {tab === "inquiry" && <InquiryTab items={data.inquiries} badge={SUPPLIER_INQUIRY_BADGE} />}
       {tab === "alarm" && <AlarmTab />}
       {tab === "withdraw" && <WithdrawTab />}
     </PageShell>
   );
 }
 
-function DemandAnswerTab() {
+function DemandAnswerTab({ answers }: { answers: MyDemandAnswer[] }) {
   return (
     <Panel>
       <PanelHead title="수요 게시판 답변 내역" />
       <div style={{ padding: "0 29.28px 8px" }}>
-        {DEMAND_ANSWERS.map((a, i) => (
+        {answers.map((a, i) => (
           <div key={i} style={{ padding: "20px 0", borderTop: i === 0 ? "none" : `1px solid rgba(210,210,215,0.1)` }}>
             <div className="flex items-start justify-between" style={{ gap: "16px" }}>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <p style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.195px", lineHeight: "21px", color: INK, margin: 0 }}>{a.title}</p>
                 <p style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)", margin: "8px 0 0" }}>{a.meta}</p>
-
                 <div style={{ marginTop: "16px", borderRadius: "14.64px", background: "rgba(30,58,95,0.02)", border: `1px solid rgba(210,210,215,0.15)`, padding: "18.08px" }}>
                   <div className="flex items-center" style={{ gap: "7.32px" }}>
                     <CompanyAvatarIcon />

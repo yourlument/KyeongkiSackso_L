@@ -1,127 +1,42 @@
 "use client";
 
-import { Fragment, useMemo, useState, type CSSProperties } from "react";
+import { Fragment, useMemo, useState, useTransition, type CSSProperties } from "react";
+import { useRouter } from "next/navigation";
+import type { AdminContentsData, BidStatus, ProductRow, BidRow, BidEntry } from "@/lib/admin-contents";
 
 type Tab = "상품 검수" | "공고 검수";
 
-type ProductRow = {
-  itemNo: string;
-  name: string;
-  company: string;
-  category: string;
-  price: string;
-  status: "정상";
-};
-
-const PRODUCTS: ProductRow[] = [
-  { itemNo: "12203515", name: "레미콘(혼합콘크리트) 24-40-140(중기)", company: "경기건설(주)", category: "도로포장재(레미콘, 아스콘, 시멘트, 콘크리트)", price: "115,000원", status: "정상" },
-  { itemNo: "12203516", name: "레미콘(혼합콘크리트) 30-37-150(고기)", company: "화성레미콘(주)", category: "도로포장재(레미콘, 아스콘, 시멘트, 콘크리트)", price: "125,000원", status: "정상" },
-  { itemNo: "45501301", name: "아스콘(노상용) 표준배합 15-40", company: "포장산업(주)", category: "도로포장재(레미콘, 아스콘, 시멘트, 콘크리트)", price: "95,000원", status: "정상" },
-  { itemNo: "39107101", name: "교통안전용품(콘) 반사원형콘 750mm", company: "안전제품(주)", category: "교통안전용품", price: "8,500원", status: "정상" },
-  { itemNo: "39107201", name: "도로안전시설물(난간) 강관난간 2중난간", company: "안전난간(주)", category: "도로 분리대 및 난간", price: "180,000원", status: "정상" },
-  { itemNo: "43201501", name: "컴퓨터(데스크톱) 업무용 PC i7/16GB/512GB", company: "디지털솔루션(주)", category: "컴퓨터/노트북/태블릿", price: "890,000원", status: "정상" },
-  { itemNo: "43202601", name: "프린터(레이저) 흑백 A4 45ppm", company: "오피스텍(주)", category: "프린터/스캐너 및 소모품", price: "450,000원", status: "정상" },
-  { itemNo: "43401301", name: "네트워크장비(스위치) 48포트 L3 관리형", company: "네트웍솔루션(주)", category: "네트워크 장비", price: "1,200,000원", status: "정상" },
-  { itemNo: "32101501", name: "소방장비(소화기) 분말소화기 3.3kg", company: "안전소방(주)", category: "소방장비", price: "35,000원", status: "정상" },
-  { itemNo: "32101301", name: "소방장비(소방호스) 압송용 65A 20m", company: "안전소방(주)", category: "소방장비", price: "78,000원", status: "정상" },
-  { itemNo: "39108101", name: "보호복(일반작업용) 반사통풍형 XL", company: "안전복지(주)", category: "보호용 피복 및 장비", price: "25,000원", status: "정상" },
-  { itemNo: "21201401", name: "의료기기(혈압계) 자동전자혈압계 상완식", company: "메디칼텍(주)", category: "의료기기 및 용품", price: "95,000원", status: "정상" },
-  { itemNo: "25101101", name: "사무용가구(책상) 일반 사무용 책상 1400x700", company: "오피스퍼니처(주)", category: "사무용 가구", price: "145,000원", status: "정상" },
-  { itemNo: "25103101", name: "교육기관용가구(학생책상) 1인용 600x400", company: "에듀퍼니처(주)", category: "교육기관용 가구", price: "68,000원", status: "정상" },
-  { itemNo: "47102101", name: "냉난방기(에어컨) 벽걸이형 18평형", company: "클라이밋텍(주)", category: "냉난방기 및 보일러", price: "680,000원", status: "정상" },
-  { itemNo: "61101101", name: "농산물(쌀) 경기미 특등급 20kg", company: "경기농협(주)", category: "농산물", price: "58,000원", status: "정상" },
-];
-
 const GRID = "105px 316px 127px 232px 115px 95px 97px";
 
-type BidStatus = "공고중" | "검토중" | "선정완료" | "마감";
-
-type BidRow = {
-  status: BidStatus;
-  name: string;
-  org: string;
-  phone: string;
-  budget: string;
-  due: string;
-  bids: string;
-};
-
-const BIDS: BidRow[] = [
-  { status: "공고중", name: "2026년 2분기 도로보수 공사 자재 구매", org: "경기도 화성시 도로과", phone: "031-369-1234", budget: "8,000,000원", due: "2026-06-15", bids: "3건" },
-  { status: "검토중", name: "2026년 화성시 도시개발 건자재 대규모 구매 (다수 업체 비교)", org: "경기도 화성시 도시건설과", phone: "031-369-2222", budget: "35,000,000원", due: "2026-07-31", bids: "10건" },
-  { status: "검토중", name: "화성시청 IT장비 신규 구축 프로젝트", org: "경기도 화성시 정보통신과", phone: "031-369-5678", budget: "42,000,000원", due: "2026-05-30", bids: "5건" },
-  { status: "선정완료", name: "화성시 소방서 장비 보강 구매", org: "경기도 화성시 안전총괄과", phone: "031-369-9012", budget: "7,500,000원", due: "2026-05-10", bids: "4건" },
-  { status: "공고중", name: "2026학년도 교육기관 가구 구매", org: "경기도 화성시 교육지원청", phone: "031-369-3456", budget: "35,000,000원", due: "2026-07-01", bids: "2건" },
-  { status: "마감", name: "화성시 보건소 의료기기 교체", org: "경기도 화성시 보건소", phone: "031-369-7890", budget: "1,200,000원", due: "2026-04-01", bids: "6건" },
-  { status: "공고중", name: "수지 보강 프로젝트 발전기 및 베어링 구매", org: "경기도 화성시 화폐과", phone: "031-369-2345", budget: "15,000,000원", due: "2026-06-20", bids: "1건" },
-  { status: "검토중", name: "2026년 환경미관리용차 구매", org: "경기도 화성시 환경과", phone: "031-369-6789", budget: "28,000,000원", due: "2026-06-10", bids: "3건" },
-  { status: "공고중", name: "시설관리용 실내조명 및 전기 자재 구매", org: "경기도 화성시 시설관리과", phone: "031-369-0123", budget: "4,500,000원", due: "2026-07-15", bids: "4건" },
-  { status: "선정완료", name: "화성시 문화강승재단 물품 발주대 구매", org: "경기도 화성시 문화스포과", phone: "031-369-4567", budget: "3,000,000원", due: "2026-05-05", bids: "2건" },
-];
-
-type QuoteItem = {
-  no: string;
-  name: string;
-  qty: string;
-};
-
-type BidEntry = {
-  company: string;
-  phone: string;
-  amount: string;
-  state: "접수";
-  spec: string;
-  date: string;
-
-  quoteNo?: string;
-  vendorId?: string;
-  budgetRatio?: string;
-  items?: QuoteItem[];
-};
-
-const BID_ENTRIES: BidEntry[] = [
-  {
-    company: "경기건설(주)",
-    phone: "031-123-4567",
-    amount: "7,800,000원",
-    state: "접수",
-    spec: "레미콘 50㎥, 아스콘 30톤 포함 운송비",
-    date: "2026-05-03",
-    quoteNo: "qb001",
-    vendorId: "v001",
-    budgetRatio: "97.5%",
-    items: [
-      { no: "1", name: "레미콘 24-40-140", qty: "50㎥" },
-      { no: "2", name: "아스콘 표준배합 15-40", qty: "30톤" },
-    ],
-  },
-  { company: "화성레미콘(주)", phone: "031-234-5678", amount: "8,200,000원", state: "접수", spec: "레미콘 50㎥, 아스콘 30톤, 2일 내 납품 가능", date: "2026-05-04" },
-  { company: "포장산업(주)", phone: "031-345-6789", amount: "7,900,000원", state: "접수", spec: "레미콘 50㎥, 아스콘 30톤, 여성기업 할인 적용", date: "2026-05-05" },
-];
-
-const BID_FILTERS: { label: "전체" | BidStatus; count: string }[] = [
-  { label: "전체", count: "32" },
-  { label: "공고중", count: "13" },
-  { label: "검토중", count: "8" },
-  { label: "선정완료", count: "6" },
-  { label: "마감", count: "5" },
-];
+const BID_FILTER_LABELS: ("전체" | BidStatus)[] = ["전체", "공고중", "검토중", "선정완료", "마감"];
 
 const BID_GRID = "101.61px 253.22px 191.44px 126.59px 124.34px 110.61px 68.27px 110.59px";
-
 const ENTRY_GRID = "163.17px 160.88px 146.52px 94.83px 247.89px 107.7px 105.16px";
 
-export function ContentsView() {
+export function ContentsView({ data }: { data: AdminContentsData }) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const [tab, setTab] = useState<Tab>("상품 검수");
   const [q, setQ] = useState("");
-  const [products, setProducts] = useState<ProductRow[]>(PRODUCTS);
   const [deleteTarget, setDeleteTarget] = useState<ProductRow | null>(null);
   const [bidQ, setBidQ] = useState("");
   const [bidFilter, setBidFilter] = useState<"전체" | BidStatus>("전체");
   const [bidExpanded, setBidExpanded] = useState(true);
-  const [bids, setBids] = useState<BidRow[]>(BIDS);
   const [bidDeleteTarget, setBidDeleteTarget] = useState<BidRow | null>(null);
   const [quoteEntry, setQuoteEntry] = useState<BidEntry | null>(null);
+
+  const products = data.productRows;
+  const bids = data.bidRows;
+
+  const refresh = () => startTransition(() => router.refresh());
+  async function deleteProduct(id: string) {
+    const res = await fetch(`/api/admin/contents/products/${id}`, { method: "DELETE" });
+    if (res.ok) refresh();
+  }
+  async function deleteQuote(id: string) {
+    const res = await fetch(`/api/admin/contents/quotes/${id}`, { method: "DELETE" });
+    if (res.ok) refresh();
+  }
 
   const filtered = useMemo(() => {
     const k = q.trim();
@@ -136,7 +51,6 @@ export function ContentsView() {
 
   return (
     <div style={{ width: "100%" }}>
-
       <div style={{ marginBottom: "34.16px" }}>
         <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 700, letterSpacing: "-0.56px", lineHeight: "25px", color: "#1D1D1F" }}>콘텐츠 검수</h1>
         <p style={{ margin: "2.44px 0 0", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.4)" }}>부적격 상품/공고 모니터링 및 강제 삭제 관리</p>
@@ -172,7 +86,6 @@ export function ContentsView() {
 
       {tab === "상품 검수" ? (
         <>
-
           <div className="flex items-center" style={{ gap: "9.76px", marginBottom: "19.52px" }}>
             <span style={{ fontSize: "14.64px", fontWeight: 400, letterSpacing: "-0.2196px", lineHeight: "19.52px", color: "#9CA3AF", whiteSpace: "nowrap" }}>업체 검색:</span>
             <div className="flex items-center" style={{ width: "468px", flexShrink: 0, height: "46px", borderRadius: "9.76px", border: "1px solid #E5E7EB", background: "#fff", padding: "0 1px" }}>
@@ -200,7 +113,6 @@ export function ContentsView() {
           </div>
 
           <div style={{ background: "#fff", borderRadius: "19.52px", border: "1px solid rgba(210,210,215,0.2)", overflow: "hidden" }}>
-
             <div className="grid" style={{ gridTemplateColumns: GRID, background: "rgba(29,29,31,0.02)", borderBottom: "1px solid rgba(210,210,215,0.1)" }}>
               {["물품번호", "품명", "업체", "카테고리", "가격", "상태", ""].map((h, i) => (
                 <div key={i} className="flex items-center" style={{ padding: "17.13px 24.4px" }}>
@@ -210,15 +122,12 @@ export function ContentsView() {
             </div>
 
             {filtered.map((p) => (
-              <div key={p.itemNo} className="grid" style={{ gridTemplateColumns: GRID, borderTop: "1px solid rgba(210,210,215,0.1)" }}>
-
+              <div key={p.id} className="grid" style={{ gridTemplateColumns: GRID, borderTop: "1px solid rgba(210,210,215,0.1)" }}>
                 <div className="flex items-center" style={{ padding: "17.13px 24.4px" }}>
                   <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>{p.itemNo}</span>
                 </div>
-
                 <div className="flex items-center" style={{ padding: "17.13px 24.4px", gap: "12.2px" }}>
                   <div className="overflow-hidden" style={{ width: "39px", height: "39px", borderRadius: "14.64px", background: "rgba(29,29,31,0.03)", flexShrink: 0 }}>
-
                     <img
                       src={`/admin/products/${p.itemNo}.png`}
                       alt=""
@@ -232,23 +141,18 @@ export function ContentsView() {
                   </div>
                   <span style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "#1D1D1F" }}>{p.name}</span>
                 </div>
-
                 <div className="flex items-center" style={{ padding: "17.13px 24.4px" }}>
                   <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.6)" }}>{p.company}</span>
                 </div>
-
                 <div className="flex items-center" style={{ padding: "17.13px 24.4px" }}>
                   <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>{p.category}</span>
                 </div>
-
                 <div className="flex items-center" style={{ padding: "17.13px 24.4px" }}>
                   <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "#1D1D1F" }}>{p.price}</span>
                 </div>
-
                 <div className="flex items-center" style={{ padding: "17.13px 24.4px" }}>
                   <span className="inline-flex items-center justify-center" style={{ borderRadius: "9999px", height: "25px", padding: "0 13.18px", background: "#ECFDF5", border: "1px solid #A7F3D0", fontSize: "11px", fontWeight: 500, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "#047857", whiteSpace: "nowrap", flexShrink: 0 }}>{p.status}</span>
                 </div>
-
                 <div className="flex items-center" style={{ padding: "17.13px 24.4px" }}>
                   <button type="button" onClick={() => setDeleteTarget(p)} className="inline-flex items-center justify-center" style={{ borderRadius: "9.76px", border: "1px solid rgba(210,210,215,0.2)", background: "#fff", padding: "8.3px 13.18px", fontSize: "12px", fontWeight: 400, letterSpacing: "-0.2401px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>삭제</button>
                 </div>
@@ -269,15 +173,14 @@ export function ContentsView() {
         </>
       ) : (
         <>
-
           <div className="flex items-center" style={{ gap: "9.76px", marginBottom: "24.4px" }}>
-            {BID_FILTERS.map((f) => {
-              const active = bidFilter === f.label;
+            {BID_FILTER_LABELS.map((label) => {
+              const active = bidFilter === label;
               return (
                 <button
-                  key={f.label}
+                  key={label}
                   type="button"
-                  onClick={() => setBidFilter(f.label)}
+                  onClick={() => setBidFilter(label)}
                   className="flex items-center"
                   style={{
                     height: "41.5px",
@@ -289,8 +192,8 @@ export function ContentsView() {
                     flexShrink: 0,
                   }}
                 >
-                  <span style={{ fontSize: "14.64px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "19.52px", color: active ? "#FFFFFF" : "#4B5563", whiteSpace: "nowrap" }}>{f.label}</span>
-                  <span style={{ marginLeft: "14.64px", fontSize: "10px", fontWeight: 600, letterSpacing: "-0.15px", lineHeight: "18px", color: active ? "#FFFFFF" : "#6B7280" }}>{f.count}</span>
+                  <span style={{ fontSize: "14.64px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "19.52px", color: active ? "#FFFFFF" : "#4B5563", whiteSpace: "nowrap" }}>{label}</span>
+                  <span style={{ marginLeft: "14.64px", fontSize: "10px", fontWeight: 600, letterSpacing: "-0.15px", lineHeight: "18px", color: active ? "#FFFFFF" : "#6B7280" }}>{data.filterCounts[label]}</span>
                 </button>
               );
             })}
@@ -328,7 +231,6 @@ export function ContentsView() {
           </div>
 
           <div style={{ background: "#fff", borderRadius: "9.76px", border: "1px solid #E5E7EB", overflow: "hidden" }}>
-
             <div className="grid" style={{ gridTemplateColumns: BID_GRID, background: "#F9FAFB" }}>
               {["상태", "공고명", "요청 기관", "전화번호", "예산", "마감일", "입찰수", ""].map((h, i) => (
                 <div key={i} className="flex items-center" style={{ padding: "14.64px 19.52px" }}>
@@ -338,9 +240,9 @@ export function ContentsView() {
             </div>
 
             {bidFiltered.map((b, i) => {
-              const isFirst = b === BIDS[0];
+              const isFirst = b === bids[0];
               return (
-                <Fragment key={b.name}>
+                <Fragment key={b.id}>
                   <div
                     className="grid"
                     style={{
@@ -350,35 +252,27 @@ export function ContentsView() {
                       ...(isFirst ? { background: "rgba(249,250,251,0.5)" } : {}),
                     }}
                   >
-
                     <div className="flex items-center" style={{ padding: "14.64px 19.52px" }}>
                       <span className="inline-flex items-center" style={{ borderRadius: "9999px", padding: "5.88px 13.2px", background: "#F3F4F6", border: "1px solid #D1D5DB", fontSize: "10px", fontWeight: 500, letterSpacing: "-0.15px", lineHeight: "18px", color: b.status === "마감" ? "#9CA3AF" : "#374151", whiteSpace: "nowrap", flexShrink: 0 }}>{b.status}</span>
                     </div>
-
                     <div className="flex min-w-0 items-center" style={{ padding: "14.64px 19.52px" }}>
                       <span className="overflow-hidden" style={{ fontSize: "14.64px", fontWeight: 500, letterSpacing: "-0.2196px", lineHeight: "19.52px", color: "#111827", whiteSpace: "nowrap" }}>{b.name}</span>
                     </div>
-
                     <div className="flex items-center" style={{ padding: "14.64px 19.52px" }}>
                       <span style={{ fontSize: "14.64px", fontWeight: 400, letterSpacing: "-0.2196px", lineHeight: "19.52px", color: "#6B7280", whiteSpace: "nowrap" }}>{b.org}</span>
                     </div>
-
                     <div className="flex items-center" style={{ padding: "14.64px 19.52px" }}>
                       <span style={{ fontSize: "14.64px", fontWeight: 400, letterSpacing: "-0.2196px", lineHeight: "19.52px", color: "#6B7280" }}>{b.phone}</span>
                     </div>
-
                     <div className="flex items-center" style={{ padding: "14.64px 19.52px" }}>
                       <span style={{ fontSize: "14.64px", fontWeight: 700, letterSpacing: "-0.2196px", lineHeight: "19.52px", color: "#111827", whiteSpace: "nowrap" }}>{b.budget}</span>
                     </div>
-
                     <div className="flex items-center" style={{ padding: "14.64px 19.52px" }}>
                       <span style={{ fontSize: "14.64px", fontWeight: 400, letterSpacing: "-0.2196px", lineHeight: "19.52px", color: "#9CA3AF" }}>{b.due}</span>
                     </div>
-
                     <div className="flex items-center" style={{ padding: "14.64px 19.52px" }}>
                       <span style={{ fontSize: "14.64px", fontWeight: 400, letterSpacing: "-0.2196px", lineHeight: "19.52px", color: "#4B5563" }}>{b.bids}</span>
                     </div>
-
                     <div className="flex items-center" style={{ padding: "14.64px 19.52px", gap: "9.76px" }}>
                       <button type="button" onClick={() => setBidDeleteTarget(b)} style={{ borderRadius: "4.88px", border: "none", background: "transparent", padding: "4.88px 9.76px", fontSize: "10px", fontWeight: 400, letterSpacing: "-0.2401px", lineHeight: "18px", color: "#9CA3AF", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>삭제</button>
                       <button
@@ -397,10 +291,9 @@ export function ContentsView() {
                     <div style={{ borderTop: "1px solid #F3F4F6", background: "#F9FAFB", padding: "20.52px 29.28px 19.52px" }}>
                       <div className="flex items-center justify-between" style={{ marginBottom: "14.64px" }}>
                         <span style={{ fontSize: "14.64px", fontWeight: 700, letterSpacing: "-0.4099px", lineHeight: "19.52px", color: "#111827" }}>참여 업체 정보</span>
-                        <span style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#9CA3AF" }}>총 3건 참여</span>
+                        <span style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#9CA3AF" }}>{`총 ${data.bidEntries.length}건 참여`}</span>
                       </div>
                       <div style={{ background: "#fff", borderRadius: "9.76px", border: "1px solid #E5E7EB", overflow: "hidden" }}>
-
                         <div className="grid" style={{ gridTemplateColumns: ENTRY_GRID, background: "#F9FAFB" }}>
                           {["업체명", "전화번호", "제안 금액", "상태", "규격 요약", "제출일", ""].map((h, hi) => (
                             <div key={hi} className="flex items-center" style={{ padding: "9.76px 14.64px" }}>
@@ -408,7 +301,7 @@ export function ContentsView() {
                             </div>
                           ))}
                         </div>
-                        {BID_ENTRIES.map((en, ei) => (
+                        {data.bidEntries.map((en, ei) => (
                           <div key={en.company} className="grid" style={{ gridTemplateColumns: ENTRY_GRID, ...(ei > 0 ? { borderTop: "1px solid #F3F4F6" } : {}) }}>
                             <div className="flex items-center" style={{ padding: "12.2px 14.64px" }}>
                               <span style={{ fontSize: "14.64px", fontWeight: 500, letterSpacing: "-0.2196px", lineHeight: "19.52px", color: "#111827", whiteSpace: "nowrap" }}>{en.company}</span>
@@ -454,10 +347,9 @@ export function ContentsView() {
                 <NextChevron />
               </button>
             </div>
-
             <div className="flex items-center justify-between" style={{ paddingTop: "19.52px" }}>
-              <span style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#9CA3AF" }}>1 / 4 페이지</span>
-              <span style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#9CA3AF" }}>총 32건</span>
+              <span style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#9CA3AF" }}>{`1 / 1 페이지`}</span>
+              <span style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#9CA3AF" }}>{`총 ${bidFiltered.length}건`}</span>
             </div>
           </div>
         </>
@@ -469,7 +361,7 @@ export function ContentsView() {
           message={`"${deleteTarget.name}" 상품을 정말 삭제하시겠습니까? 삭제 후에는 복구할 수 없습니다.`}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => {
-            setProducts((prev) => prev.filter((x) => x.itemNo !== deleteTarget.itemNo));
+            void deleteProduct(deleteTarget.id);
             setDeleteTarget(null);
           }}
         />
@@ -481,13 +373,13 @@ export function ContentsView() {
           message={`"${bidDeleteTarget.name}" 공고를 정말 삭제하시겠습니까? 삭제 후에는 복구할 수 없습니다.`}
           onCancel={() => setBidDeleteTarget(null)}
           onConfirm={() => {
-            setBids((prev) => prev.filter((x) => x.name !== bidDeleteTarget.name));
+            void deleteQuote(bidDeleteTarget.id);
             setBidDeleteTarget(null);
           }}
         />
       )}
 
-      {quoteEntry && <QuoteDetailModal bid={BIDS[0]} entry={quoteEntry} onClose={() => setQuoteEntry(null)} />}
+      {quoteEntry && bids[0] && <QuoteDetailModal bid={bids[0]} entry={quoteEntry} onClose={() => setQuoteEntry(null)} />}
     </div>
   );
 }
@@ -500,16 +392,13 @@ function DeleteModal({ title, message, onCancel, onConfirm }: { title: string; m
         style={{ maxWidth: "468.47px", background: "#FFFFFF", borderRadius: "14.64px", border: "1px solid #E5E7EB", padding: "30.28px", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)" }}
         onClick={(e) => e.stopPropagation()}
       >
-
         <div className="flex items-center" style={{ gap: "14.64px", paddingBottom: "19.52px" }}>
           <span className="flex items-center justify-center" style={{ width: "48.8px", height: "48.8px", borderRadius: "9999px", background: "#FEF2F2", flexShrink: 0 }}>
             <TrashIcon />
           </span>
           <span style={{ fontSize: "17.08px", fontWeight: 700, letterSpacing: "-0.4782px", lineHeight: "24.4px", color: "#111827" }}>{title}</span>
         </div>
-
         <p style={{ margin: 0, paddingBottom: "29.28px", fontSize: "14.64px", fontWeight: 400, letterSpacing: "-0.2196px", lineHeight: "23.79px", color: "#6B7280" }}>{message}</p>
-
         <div className="flex" style={{ gap: "9.76px" }}>
           <button
             type="button"
@@ -542,7 +431,6 @@ function QuoteDetailModal({ bid, entry, onClose }: { bid: BidRow; entry: BidEntr
         style={{ maxWidth: "624.62px", maxHeight: "90vh", background: "#FFFFFF", borderRadius: "19.52px", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)" }}
         onClick={(e) => e.stopPropagation()}
       >
-
         <div className="flex shrink-0 items-center justify-between" style={{ padding: "19.52px 29.28px 20.52px", background: "#FFFFFF", borderBottom: "1px solid rgba(210,210,215,0.1)" }}>
           <div>
             <p style={{ margin: 0, fontSize: "16px", fontWeight: 700, letterSpacing: "-0.448px", lineHeight: "20px", color: "#1D1D1F" }}>견적서 상세</p>
@@ -554,7 +442,6 @@ function QuoteDetailModal({ bid, entry, onClose }: { bid: BidRow; entry: BidEntr
         </div>
 
         <div className="flex flex-col" style={{ padding: "29.28px" }}>
-
           <div className="flex items-center" style={{ gap: "9.76px" }}>
             <span className="inline-flex items-center justify-center" style={{ height: "33.34px", borderRadius: "9999px", padding: "0 15.64px", background: "#F3F4F6", border: "1px solid #E5E7EB", fontSize: "12px", fontWeight: 600, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "#4B5563", whiteSpace: "nowrap", flexShrink: 0 }}>{entry.state}</span>
             <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>{`제출일 ${entry.date}`}</span>
@@ -584,7 +471,7 @@ function QuoteDetailModal({ bid, entry, onClose }: { bid: BidRow; entry: BidEntr
               <span className="flex items-center justify-center" style={{ width: "58.55px", height: "58.55px", borderRadius: "19.52px", background: "#1E3A5F", flexShrink: 0, fontSize: "15px", fontWeight: 700, letterSpacing: "-0.225px", lineHeight: "26.25px", color: "#FFFFFF" }}>{entry.company.charAt(0)}</span>
               <div>
                 <p style={{ margin: 0, fontSize: "14px", fontWeight: 700, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "#1D1D1F" }}>{entry.company}</p>
-                <p style={{ margin: 0, fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>{entry.vendorId ? `업체ID: ${entry.vendorId} · ${entry.phone}` : entry.phone}</p>
+                <p style={{ margin: 0, fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>{entry.phone}</p>
               </div>
             </div>
           </div>

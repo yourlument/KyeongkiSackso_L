@@ -1,5 +1,9 @@
+import { loadAdminContents } from "@/lib/admin-contents";
 import { ContentsView } from "./contents-view";
 
-export default function AdminContentsPage() {
-  return <ContentsView />;
+export const dynamic = "force-dynamic";
+
+export default async function AdminContentsPage() {
+  const data = await loadAdminContents();
+  return <ContentsView data={data} />;
 }

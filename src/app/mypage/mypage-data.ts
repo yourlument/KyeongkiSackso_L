@@ -1,3 +1,4 @@
+
 export const OFFICIAL_TABS = [
   { key: "info", label: "내 정보 관리" },
   { key: "purchase", label: "구매 관리" },
@@ -231,7 +232,6 @@ export const BASIC_INFO = {
   dept: "도로관리과",
   deptPhone: "-",
 };
-
 export type SupplierBasicField = { label: string; value: string };
 export const SUPPLIER_BASIC_INFO: SupplierBasicField[] = [
   { label: "상호(회사명)", value: "-" },

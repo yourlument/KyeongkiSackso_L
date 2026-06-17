@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, type CSSProperties, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import type { PartnerProfileData } from "@/lib/partner-profile";
 import {
   AlertTriangleIcon,
   TabProfileIcon,
@@ -23,16 +25,7 @@ import {
   StepThreeIcon,
   SelectChevronIcon,
 } from "./profile-icons";
-import {
-  PROFILE_TAGLINE,
-  PROFILE_DESCRIPTION,
-  PROFILE_DESCRIPTION_COUNT,
-  PERFORMANCES,
-  EQUIPMENTS,
-  MANAGER,
-  VERIFIED_ACCOUNT,
-  REMITTANCE_ACCOUNT,
-} from "./profile-data";
+import { REMITTANCE_ACCOUNT, type Performance, type Equipment } from "./profile-data";
 
 const NAVY = "#1E3A5F";
 const INK = "#1D1D1F";
@@ -73,9 +66,10 @@ const PLACEHOLDER_STYLE = `
   .profile-code::placeholder { color: #9CA3AF; font-weight: 500; }
 `;
 
-export function PartnerProfileView() {
+export function PartnerProfileView({ data }: { data: PartnerProfileData }) {
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>("profile");
-  const [verified, setVerified] = useState(false);
+  const [verified, setVerified] = useState(data.account.verified);
   const [modalStep, setModalStep] = useState<ModalStep>(0);
 
   return (
@@ -96,9 +90,9 @@ export function PartnerProfileView() {
       <TabBar tab={tab} verified={verified} onChange={setTab} />
 
       {tab === "profile" ? (
-        <ProfileTab />
+        <ProfileTab data={data} onSaved={() => router.refresh()} />
       ) : verified ? (
-        <VerifiedAccountTab onChange={() => { setVerified(false); setModalStep(1); }} />
+        <VerifiedAccountTab account={data.account} onChange={() => { setVerified(false); setModalStep(1); }} />
       ) : (
         <UnverifiedAccountTab onVerify={() => setModalStep(1)} />
       )}
@@ -208,10 +202,44 @@ function FieldLabel({ children }: { children: ReactNode }) {
   return <label style={{ ...LABEL, display: "block", marginBottom: "7.32px" }}>{children}</label>;
 }
 
-function ProfileTab() {
+function ProfileTab({ data, onSaved }: { data: PartnerProfileData; onSaved: () => void }) {
+  const [intro, setIntro] = useState(data.intro);
+  const [description, setDescription] = useState(data.description);
+  const [manager, setManager] = useState(data.manager);
+  const [performances, setPerformances] = useState<Performance[]>(data.performances);
+  const [equipments, setEquipments] = useState<Equipment[]>(data.equipments);
+  const [saving, setSaving] = useState(false);
+
+  const setPerf = (i: number, patch: Partial<Performance>) => setPerformances(performances.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
+  const addPerf = () => setPerformances([...performances, { label: `실적 ${performances.length + 1}`, project: "", client: "", year: "", amount: "" }]);
+  const removePerf = (i: number) => setPerformances(performances.filter((_, idx) => idx !== i));
+  const setEquip = (i: number, patch: Partial<Equipment>) => setEquipments(equipments.map((e, idx) => (idx === i ? { ...e, ...patch } : e)));
+  const addEquip = () => setEquipments([...equipments, { name: "", quantity: "" }]);
+  const removeEquip = (i: number) => setEquipments(equipments.filter((_, idx) => idx !== i));
+
+  async function save() {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/partner/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          intro,
+          description,
+          manager,
+          performances: performances.map((p) => ({ project: p.project, client: p.client, year: p.year, amount: p.amount })),
+          equipments: equipments.map((e) => ({ name: e.name, quantity: e.quantity })),
+        }),
+      });
+      if (res.ok) onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div style={{ maxWidth: "820px" }}>
-
       <div style={{ ...CARD, padding: "30.28px" }}>
         <SectionTitle icon={<BuildingIcon />}>기업 프로필 관리</SectionTitle>
 
@@ -219,7 +247,8 @@ function ProfileTab() {
           <FieldLabel>한 줄 소개</FieldLabel>
           <input
             className="profile-input"
-            defaultValue={PROFILE_TAGLINE}
+            value={intro}
+            onChange={(e) => setIntro(e.target.value)}
             placeholder="업체의 강점을 나타내는 슬로건"
             style={{ ...INPUT_BOX, padding: "13.1875px 15.64px" }}
           />
@@ -229,32 +258,33 @@ function ProfileTab() {
           <FieldLabel>기업 상세 소개</FieldLabel>
           <textarea
             className="profile-input"
-            defaultValue={PROFILE_DESCRIPTION}
+            value={description}
+            onChange={(e) => setDescription(e.target.value.slice(0, 500))}
             placeholder="전문 분야 및 기술력 설명"
             rows={4}
             style={{ ...INPUT_BOX, padding: "13.2px 15.64px", height: "117px", resize: "none" }}
           />
           <p style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "rgba(29,29,31,0.3)", textAlign: "right", margin: "4.88px 0 0" }}>
-            {PROFILE_DESCRIPTION_COUNT}
+            {description.length}/500
           </p>
         </div>
 
         <div style={{ marginTop: "24.4px" }}>
           <div className="flex items-center justify-between" style={{ marginBottom: "9.76px" }}>
             <label style={LABEL}>주요 실적 리스트</label>
-            <AddButton />
+            <AddButton onClick={addPerf} />
           </div>
-          {PERFORMANCES.map((p) => (
-            <div key={p.label} style={{ ...CARD, background: "rgba(29,29,31,0.01)", borderRadius: "14.64px", padding: "15.64px", marginTop: "14.64px" }}>
+          {performances.map((p, i) => (
+            <div key={i} style={{ ...CARD, background: "rgba(29,29,31,0.01)", borderRadius: "14.64px", padding: "15.64px", marginTop: "14.64px" }}>
               <div className="flex items-center justify-between" style={{ marginBottom: "9.76px" }}>
-                <span style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)" }}>{p.label}</span>
-                <button style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex" }} aria-label="삭제"><RemoveIcon /></button>
+                <span style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)" }}>{`실적 ${i + 1}`}</span>
+                <button type="button" onClick={() => removePerf(i)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex" }} aria-label="삭제"><RemoveIcon /></button>
               </div>
               <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "9.76px" }}>
-                <input className="profile-input" defaultValue={p.project} placeholder="프로젝트명" style={{ ...INPUT_BOX, borderRadius: "9.76px", padding: "10.75px 15.64px" }} />
-                <input className="profile-input" defaultValue={p.client} placeholder="발주처" style={{ ...INPUT_BOX, borderRadius: "9.76px", padding: "10.75px 15.64px" }} />
-                <input className="profile-input" defaultValue={p.year} placeholder="수행 연도" style={{ ...INPUT_BOX, borderRadius: "9.76px", padding: "10.75px 15.64px" }} />
-                <input className="profile-input" defaultValue={p.amount} placeholder="계약 금액" style={{ ...INPUT_BOX, borderRadius: "9.76px", padding: "10.75px 15.64px" }} />
+                <input className="profile-input" value={p.project} onChange={(e) => setPerf(i, { project: e.target.value })} placeholder="프로젝트명" style={{ ...INPUT_BOX, borderRadius: "9.76px", padding: "10.75px 15.64px" }} />
+                <input className="profile-input" value={p.client} onChange={(e) => setPerf(i, { client: e.target.value })} placeholder="발주처" style={{ ...INPUT_BOX, borderRadius: "9.76px", padding: "10.75px 15.64px" }} />
+                <input className="profile-input" value={p.year} onChange={(e) => setPerf(i, { year: e.target.value })} placeholder="수행 연도" style={{ ...INPUT_BOX, borderRadius: "9.76px", padding: "10.75px 15.64px" }} />
+                <input className="profile-input" value={p.amount} onChange={(e) => setPerf(i, { amount: e.target.value })} placeholder="계약 금액" style={{ ...INPUT_BOX, borderRadius: "9.76px", padding: "10.75px 15.64px" }} />
               </div>
             </div>
           ))}
@@ -263,13 +293,13 @@ function ProfileTab() {
         <div style={{ marginTop: "24.4px" }}>
           <div className="flex items-center justify-between" style={{ marginBottom: "9.76px" }}>
             <label style={LABEL}>보유 자재/장비 리스트</label>
-            <AddButton />
+            <AddButton onClick={addEquip} />
           </div>
-          {EQUIPMENTS.map((e, i) => (
-            <div key={e.name} className="flex items-center" style={{ gap: "9.76px", marginTop: i === 0 ? 0 : "9.76px" }}>
-              <input className="profile-input" defaultValue={e.name} placeholder="장비명" style={{ ...INPUT_BOX, padding: "13.1875px 15.64px" }} />
-              <input className="profile-input" defaultValue={e.quantity} placeholder="수량" style={{ ...INPUT_BOX, padding: "13.1875px 15.64px", width: "117px", flex: "0 0 117px" }} />
-              <button style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", flex: "0 0 auto" }} aria-label="삭제"><RemoveIcon /></button>
+          {equipments.map((e, i) => (
+            <div key={i} className="flex items-center" style={{ gap: "9.76px", marginTop: i === 0 ? 0 : "9.76px" }}>
+              <input className="profile-input" value={e.name} onChange={(ev) => setEquip(i, { name: ev.target.value })} placeholder="장비명" style={{ ...INPUT_BOX, padding: "13.1875px 15.64px" }} />
+              <input className="profile-input" value={e.quantity} onChange={(ev) => setEquip(i, { quantity: ev.target.value })} placeholder="수량" style={{ ...INPUT_BOX, padding: "13.1875px 15.64px", width: "117px", flex: "0 0 117px" }} />
+              <button type="button" onClick={() => removeEquip(i)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", flex: "0 0 auto" }} aria-label="삭제"><RemoveIcon /></button>
             </div>
           ))}
         </div>
@@ -294,25 +324,28 @@ function ProfileTab() {
         <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "14.64px", marginTop: "19.52px" }}>
           <div>
             <FieldLabel>담당자 성함</FieldLabel>
-            <input className="profile-input" defaultValue={MANAGER.name} placeholder="실무자 실명" style={{ ...INPUT_BOX, padding: "13.1875px 15.64px" }} />
+            <input className="profile-input" value={manager.name} onChange={(e) => setManager({ ...manager, name: e.target.value })} placeholder="실무자 실명" style={{ ...INPUT_BOX, padding: "13.1875px 15.64px" }} />
           </div>
           <div>
             <FieldLabel>담당자 연락처</FieldLabel>
-            <input className="profile-input" defaultValue={MANAGER.phone} placeholder="휴대폰 번호" style={{ ...INPUT_BOX, padding: "13.1875px 15.64px" }} />
+            <input className="profile-input" value={manager.phone} onChange={(e) => setManager({ ...manager, phone: e.target.value })} placeholder="휴대폰 번호" style={{ ...INPUT_BOX, padding: "13.1875px 15.64px" }} />
           </div>
           <div>
             <FieldLabel>담당자 이메일</FieldLabel>
-            <input className="profile-input" defaultValue={MANAGER.email} placeholder="업무 이메일" style={{ ...INPUT_BOX, padding: "13.1875px 15.64px" }} />
+            <input className="profile-input" value={manager.email} onChange={(e) => setManager({ ...manager, email: e.target.value })} placeholder="업무 이메일" style={{ ...INPUT_BOX, padding: "13.1875px 15.64px" }} />
           </div>
           <div>
             <FieldLabel>직책</FieldLabel>
-            <input className="profile-input" defaultValue={MANAGER.position} placeholder="담당 부서 및 직책" style={{ ...INPUT_BOX, padding: "13.1875px 15.64px" }} />
+            <input className="profile-input" value={manager.position} onChange={(e) => setManager({ ...manager, position: e.target.value })} placeholder="담당 부서 및 직책" style={{ ...INPUT_BOX, padding: "13.1875px 15.64px" }} />
           </div>
         </div>
       </div>
 
       <button
-        style={{ width: "100%", padding: "14.64px 0", borderRadius: "14.64px", background: NAVY, color: "#FFFFFF", fontSize: "14px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "24.5px", border: "none", cursor: "pointer", marginTop: "29.28px" }}
+        type="button"
+        onClick={save}
+        disabled={saving}
+        style={{ width: "100%", padding: "14.64px 0", borderRadius: "14.64px", background: NAVY, color: "#FFFFFF", fontSize: "14px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "24.5px", border: "none", cursor: saving ? "default" : "pointer", marginTop: "29.28px", opacity: saving ? 0.6 : 1 }}
       >
         저장
       </button>
@@ -320,9 +353,9 @@ function ProfileTab() {
   );
 }
 
-function AddButton() {
+function AddButton({ onClick }: { onClick: () => void }) {
   return (
-    <button className="flex items-center" style={{ gap: "4.88px", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+    <button type="button" onClick={onClick} className="flex items-center" style={{ gap: "4.88px", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
       <PlusIcon />
       <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "21px", color: "rgba(29,29,31,0.4)" }}>추가</span>
     </button>
@@ -337,7 +370,6 @@ function UnverifiedAccountTab({ onVerify }: { onVerify: () => void }) {
   ];
   return (
     <div style={{ maxWidth: "820px" }}>
-
       <div className="flex items-center justify-between" style={{ padding: "25.4px", borderRadius: "19.52px", background: "#FEF2F2", border: "1px solid #FECACA" }}>
         <div className="flex items-center" style={{ gap: "14.64px" }}>
           <div className="flex items-center justify-center" style={{ width: "49px", height: "49px", borderRadius: "14.64px", background: "#FEE2E2" }}>
@@ -373,10 +405,9 @@ function UnverifiedAccountTab({ onVerify }: { onVerify: () => void }) {
   );
 }
 
-function VerifiedAccountTab({ onChange }: { onChange: () => void }) {
+function VerifiedAccountTab({ account, onChange }: { account: PartnerProfileData["account"]; onChange: () => void }) {
   return (
     <div style={{ maxWidth: "820px" }}>
-
       <div className="flex items-center justify-between" style={{ padding: "25.4px", borderRadius: "19.52px", background: "#ECFDF5", border: "1px solid #A7F3D0" }}>
         <div className="flex items-center" style={{ gap: "14.64px" }}>
           <div className="flex items-center justify-center" style={{ width: "49px", height: "49px", borderRadius: "14.64px", background: "#D1FAE5" }}>
@@ -384,7 +415,7 @@ function VerifiedAccountTab({ onChange }: { onChange: () => void }) {
           </div>
           <div>
             <p style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "#047857", margin: 0 }}>정산 계좌 인증 완료</p>
-            <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "#059669", margin: "2.44px 0 0" }}>{VERIFIED_ACCOUNT.summary}</p>
+            <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "#059669", margin: "2.44px 0 0" }}>{account.summary}</p>
           </div>
         </div>
         <button onClick={onChange} style={{ padding: "10.76px 20.52px", borderRadius: "14.64px", background: "#D1FAE5", border: "1px solid #A7F3D0", color: "#047857", fontSize: "12px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "21px", cursor: "pointer", whiteSpace: "nowrap" }}>
@@ -395,13 +426,13 @@ function VerifiedAccountTab({ onChange }: { onChange: () => void }) {
       <div style={{ ...CARD, padding: "30.28px", marginTop: "29.28px" }}>
         <SectionTitle icon={<CardNavyIcon />}>등록된 정산 계좌</SectionTitle>
         <div className="flex" style={{ gap: "19.52px", marginTop: "19.52px" }}>
-          <AccountField label="은행" value={VERIFIED_ACCOUNT.bank} />
-          <AccountField label="계좌번호" value={VERIFIED_ACCOUNT.number} />
-          <AccountField label="예금주" value={VERIFIED_ACCOUNT.holder} />
+          <AccountField label="은행" value={account.bank} />
+          <AccountField label="계좌번호" value={account.number} />
+          <AccountField label="예금주" value={account.holder} />
         </div>
         <div className="flex items-center" style={{ gap: "7.32px", marginTop: "19.52px" }}>
           <ClockIcon />
-          <span style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)" }}>{VERIFIED_ACCOUNT.verifiedAt}</span>
+          <span style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)" }}>{account.verifiedAt}</span>
         </div>
         <div className="flex items-center" style={{ gap: "7.32px", padding: "15.64px", borderRadius: "14.64px", background: "#ECFDF5", border: "1px solid #A7F3D0", marginTop: "19.52px" }}>
           <SmallCheckIcon />

@@ -1,3 +1,4 @@
+
 export type Category =
   | "실무자 놀이터"
   | "업체후기"

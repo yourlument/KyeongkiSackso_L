@@ -1,18 +1,22 @@
 @import "tailwindcss";
 
+/*
+ * KORLINK design tokens — login frame.
+ * Values are exact (colors, radius, type) per the signed design requirement.
+ */
 @theme {
-  --color-navy: #1e3a5f;
+  --color-navy: #1e3a5f; /* primary: 버튼, active 탭, 링크, nav pill */
   --color-navy-hover: #16304d;
-  --color-brand: #0071e3;
-  --color-kakao: #facc15;
+  --color-brand: #0071e3; /* KORLINK 로고 블루 (로고 전용) */
+  --color-kakao: #facc15; /* 카카오톡 상담 */
   --color-kakao-fg: #000000;
 
-  --color-bg: #ffffff;
-  --color-field: #f5f5f7;
+  --color-bg: #ffffff; /* page background (로그인 화면 흰 배경) */
+  --color-field: #f5f5f7; /* segmented track / disabled */
   --color-surface: #ffffff;
-  --color-line: #d2d2d7;
-  --color-ink: #1d1d1f;
-  --color-ink-sub: #6e6e73;
+  --color-line: #d2d2d7; /* 보더 */
+  --color-ink: #1d1d1f; /* 본문/라벨 */
+  --color-ink-sub: #6e6e73; /* placeholder / 보조 */
   --color-danger: #ef4444;
   --color-success: #16a34a;
 
@@ -21,7 +25,7 @@
     system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
 
   --radius-card: 19.52px;
-  --radius-field: 14.64px;
+  --radius-field: 14.64px; /* 입력/버튼 */
 }
 
 html,
@@ -29,7 +33,7 @@ body {
   background: var(--color-bg);
   color: var(--color-ink);
   font-family: var(--font-sans);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.02em; /* Pretendard 한글 UI 기본 자간 (-0.18~-0.29px) */
   -webkit-font-smoothing: antialiased;
 }
 
@@ -37,6 +41,10 @@ body {
   box-sizing: border-box;
 }
 
+/* 검색 페이지 placeholder
+ * 검색 입력창 placeholder  fill=#1D1D1F@0.3  w500
+ * 가격 입력 placeholder    fill=#9CA3AF@1.0  w500
+ * (입력값 텍스트 자체는 각 input style의 fontWeight 400 유지) */
 .search-input::placeholder {
   color: rgba(29, 29, 31, 0.3);
   font-weight: 500;

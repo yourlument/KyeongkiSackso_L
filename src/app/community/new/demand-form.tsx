@@ -49,7 +49,27 @@ const helperStyle: React.CSSProperties = {
   color: "rgba(29,29,31,0.3)",
 };
 
-export function DemandForm({ initial }: { initial?: { title: string; content: string; videoUrl: string } } = {}) {
+type DemandInitial = {
+  postId?: string;
+  title: string;
+  content: string;
+  videoUrl: string;
+  attachments?: { url: string; name: string }[];
+};
+
+async function uploadOne(file: File): Promise<{ url: string; name: string }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch("/api/uploads", { method: "POST", body: fd });
+  if (!res.ok) {
+    const d = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(d.message ?? "파일 업로드에 실패했습니다");
+  }
+  const saved = (await res.json()) as { url: string };
+  return { url: saved.url, name: file.name };
+}
+
+export function DemandForm({ initial }: { initial?: DemandInitial } = {}) {
   const router = useRouter();
 
   const [title, setTitle] = useState(initial?.title ?? "");
@@ -57,25 +77,55 @@ export function DemandForm({ initial }: { initial?: { title: string; content: st
   const [videoUrl, setVideoUrl] = useState(initial?.videoUrl ?? "");
   const [content, setContent] = useState(initial?.content ?? "");
   const [videoFile, setVideoFile] = useState<string | null>(null);
-  const [attachFiles, setAttachFiles] = useState<string[]>([]);
+  const [videoFileObj, setVideoFileObj] = useState<File | null>(null);
+  const [attachFiles, setAttachFiles] = useState<string[]>(initial?.attachments?.map((a) => a.name) ?? []);
+  const [attachFileObjs, setAttachFileObjs] = useState<File[]>([]);
   const [tried, setTried] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
+  const existingAttachments = initial?.attachments ?? [];
   const videoFileRef = useRef<HTMLInputElement>(null);
   const attachRef = useRef<HTMLInputElement>(null);
 
   const errTitle = !title.trim();
   const errContent = !htmlHasContent(content);
 
-  function handleSubmit() {
+  async function handleSubmit() {
     setTried(true);
-    if (errTitle || errContent) return;
+    if (errTitle || errContent || submitting) return;
+    setSubmitting(true);
+    try {
+      const attachments = attachFileObjs.length
+        ? await Promise.all(attachFileObjs.map(uploadOne))
+        : existingAttachments;
 
-    router.push("/community");
+      let finalVideoUrl = videoUrl.trim();
+      if (videoMode === "file" && videoFileObj) {
+        finalVideoUrl = (await uploadOne(videoFileObj)).url;
+      }
+
+      const isEdit = !!initial?.postId;
+      const res = await fetch(isEdit ? `/api/community/${initial!.postId}` : "/api/community", {
+        method: isEdit ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content, videoUrl: finalVideoUrl || null, attachments }),
+      });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        alert(d.error ?? "저장 중 오류가 발생했습니다");
+        return;
+      }
+      router.push("/community");
+      router.refresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "저장 중 오류가 발생했습니다");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
     <div style={{ maxWidth: "996px", margin: "0 auto" }}>
-
       <div className="flex items-center" style={{ gap: "9.76px", marginBottom: "39.04px" }}>
         <a
           href="/community"
@@ -103,7 +153,6 @@ export function DemandForm({ initial }: { initial?: { title: string; content: st
       </div>
 
       <div>
-
         <div>
           <label className="block" style={{ ...labelStyle, marginBottom: "9.76px" }}>
             제목 {reqStar}
@@ -167,7 +216,11 @@ export function DemandForm({ initial }: { initial?: { title: string; content: st
                 type="file"
                 accept="video/*"
                 hidden
-                onChange={(e) => setVideoFile(e.target.files?.[0]?.name ?? null)}
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  setVideoFile(f?.name ?? null);
+                  setVideoFileObj(f);
+                }}
               />
             </button>
           )}
@@ -211,7 +264,11 @@ export function DemandForm({ initial }: { initial?: { title: string; content: st
                 type="file"
                 multiple
                 hidden
-                onChange={(e) => setAttachFiles(Array.from(e.target.files ?? []).map((f) => f.name))}
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? []);
+                  setAttachFiles(files.map((f) => f.name));
+                  setAttachFileObjs(files);
+                }}
               />
             </button>
             <span style={helperStyle}>
@@ -246,8 +303,9 @@ export function DemandForm({ initial }: { initial?: { title: string; content: st
           <button
             type="button"
             onClick={handleSubmit}
+            disabled={submitting}
             className="flex items-center"
-            style={{ gap: "9.76px", borderRadius: "14.64px", background: "#1E3A5F", border: "none", cursor: "pointer", padding: "14.64px 39.04px" }}
+            style={{ gap: "9.76px", borderRadius: "14.64px", background: "#1E3A5F", border: "none", cursor: submitting ? "default" : "pointer", padding: "14.64px 39.04px", opacity: submitting ? 0.6 : 1 }}
           >
             <CheckIcon />
             <span style={{ fontSize: "14px", fontWeight: 600, lineHeight: "24.5px", letterSpacing: "-0.2928px", color: "#fff", whiteSpace: "nowrap" }}>

@@ -2,8 +2,10 @@ import { notFound } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { KakaoChat } from "@/components/kakao-chat";
-import { NEWS, NEWS_DETAILS, prevNext } from "../data";
+import { loadNewsById } from "@/lib/news";
 import { NewsDetailView } from "./news-detail-view";
+
+export const dynamic = "force-dynamic";
 
 export default async function NewsDetailPage({
   params,
@@ -11,18 +13,14 @@ export default async function NewsDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const nid = Number(id);
-  const item = NEWS.find((n) => n.id === nid);
-  const detail = NEWS_DETAILS[nid];
-  if (!item || !detail) notFound();
-
-  const { prev, next } = prevNext(nid);
+  const data = await loadNewsById(id);
+  if (!data) notFound();
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">
       <SiteHeader />
       <main className="flex-1">
-        <NewsDetailView item={item} detail={detail} prev={prev} next={next} />
+        <NewsDetailView item={data.item} detail={data.detail} prev={data.prev} next={data.next} />
       </main>
       <SiteFooter />
       <KakaoChat />

@@ -1,11 +1,42 @@
-node_modules/
-.next/
-out/
-build/
-*.tsbuildinfo
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# next.js
+/.next/
+/out/
 next-env.d.ts
-.env
-.env*.local
-.env.production
-.env.development
+
+# production
+/build
+
+# misc
 .DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# env files
+# NOTE: .env IS tracked on purpose — private LAN git server (192.168.0.193).
+# ⚠️ WARNING: 계약 제8조③ 도급인(루멘트) GitHub(외부)에는 .env 절대 push 금지 — 시크릿 유출.
+.env*.local
+
+# prisma
+/prisma/*.db
+
+# typescript
+*.tsbuildinfo
+
+# project: never delete, move here (gitignored)
+/.trash/
+
+# omc
+/.omc/
+
+# local file storage (uploads) — dev mock
+/storage/
+verification/

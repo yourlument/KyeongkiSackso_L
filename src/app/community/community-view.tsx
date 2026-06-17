@@ -2,20 +2,20 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { DEMAND_POSTS, type DemandPost, type DemandStatus } from "./data";
+import type { DemandPost, DemandStatus } from "@/lib/community";
 
 const NAVY = "#1E3A5F";
 const STATUS_TABS: Array<"전체" | DemandStatus> = ["전체", "진행중", "마감"];
 const PER_PAGE = 5;
 
-export function CommunityView({ role }: { role: string | null }) {
+export function CommunityView({ role, initialPosts }: { role: string | null; initialPosts: DemandPost[] }) {
   const router = useRouter();
   const isOfficial = role === "OFFICIAL";
   const isSupplier = role === "SUPPLIER";
   const secondLabel = isSupplier ? "답변 남긴 글" : "내가 쓴 글";
   const hasSecond = isOfficial || isSupplier;
 
-  const [posts, setPosts] = useState<DemandPost[]>(DEMAND_POSTS);
+  const [posts, setPosts] = useState<DemandPost[]>(initialPosts);
   const [scope, setScope] = useState<"전체" | "second">("전체");
   const [status, setStatus] = useState<"전체" | DemandStatus>("전체");
   const [q, setQ] = useState("");
@@ -29,7 +29,7 @@ export function CommunityView({ role }: { role: string | null }) {
         scope === "전체"
           ? true
           : isSupplier
-            ? !!p.comments?.length
+            ? !!p.answered
             : !!p.mine,
       )
       .filter((p) => (kw ? (p.title + p.summary + p.org + p.category).includes(kw) : true));
@@ -39,17 +39,21 @@ export function CommunityView({ role }: { role: string | null }) {
   const cur = Math.min(page, pageCount);
   const pageRows = rows.slice((cur - 1) * PER_PAGE, cur * PER_PAGE);
 
-  const closePost = (id: string) =>
+  const closePost = (id: string) => {
+    fetch(`/api/community/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "close" }) }).catch(() => {});
     setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, status: "마감" } : p)));
-  const reopenPost = (id: string) =>
+  };
+  const reopenPost = (id: string) => {
+    fetch(`/api/community/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reopen" }) }).catch(() => {});
     setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, status: "진행중" } : p)));
+  };
   const deletePost = (id: string) => {
+    fetch(`/api/community/${id}`, { method: "DELETE" }).catch(() => {});
     setPosts((prev) => prev.filter((p) => p.id !== id));
   };
 
   return (
     <div style={{ marginTop: "39.04px" }}>
-
       <div className="flex items-center" style={{ gap: "9.76px", marginBottom: "14.64px" }}>
         <Pill active={scope === "전체"} onClick={() => { setScope("전체"); setPage(1); }}>전체</Pill>
         {hasSecond && (
@@ -125,7 +129,6 @@ function DemandRow({ p, last, showMine, isOwner, isSupplier, onOpen, onClose, on
       onClick={onOpen}
       style={{ padding: "24.4px 29.28px", borderBottom: last ? "none" : "1px solid rgba(210,210,215,0.15)", cursor: "pointer" }}
     >
-
       <div className="flex items-center" style={{ gap: "9.76px" }}>
         <StatusBadge status={p.status} />
         <span style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", color: "rgba(29,29,31,0.3)" }}>{p.date}</span>

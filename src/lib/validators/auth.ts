@@ -39,7 +39,6 @@ export const officialSignupSchema = z.object({
   departmentPhone: z.string().min(1, "부서 대표 전화번호를 입력하세요"),
   name: z.string().optional().default(""),
   position: z.string().optional(),
-
   orgRepresentativeName: z.string().optional(),
   orgTaxEmail: z.string().optional(),
   orgAddress: z.string().optional(),

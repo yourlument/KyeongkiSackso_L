@@ -1,79 +1,27 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import {
+  type SalesMonthlyRow as MonthlyRow,
+  type SalesOrderRow as OrderRow,
+  type SalesSubscriptionRow as SubscriptionRow,
+  type PartnerSalesData,
+} from "@/lib/partner-sales";
 
 const NAVY = "#1E3A5F";
 const INK = "#1D1D1F";
 
-type SettleStatus = "정산대기" | "정산완료";
-type MonthlyRow = {
-  month: string;
-  total: string;
-  orders: string;
-  fee: string;
-  payout: string;
-  status: SettleStatus;
-  payoutDate: string;
-};
-
-const MONTHLY: MonthlyRow[] = [
-  { month: "2026-05", total: "16,800,000원", orders: "3건", fee: "-", payout: "16,800,000원", status: "정산대기", payoutDate: "2026-05-10" },
-  { month: "2026-05", total: "3,490,000원", orders: "3건", fee: "-", payout: "3,490,000원", status: "정산완료", payoutDate: "2026-05-10" },
-  { month: "2026-04", total: "3,390,000원", orders: "2건", fee: "-", payout: "3,390,000원", status: "정산완료", payoutDate: "2026-04-10" },
-  { month: "2026-04", total: "8,650,000원", orders: "2건", fee: "-", payout: "8,650,000원", status: "정산대기", payoutDate: "2026-04-10" },
-  { month: "2026-03", total: "2,400,000원", orders: "1건", fee: "-", payout: "2,400,000원", status: "정산완료", payoutDate: "2026-04-10" },
-  { month: "2026-02", total: "9,750,000원", orders: "1건", fee: "-", payout: "9,750,000원", status: "정산완료", payoutDate: "2026-03-10" },
-  { month: "2026-01", total: "36,450,000원", orders: "4건", fee: "-", payout: "36,450,000원", status: "정산완료", payoutDate: "2026-02-10" },
-  { month: "2026-12", total: "18,500,000원", orders: "3건", fee: "-", payout: "18,500,000원", status: "정산완료", payoutDate: "2026-01-10" },
-];
-
-type OrderStatus = "결제완료" | "배송/진행중" | "완료";
-type OrderRow = {
-  id: string;
-  date: string;
-  no: string;
-  org: string;
-  dept: string;
-  product: string;
-  amount: string;
-  status: OrderStatus;
-};
-
-const ORDERS: OrderRow[] = [
-  { id: "ORD-2026-101", date: "2026-05-15", no: "ORD-2026-101", org: "화성시청", dept: "도로관리과", product: "반사형 교통콘 750mm 20개", amount: "900,000", status: "결제완료" },
-  { id: "ORD-2026-102", date: "2026-05-10", no: "ORD-2026-102", org: "화성시청", dept: "정보통신과", product: "방호울타리 강관형 W-빔 4m 10개", amount: "1,200,000", status: "결제완료" },
-  { id: "ORD-2026-103", date: "2026-05-05", no: "ORD-2026-103", org: "화성시청", dept: "안전총괄과", product: "도로표지판 주의 900mm 5개", amount: "400,000", status: "배송/진행중" },
-  { id: "ORD-2026-104", date: "2026-04-20", no: "ORD-2026-104", org: "수원시청", dept: "총무과", product: "사무용 책상 1400x700 8개", amount: "1,440,000", status: "완료" },
-  { id: "ORD-2026-105", date: "2026-04-15", no: "ORD-2026-105", org: "수원시청", dept: "보건소", product: "학생용 책상 600x400 30개", amount: "1,950,000", status: "완료" },
-];
-
-type SubscriptionRow = {
-  paidAt: string;
-  plan: string;
-  amount: string;
-  method: string;
-  period: string;
-};
-
-const SUBSCRIPTIONS: SubscriptionRow[] = [
-  { paidAt: "2026-05-08", plan: "프리미엄 (월간)", amount: "299,000", method: "법인카드", period: "2026.05.08 ~ 2026.06.07" },
-  { paidAt: "2026-04-08", plan: "프리미엄 (월간)", amount: "299,000", method: "법인카드", period: "2026.04.08 ~ 2026.05.07" },
-  { paidAt: "2026-03-08", plan: "프리미엄 (월간)", amount: "299,000", method: "법인카드", period: "2026.03.08 ~ 2026.04.07" },
-  { paidAt: "2026-02-08", plan: "프리미엄 (월간)", amount: "299,000", method: "법인카드", period: "2026.02.08 ~ 2026.03.07" },
-  { paidAt: "2026-01-08", plan: "프리미엄 (월간)", amount: "299,000", method: "법인카드", period: "2026.01.08 ~ 2026.02.07" },
-];
-
 const ORDER_FILTERS = ["전체", "완료", "배송중", "결제완료", "대기"] as const;
 type OrderFilter = (typeof ORDER_FILTERS)[number];
 
-export function SalesView() {
+export function SalesView({ data }: { data: PartnerSalesData }) {
   const [tab, setTab] = useState<"sales" | "subscription">("sales");
   const [query, setQuery] = useState("");
   const [orderFilter, setOrderFilter] = useState<OrderFilter>("전체");
   const [openOrder, setOpenOrder] = useState<OrderRow | null>(null);
 
   const filteredOrders = useMemo(() => {
-    return ORDERS.filter((o) => {
+    return data.orders.filter((o) => {
       const matchQ = query.trim() ? (o.org + o.dept + o.no + o.product).includes(query.trim()) : true;
       const matchF =
         orderFilter === "전체"
@@ -91,7 +39,6 @@ export function SalesView() {
 
   return (
     <div>
-
       <div style={{ marginBottom: "29.28px" }}>
         <h1 style={{ fontSize: "20px", fontWeight: 700, lineHeight: "25px", letterSpacing: "-0.56px", color: INK, margin: 0 }}>
           매출 및 이용권 내역
@@ -106,7 +53,7 @@ export function SalesView() {
         <TabButton active={tab === "subscription"} onClick={() => setTab("subscription")}>이용권 결제 내역</TabButton>
       </div>
 
-      {tab === "sales" ? <SalesTab query={query} setQuery={setQuery} orderFilter={orderFilter} setOrderFilter={setOrderFilter} orders={filteredOrders} onOpenOrder={setOpenOrder} /> : <SubscriptionTab />}
+      {tab === "sales" ? <SalesTab monthly={data.monthly} query={query} setQuery={setQuery} orderFilter={orderFilter} setOrderFilter={setOrderFilter} orders={filteredOrders} onOpenOrder={setOpenOrder} /> : <SubscriptionTab subscriptions={data.subscriptions} />}
 
       {openOrder && <OrderDetailModal order={openOrder} onClose={() => setOpenOrder(null)} />}
     </div>
@@ -144,6 +91,7 @@ function SalesTab({
   setOrderFilter,
   orders,
   onOpenOrder,
+  monthly,
 }: {
   query: string;
   setQuery: (v: string) => void;
@@ -151,15 +99,13 @@ function SalesTab({
   setOrderFilter: (v: OrderFilter) => void;
   orders: OrderRow[];
   onOpenOrder: (o: OrderRow) => void;
+  monthly: MonthlyRow[];
 }) {
-
   const MONTHLY_GRID = "134px 175px 107px 158px 188px 164px 152px";
-
   const ORDER_GRID = "140px 164px 128px minmax(0,1fr) 159px 168px 132px";
 
   return (
     <>
-
       <Card style={{ padding: "25.4px", marginBottom: "24.4px" }}>
         <div className="flex items-center justify-between" style={{ marginBottom: "19.52px" }}>
           <h3 style={{ fontSize: "14px", fontWeight: 700, lineHeight: "17.5px", letterSpacing: "-0.392px", color: INK, margin: 0 }}>월별 정산 현황</h3>
@@ -176,7 +122,7 @@ function SalesTab({
               </div>
             ))}
           </div>
-          {MONTHLY.map((r, i) => (
+          {monthly.map((r, i) => (
             <div key={i} className="grid" style={{ gridTemplateColumns: MONTHLY_GRID, borderTop: i === 0 ? "none" : "1px solid rgba(210,210,215,0.1)" }}>
               <Cell><span style={{ fontSize: "13px", fontWeight: 500, lineHeight: "23.4px", letterSpacing: "-0.195px", color: INK }}>{r.month}</span></Cell>
               <Cell><span style={{ fontSize: "13px", fontWeight: 400, lineHeight: "23.4px", letterSpacing: "-0.195px", color: INK }}>{r.total}</span></Cell>
@@ -208,7 +154,6 @@ function SalesTab({
       >
         <div className="flex" style={{ gap: "14.64px" }}>
           <div className="flex shrink-0 items-center justify-center" style={{ width: "44px", height: "44px", borderRadius: "9.76px", background: "rgba(30,58,95,0.1)" }}>
-
             <img src="/icons/sales-info.svg" alt="" width={20} height={20} aria-hidden="true" />
           </div>
           <div>
@@ -236,7 +181,6 @@ function SalesTab({
         <div className="flex items-center" style={{ gap: "14.64px" }}>
           <div className="relative flex-1">
             <span className="pointer-events-none absolute top-1/2 -translate-y-1/2" style={{ left: "15.64px" }}>
-
               <img src="/icons/sales-search.svg" alt="" width={14} height={14} aria-hidden="true" />
             </span>
             <input
@@ -260,7 +204,6 @@ function SalesTab({
             >
               <option>최신순</option>
             </select>
-
             <img src="/icons/sales-select-chevron.svg" alt="" width={8} height={4} aria-hidden="true" className="pointer-events-none absolute right-[15.64px] top-1/2 -translate-y-1/2" />
           </div>
         </div>
@@ -330,18 +273,15 @@ function SalesTab({
   );
 }
 
-function SubscriptionTab() {
-
+function SubscriptionTab({ subscriptions }: { subscriptions: SubscriptionRow[] }) {
   const GRID = "165px 201px 171px 143px 274px 172px";
 
   return (
     <>
-
       <Card style={{ padding: "25.4px", marginBottom: "29.28px" }}>
         <div className="flex items-center justify-between">
           <div className="flex items-center" style={{ gap: "19.52px" }}>
             <div className="flex shrink-0 items-center justify-center" style={{ width: "49px", height: "49px", borderRadius: "14.64px", background: "rgba(30,58,95,0.1)" }}>
-
               <img src="/icons/sales-plan.svg" alt="" width={20} height={18} aria-hidden="true" />
             </div>
             <div>
@@ -372,7 +312,7 @@ function SubscriptionTab() {
             </div>
           ))}
         </div>
-        {SUBSCRIPTIONS.map((s, i) => (
+        {subscriptions.map((s, i) => (
           <div key={i} className="grid" style={{ gridTemplateColumns: GRID, borderTop: i === 0 ? "none" : "1px solid rgba(210,210,215,0.1)", minHeight: "78px" }}>
             <Cell pad="19.52px 24.4px"><span style={{ fontSize: "12px", fontWeight: 400, lineHeight: "21.6px", letterSpacing: "-0.18px", color: "rgba(29,29,31,0.5)" }}>{s.paidAt}</span></Cell>
             <Cell pad="19.52px 24.4px"><span style={{ fontSize: "13px", fontWeight: 500, lineHeight: "23.4px", letterSpacing: "-0.195px", color: INK }}>{s.plan}</span></Cell>
@@ -407,7 +347,6 @@ function OrderDetailModal({ order, onClose }: { order: OrderRow; onClose: () => 
         className="relative flex max-h-full flex-col"
         style={{ width: "623px", borderRadius: "19.52px", border: "1px solid rgba(210,210,215,0.2)", background: "#fff", boxShadow: "0 20px 25px rgba(0,0,0,0.1), 0 8px 10px rgba(0,0,0,0.1)", overflow: "hidden" }}
       >
-
         <div
           className="flex shrink-0 items-center justify-between"
           style={{ padding: "19.52px 24.4px 20.52px", background: "rgba(255,255,255,0.95)", borderBottom: "1px solid rgba(210,210,215,0.1)" }}
@@ -419,13 +358,11 @@ function OrderDetailModal({ order, onClose }: { order: OrderRow; onClose: () => 
             </p>
           </div>
           <button type="button" onClick={onClose} aria-label="닫기" className="flex items-center justify-center" style={{ width: "34px", height: "34px", borderRadius: "9999px", border: "none", background: "none", cursor: "pointer" }}>
-
             <img src="/icons/sales-modal-close.svg" alt="" width={20} height={20} aria-hidden="true" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto" style={{ padding: "24.4px" }}>
-
           <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "19.52px" }}>
             <SummaryField label="주문번호" value={order.no} valueSize="12px" valueWeight={400} />
             <SummaryField label="결제 일시" value={order.date} valueSize="13px" valueWeight={400} />
@@ -517,7 +454,6 @@ function Cell({ children, pad = "14.64px 19.52px" }: { children: React.ReactNode
 function Pill({ bg, border, color, icon, children }: { bg: string; border: string; color: string; icon: string; children: React.ReactNode }) {
   return (
     <span className="inline-flex items-center" style={{ gap: "4.88px", padding: "5.88px 13.2px", borderRadius: "9999px", background: bg, border: `1px solid ${border}` }}>
-
       <img src={icon} alt="" width={10} height={10} aria-hidden="true" />
       <span style={{ fontSize: "11px", fontWeight: 400, lineHeight: "19.8px", letterSpacing: "-0.165px", color }}>{children}</span>
     </span>
@@ -532,7 +468,7 @@ function StatusBadge({ bg, border, color, children }: { bg: string; border: stri
   );
 }
 
-function OrderStatusBadge({ status }: { status: OrderStatus }) {
+function OrderStatusBadge({ status }: { status: OrderRow["status"] }) {
   if (status === "결제완료") return <StatusBadge bg="rgba(30,58,95,0.1)" border="rgba(30,58,95,0.2)" color={NAVY}>결제완료</StatusBadge>;
   if (status === "배송/진행중") return <StatusBadge bg="#F0F9FF" border="#BAE6FD" color="#0369A1">배송/진행중</StatusBadge>;
   return <StatusBadge bg="#ECFDF5" border="#A7F3D0" color="#047857">완료</StatusBadge>;
@@ -541,7 +477,6 @@ function OrderStatusBadge({ status }: { status: OrderStatus }) {
 function InfoLi({ children, top }: { children: React.ReactNode; top?: string }) {
   return (
     <li className="flex items-center" style={{ gap: "9.76px", marginTop: top ?? 0 }}>
-
       <img src="/icons/sales-li-check.svg" alt="" width={11} height={8} aria-hidden="true" className="shrink-0" />
       <span style={{ fontSize: "12px", fontWeight: 400, lineHeight: "21.6px", letterSpacing: "-0.18px", color: "rgba(29,29,31,0.6)" }}>{children}</span>
     </li>
@@ -554,7 +489,6 @@ function SummaryCard({ label, value, iconBg, icon }: { label: string; value: str
       <div className="flex items-start justify-between" style={{ marginBottom: "14.64px" }}>
         <span style={{ fontSize: "12px", fontWeight: 400, lineHeight: "21.6px", letterSpacing: "-0.18px", color: "rgba(29,29,31,0.4)" }}>{label}</span>
         <span className="flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "9.76px", background: iconBg }}>
-
           <img src={icon} alt="" width={18} height={18} aria-hidden="true" />
         </span>
       </div>
@@ -570,14 +504,12 @@ function DateInput() {
   return (
     <div className="flex items-center justify-between" style={{ width: "143px", height: "51px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.3)", background: "#fff", padding: "0 15.64px" }}>
       <span style={{ fontSize: "13px", fontWeight: 400, lineHeight: "22.75px", letterSpacing: "-0.293px", color: INK }}>-/-/-</span>
-
       <img src="/icons/sales-date.svg" alt="" width={13} height={14} aria-hidden="true" />
     </div>
   );
 }
 
 function SummaryField({ label, value, valueSize, valueWeight }: { label: string; value: string; valueSize: string; valueWeight: number }) {
-
   const lh = valueSize === "13px" ? "22.75px" : "21.6px";
   const ls = valueSize === "13px" ? "-0.195px" : "-0.18px";
   return (

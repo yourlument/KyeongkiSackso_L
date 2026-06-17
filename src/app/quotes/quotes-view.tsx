@@ -2,24 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { QuoteRow, QuoteStatus } from "@/lib/quotes";
 
-type Status = "견적공고중" | "견적검토중" | "선정완료" | "마감";
-type Quote = { id: string; title: string; items: string; org: string; status: Status; budget: number; proposals: number; deadline: string };
-
-const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
-
-const QUOTES: Quote[] = [
-  { id: "q1", title: "수지 보강 프로젝트 발전기 및 베어링 구매", items: "발전기 100kW급, 베어링 6206-2RS", org: "경기도 화성시 화폐과", status: "견적공고중", budget: 15000000, proposals: 1, deadline: "2026-06-20" },
-  { id: "q2", title: "2026년 화성시 도시개발 건자재 대규모 구매 (다수 업체 비교)", items: "레미콘 24-40-140, 아스콘 표준배합 15-40, 철근 D16 10m", org: "경기도 화성시 도시건설과", status: "견적검토중", budget: 35000000, proposals: 10, deadline: "2026-07-31" },
-  { id: "q3", title: "2026년 2분기 도로보수 공사 자재 구매", items: "레미콘 24-40-140, 아스콘 표준배합 15-40", org: "경기도 화성시 도로과", status: "견적공고중", budget: 8000000, proposals: 3, deadline: "2026-06-15" },
-  { id: "q4", title: "2026년 화성시 도로유지보수 포장 자재 구매 (물품 견적)", items: "레미콘 24-40-140(중기), 아스콘 표준배합 15-40", org: "경기도 화성시 도로관리과", status: "선정완료", budget: 12000000, proposals: 4, deadline: "2026-03-20" },
-  { id: "q5", title: "2026년 1분기 교통안전용품 구매 (물품 견적)", items: "반사원형콘 750mm, 강관난간 2중난간", org: "경기도 화성시 교통시설관리과", status: "마감", budget: 5500000, proposals: 6, deadline: "2026-02-28" },
-];
+type Status = QuoteStatus;
+type Quote = QuoteRow;
 
 const STATUS_FILTERS: Array<"전체" | Status> = ["전체", "견적공고중", "견적검토중", "선정완료", "마감"];
 const GRID = "minmax(0,1fr) 214px 127px 130px 64px 110px 24px";
 
-export function QuotesView({ isGuest = false }: { isGuest?: boolean }) {
+export function QuotesView({ quotes, isGuest = false }: { quotes: QuoteRow[]; isGuest?: boolean }) {
   const router = useRouter();
   const [mine, setMine] = useState(!isGuest);
   const [statusF, setStatusF] = useState<"전체" | Status>("전체");
@@ -27,19 +18,19 @@ export function QuotesView({ isGuest = false }: { isGuest?: boolean }) {
   const [loginPrompt, setLoginPrompt] = useState(false);
 
   const rows = useMemo(() => {
-    return QUOTES.filter((r) => (statusF === "전체" ? true : r.status === statusF))
+    return quotes
+      .filter((r) => (mine ? r.mine : true))
+      .filter((r) => (statusF === "전체" ? true : r.status === statusF))
       .filter((r) => (q.trim() ? (r.title + r.org + r.items).includes(q.trim()) : true));
-  }, [statusF, q]);
+  }, [quotes, mine, statusF, q]);
 
   function openRow(id: string) {
-
     if (isGuest) { setLoginPrompt(true); return; }
     router.push(`/quotes/${id}`);
   }
 
   return (
     <div style={{ marginTop: "39.04px" }}>
-
       <div className="flex items-center" style={{ gap: "9.76px", marginBottom: "16px" }}>
         <Toggle active={isGuest ? true : !mine} onClick={() => setMine(false)}>전체</Toggle>
         {!isGuest && <Toggle active={mine} onClick={() => setMine(true)}>내가 쓴 글</Toggle>}
@@ -94,7 +85,7 @@ export function QuotesView({ isGuest = false }: { isGuest?: boolean }) {
             </div>
             <span style={{ fontSize: "13px", fontWeight: 400, color: "rgba(29,29,31,0.6)" }}>{r.org}</span>
             <span><Badge status={r.status} /></span>
-            <span style={{ fontSize: "14px", fontWeight: 500, color: "#1D1D1F" }}>{won(r.budget)}</span>
+            <span style={{ fontSize: "14px", fontWeight: 500, color: "#1D1D1F" }}>{r.budget}</span>
             <span style={{ fontSize: "13px", fontWeight: 400, color: "rgba(29,29,31,0.5)" }}>{r.proposals}건</span>
             <span style={{ fontSize: "13px", fontWeight: 400, color: "rgba(29,29,31,0.4)" }}>{r.deadline}</span>
             <span style={{ justifySelf: "end" }}><Chevron /></span>
@@ -114,7 +105,6 @@ export function QuotesView({ isGuest = false }: { isGuest?: boolean }) {
         <div onClick={() => setLoginPrompt(false)} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
           <div onClick={(e) => e.stopPropagation()} style={{ position: "relative", width: "468px", maxWidth: "100%", borderRadius: "19.52px", background: "#fff", padding: "29.28px", textAlign: "center" }}>
             <button type="button" aria-label="닫기" onClick={() => setLoginPrompt(false)} style={{ position: "absolute", top: "19.52px", right: "19.52px", background: "none", border: "none", cursor: "pointer", color: "rgba(29,29,31,0.3)", fontSize: "18px", lineHeight: 1 }}>✕</button>
-
             <div className="flex items-center justify-center" style={{ width: "68px", height: "68px", borderRadius: "9999px", background: "#FFFBEB", margin: "0 auto 19.52px" }}>
               <LockIcon />
             </div>

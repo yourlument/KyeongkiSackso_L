@@ -1,18 +1,14 @@
+
 export type CategoryItemType = "GOODS" | "SERVICE";
 
 export interface MidCategory {
-
   name: string;
-
   goods: string[];
-
   service: string[];
 }
 
 export interface TopCategory {
-
   name: string;
-
   mids: MidCategory[];
 }
 

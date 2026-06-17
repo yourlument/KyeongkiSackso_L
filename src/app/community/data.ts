@@ -1,3 +1,4 @@
+
 export type DemandStatus = "진행중" | "마감";
 
 export type DemandComment = {

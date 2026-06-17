@@ -3,11 +3,15 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { KakaoChat } from "@/components/kakao-chat";
 import { CommunityView } from "./community-view";
+import { loadDemand } from "@/lib/community";
+
+export const dynamic = "force-dynamic";
 
 export default async function CommunityPage() {
   const claims = await getSessionClaims();
   const role = claims?.role ?? null;
   const supplier = role === "SUPPLIER";
+  const { posts } = await loadDemand(claims?.sub);
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">
@@ -31,7 +35,7 @@ export default async function CommunityPage() {
             )}
           </div>
           <div style={{ marginTop: "29.28px", borderTop: "1px solid rgba(210,210,215,0.2)" }} />
-          <CommunityView role={role} />
+          <CommunityView role={role} initialPosts={posts} />
         </div>
       </main>
       <SiteFooter />

@@ -3,10 +3,6 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  PRODUCT_REQUESTS,
-  REQUEST_STATS,
-  ANNOUNCEMENTS,
-  PROPOSALS,
   type ProductRequest,
   type AnnouncementRow,
   type Proposal,
@@ -29,7 +25,18 @@ const NAVY = "#1E3A5F";
 type MainTab = "product" | "announcement";
 type SubTab = "list" | "proposals";
 
-export function QuotesMonitorView() {
+export function QuotesMonitorView({
+  stats,
+  productRequests,
+  announcements,
+  proposals,
+}: {
+  stats: { total: number; waiting: number; submitted: number };
+  productRequests: ProductRequest[];
+  announcements: AnnouncementRow[];
+  proposals: Proposal[];
+}) {
+  const router = useRouter();
   const [mainTab, setMainTab] = useState<MainTab>("product");
   const [subTab, setSubTab] = useState<SubTab>("list");
   const [openReq, setOpenReq] = useState<string | null>(null);
@@ -38,7 +45,6 @@ export function QuotesMonitorView() {
 
   return (
     <>
-
       <div style={{ paddingBottom: "29.28px" }}>
         <h1 style={{ fontSize: "20px", fontWeight: 700, letterSpacing: "-0.56px", lineHeight: "25px", color: "#1D1D1F", margin: 0 }}>
           견적 요청 모니터링
@@ -97,27 +103,31 @@ export function QuotesMonitorView() {
       </div>
 
       {mainTab === "product" ? (
-        <ProductTab openReq={openReq} setOpenReq={setOpenReq} onSubmit={setSubmitProduct} />
+        <ProductTab stats={stats} requests={productRequests} openReq={openReq} setOpenReq={setOpenReq} onSubmit={setSubmitProduct} />
       ) : (
-        <AnnouncementTab subTab={subTab} setSubTab={setSubTab} onSubmit={setSubmitAnnouncement} />
+        <AnnouncementTab announcements={announcements} proposals={proposals} subTab={subTab} setSubTab={setSubTab} onSubmit={setSubmitAnnouncement} />
       )}
 
       {submitAnnouncement && (
-        <QuoteSubmitModal target={{ kind: "announcement", row: submitAnnouncement }} onClose={() => setSubmitAnnouncement(null)} />
+        <QuoteSubmitModal target={{ kind: "announcement", row: submitAnnouncement }} onClose={() => setSubmitAnnouncement(null)} onSubmitted={() => { setSubmitAnnouncement(null); router.refresh(); }} />
       )}
       {submitProduct && (
-        <QuoteSubmitModal target={{ kind: "product", row: submitProduct }} onClose={() => setSubmitProduct(null)} />
+        <QuoteSubmitModal target={{ kind: "product", row: submitProduct }} onClose={() => setSubmitProduct(null)} onSubmitted={() => { setSubmitProduct(null); router.refresh(); }} />
       )}
     </>
   );
 }
 
-function ProductTab({ openReq, setOpenReq, onSubmit }: { openReq: string | null; setOpenReq: (v: string | null) => void; onSubmit: (r: ProductRequest) => void }) {
+function ProductTab({ stats, requests, openReq, setOpenReq, onSubmit }: { stats: { total: number; waiting: number; submitted: number }; requests: ProductRequest[]; openReq: string | null; setOpenReq: (v: string | null) => void; onSubmit: (r: ProductRequest) => void }) {
+  const statCards = [
+    { key: "total", value: String(stats.total), label: "전체 요청" },
+    { key: "waiting", value: String(stats.waiting), label: "대기중" },
+    { key: "submitted", value: String(stats.submitted), label: "견적 제출" },
+  ];
   return (
     <>
-
       <div className="flex" style={{ gap: "19.52px", paddingBottom: "29.28px" }}>
-        {REQUEST_STATS.map((s) => (
+        {statCards.map((s) => (
           <div key={s.key} style={{ width: "363px", borderRadius: "19.52px", background: "#fff", border: "1px solid rgba(210,210,215,0.2)", padding: "20.52px" }}>
             <span className="inline-flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "9.76px", background: "rgba(30,58,95,0.1)", marginBottom: "9.76px" }}>
               <StatBoxIcon />
@@ -137,11 +147,11 @@ function ProductTab({ openReq, setOpenReq, onSubmit }: { openReq: string | null;
             구매담당자가 직접 요청한 견적을 확인하고 대응하세요.
           </p>
         </div>
-        {PRODUCT_REQUESTS.map((r, i) => (
+        {requests.map((r, i) => (
           <ProductRow
             key={r.id}
             row={r}
-            last={i === PRODUCT_REQUESTS.length - 1}
+            last={i === requests.length - 1}
             open={openReq === r.id}
             onToggle={() => setOpenReq(openReq === r.id ? null : r.id)}
             onSubmit={() => onSubmit(r)}
@@ -158,7 +168,6 @@ function ProductRow({ row, last, open, onToggle, onSubmit }: { row: ProductReque
     <div style={{ borderBottom: last && !open ? "none" : "1px solid #F3F4F6" }}>
       <div className="flex items-center" style={{ gap: "19.52px", padding: "19.52px 24.4px" }}>
         <div className="flex-1 min-w-0">
-
           <div className="flex items-center" style={{ gap: "9.76px" }}>
             <span style={{ fontSize: "14.64px", fontWeight: 600, letterSpacing: "-0.2196px", lineHeight: "19.52px", color: "#111827" }}>{row.product}</span>
             {submitted ? (
@@ -167,7 +176,6 @@ function ProductRow({ row, last, open, onToggle, onSubmit }: { row: ProductReque
               <span style={{ borderRadius: "9999px", border: "1px solid #E5E7EB", padding: "3.44px 10.76px", fontSize: "10px", fontWeight: 400, lineHeight: "18px", letterSpacing: "-0.15px", color: "#6B7280" }}>대기중</span>
             )}
           </div>
-
           <div className="flex items-center" style={{ gap: "14.64px", marginTop: "4.88px" }}>
             <span className="inline-flex items-center" style={{ gap: "2.44px" }}>
               <PinIcon />
@@ -227,7 +235,6 @@ function ProductRequestDetail({ row }: { row: ProductRequest }) {
           <span style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "#1F2937" }}>{value}</span>
         </div>
       ))}
-
       <div style={{ paddingTop: "9.76px" }}>
         <p style={{ width: "98px", fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#9CA3AF", margin: "2.44px 0 9.76px" }}>첨부파일</p>
         <div className="flex items-center" style={{ gap: "9.76px", borderRadius: "9.76px", border: "1px solid #E5E7EB", background: "#fff", padding: "10.76px 15.64px" }}>
@@ -238,14 +245,13 @@ function ProductRequestDetail({ row }: { row: ProductRequest }) {
   );
 }
 
-function AnnouncementTab({ subTab, setSubTab, onSubmit }: { subTab: SubTab; setSubTab: (v: SubTab) => void; onSubmit: (r: AnnouncementRow) => void }) {
+function AnnouncementTab({ announcements, proposals, subTab, setSubTab, onSubmit }: { announcements: AnnouncementRow[]; proposals: Proposal[]; subTab: SubTab; setSubTab: (v: SubTab) => void; onSubmit: (r: AnnouncementRow) => void }) {
   const [page, setPage] = useState(1);
-  const visible = useMemo(() => ANNOUNCEMENTS, []);
+  const visible = useMemo(() => announcements, [announcements]);
   void page;
 
   return (
     <>
-
       <div className="flex" style={{ borderBottom: "1px solid rgba(210,210,215,0.2)", marginBottom: "24.4px" }}>
         <button
           type="button"
@@ -264,14 +270,14 @@ function AnnouncementTab({ subTab, setSubTab, onSubmit }: { subTab: SubTab; setS
         >
           <SearchIcon color={subTab === "proposals" ? NAVY : "rgba(29,29,31,0.4)"} />
           <span style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: subTab === "proposals" ? NAVY : "rgba(29,29,31,0.4)" }}>내 제안 현황</span>
-          <span className="inline-flex items-center justify-center" style={{ borderRadius: "9999px", background: "rgba(29,29,31,0.1)", padding: "2.44px 7.32px", fontSize: "10px", fontWeight: 600, lineHeight: "18px", letterSpacing: "-0.15px", color: "rgba(29,29,31,0.5)" }}>5</span>
+          <span className="inline-flex items-center justify-center" style={{ borderRadius: "9999px", background: "rgba(29,29,31,0.1)", padding: "2.44px 7.32px", fontSize: "10px", fontWeight: 600, lineHeight: "18px", letterSpacing: "-0.15px", color: "rgba(29,29,31,0.5)" }}>{proposals.length}</span>
         </button>
       </div>
 
       {subTab === "list" ? (
         <AnnouncementList rows={visible} page={page} setPage={setPage} onSubmit={onSubmit} />
       ) : (
-        <ProposalStatus />
+        <ProposalStatus proposals={proposals} />
       )}
     </>
   );
@@ -285,7 +291,6 @@ function AnnouncementList({ rows, page, setPage, onSubmit }: { rows: Announcemen
       <div style={{ padding: "14.64px 24.4px 15.64px", borderBottom: "1px solid #F3F4F6" }}>
         <p style={{ fontSize: "14.64px", fontWeight: 600, letterSpacing: "-0.2196px", lineHeight: "19.52px", color: "#374151", margin: 0 }}>카테고리 매칭 공고 목록</p>
       </div>
-
       <div className="grid" style={{ gridTemplateColumns: AN_GRID, background: "rgba(29,29,31,0.02)" }}>
         {["공고명", "요청 기관", "예산", "마감일", "제안", ""].map((h, i) => (
           <div key={i} style={{ padding: "14.64px 19.52px" }}>
@@ -293,7 +298,6 @@ function AnnouncementList({ rows, page, setPage, onSubmit }: { rows: Announcemen
           </div>
         ))}
       </div>
-
       {rows.map((r, i) => (
         <div key={r.id} className="grid items-center" style={{ gridTemplateColumns: AN_GRID, borderTop: "1px solid #F3F4F6" }}>
           <div style={{ padding: "14.64px 19.52px", minWidth: 0 }}>
@@ -319,7 +323,6 @@ function AnnouncementList({ rows, page, setPage, onSubmit }: { rows: Announcemen
           </div>
         </div>
       ))}
-
       <div className="flex items-center justify-center" style={{ gap: "4.88px", padding: "19.52px 0", borderTop: "1px solid #F3F4F6" }}>
         <button type="button" aria-label="이전" onClick={() => setPage(Math.max(1, page - 1))} className="inline-flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "7.32px", border: "none", background: "none", cursor: "pointer" }}>
           <PageArrowIcon dir="left" />
@@ -344,13 +347,13 @@ const PROPOSAL_PILL: Record<ProposalStatusKind, { bg: string; border: string; co
   선정: { bg: "rgba(30,58,95,0.05)", border: NAVY, color: NAVY },
 };
 
-function ProposalStatus() {
+function ProposalStatus({ proposals }: { proposals: Proposal[] }) {
   const router = useRouter();
   const [detailFor, setDetailFor] = useState<Proposal | null>(null);
   return (
     <>
       <div className="flex flex-col" style={{ gap: "14.64px" }}>
-        {PROPOSALS.map((p) => (
+        {proposals.map((p) => (
           <ProposalCard key={p.id} p={p} onView={() => setDetailFor(p)} onChat={() => router.push("/partner/quotes/chat")} />
         ))}
       </div>

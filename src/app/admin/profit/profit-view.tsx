@@ -1,13 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-
-type Kpi = {
-  value: string;
-  label: string;
-  iconBg: string;
-  icon: React.ReactNode;
-};
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import type { AdminProfitData, ProfitPayState as PayState, ProfitPermState as PermState } from "@/lib/admin-profit";
 
 const ICON_REVENUE = (
   <svg width="21" height="20" viewBox="0 0 21 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -33,63 +28,39 @@ const ICON_UNPAID = (
   </svg>
 );
 
-const KPIS: Kpi[] = [
-  { value: "788만", label: "이번달 총 수익", iconBg: "#F3F4F6", icon: ICON_REVENUE },
-  { value: "168만", label: "이용권 수익", iconBg: "#F3F4F6", icon: ICON_TICKET },
-  { value: "620만", label: "플랫폼 수익", iconBg: "#F3F4F6", icon: ICON_PLATFORM },
-];
-
-type Bar = { month: string; label: string; platform: number; license: number };
-
-const BARS: Bar[] = [
-  { month: "1월", label: "4450만", platform: 64, license: 25 },
-  { month: "2월", label: "5480만", platform: 82, license: 28 },
-  { month: "3월", label: "4000만", platform: 56, license: 24 },
-  { month: "4월", label: "6620만", platform: 102, license: 30 },
-  { month: "5월", label: "7880만", platform: 124, license: 34 },
-];
-
-type PayState = "결제완료" | "미납";
-type PermState = "정상" | "제한";
-
-type Company = {
-  name: string;
-  plan: string;
-  fee: string;
-  pay: PayState;
-  perm: PermState;
-};
-
-const COMPANIES: Company[] = [
-  { name: "디지털솔루션(주)", plan: "프리미엄", fee: "299,000원", pay: "결제완료", perm: "정상" },
-  { name: "오피스텍(주)", plan: "프리미엄", fee: "299,000원", pay: "결제완료", perm: "정상" },
-  { name: "안전소방(주)", plan: "프리미엄", fee: "299,000원", pay: "결제완료", perm: "정상" },
-  { name: "경기건설(주)", plan: "프리미엄", fee: "299,000원", pay: "결제완료", perm: "정상" },
-  { name: "포장산업(주)", plan: "프리미엄", fee: "299,000원", pay: "미납", perm: "정상" },
-  { name: "네트웍솔루션(주)", plan: "프리미엄", fee: "299,000원", pay: "미납", perm: "제한" },
-];
+const KPI_ICONS = [ICON_REVENUE, ICON_TICKET, ICON_PLATFORM];
 
 const FILTERS = ["전체", "결제완료", "미납", "미납만 보기"] as const;
 type Filter = (typeof FILTERS)[number];
 
 const COL_WIDTHS = ["229px", "149px", "167px", "157px", "127px", "258px"];
 
-export function ProfitView() {
+export function ProfitView({ data }: { data: AdminProfitData }) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const [filter, setFilter] = useState<Filter>("전체");
   const [search, setSearch] = useState("");
 
   const rows = useMemo(() => {
-    let list = COMPANIES;
+    let list = data.companies;
     if (filter === "결제완료") list = list.filter((c) => c.pay === "결제완료");
     else if (filter === "미납" || filter === "미납만 보기") list = list.filter((c) => c.pay === "미납");
     const q = search.trim();
     if (q) list = list.filter((c) => c.name.includes(q));
     return list;
-  }, [filter, search]);
+  }, [data.companies, filter, search]);
+
+  async function setRestrict(id: string, restricted: boolean) {
+    const res = await fetch("/api/admin/profit/restrict", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, restricted }),
+    });
+    if (res.ok) startTransition(() => router.refresh());
+  }
 
   return (
     <div style={{ width: "100%" }}>
-
       <div style={{ marginBottom: "34.16px" }}>
         <h1 style={{ margin: 0, fontSize: "18px", fontWeight: 700, letterSpacing: "-0.504px", lineHeight: "22.5px", color: "#1D1D1F" }}>수익 관리</h1>
         <p style={{ margin: "2.44px 0 0", fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>
@@ -98,7 +69,7 @@ export function ProfitView() {
       </div>
 
       <div style={{ display: "flex", gap: "19.52px", marginBottom: "29.28px" }}>
-        {KPIS.map((k) => (
+        {data.kpis.map((k, i) => (
           <div
             key={k.label}
             style={{
@@ -116,13 +87,13 @@ export function ProfitView() {
                   width: "44px",
                   height: "44px",
                   borderRadius: "9.76px",
-                  background: k.iconBg,
+                  background: "#F3F4F6",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                {k.icon}
+                {KPI_ICONS[i]}
               </div>
             </div>
             <div style={{ fontSize: "24.4px", fontWeight: 700, letterSpacing: "-0.366px", lineHeight: "34.16px", color: "#111827" }}>
@@ -165,7 +136,7 @@ export function ProfitView() {
         </div>
 
         <div style={{ display: "flex", alignItems: "flex-end", gap: "19.52px", padding: "0 9.76px", height: "234px" }}>
-          {BARS.map((b) => (
+          {data.bars.map((b) => (
             <div key={b.month} style={{ flex: "1 1 0", minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: "7.32px" }}>
               <span style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "rgba(29,29,31,0.4)" }}>
                 {b.label}
@@ -211,7 +182,6 @@ export function ProfitView() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "14.64px" }}>
-
           <div style={{ position: "relative", flex: "1 1 0", minWidth: 0 }}>
             <span style={{ position: "absolute", left: "15.64px", top: "50%", transform: "translateY(-50%)", display: "flex" }}>
               <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -289,7 +259,6 @@ export function ProfitView() {
       </div>
 
       <div style={{ borderRadius: "14.64px", background: "#FFFFFF", border: "1px solid rgba(210,210,215,0.2)", overflow: "hidden" }}>
-
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "17.08px 24.4px 18.08px" }}>
           <span style={{ fontSize: "13px", fontWeight: 700, letterSpacing: "-0.364px", lineHeight: "16.25px", color: "#1D1D1F" }}>
             업체별 구독 수납 현황
@@ -347,9 +316,9 @@ export function ProfitView() {
                   <div style={{ display: "flex", gap: "4.88px" }}>
                     {c.pay === "미납" && <ActionButton label="결제 확인" bg="#374151" color="#FFFFFF" />}
                     {c.perm === "제한" ? (
-                      <ActionButton label="권한 해제" bg="#E5E7EB" color="#374151" />
+                      <ActionButton label="권한 해제" bg="#E5E7EB" color="#374151" onClick={() => setRestrict(c.id, false)} />
                     ) : (
-                      <ActionButton label="권한 제한" bg="#DC2626" color="#FFFFFF" />
+                      <ActionButton label="권한 제한" bg="#DC2626" color="#FFFFFF" onClick={() => setRestrict(c.id, true)} />
                     )}
                   </div>
                 </td>
@@ -410,10 +379,11 @@ function PermBadge({ state }: { state: PermState }) {
   );
 }
 
-function ActionButton({ label, bg, color }: { label: string; bg: string; color: string }) {
+function ActionButton({ label, bg, color, onClick }: { label: string; bg: string; color: string; onClick?: () => void }) {
   return (
     <button
       type="button"
+      onClick={onClick}
       style={{
         padding: "4.88px 9.76px",
         borderRadius: "4.88px",

@@ -1,3 +1,4 @@
+
 export type ProductRequestStatus = "대기중" | "견적 제출됨";
 
 export type ProductRequest = {
@@ -7,10 +8,8 @@ export type ProductRequest = {
   org: string;
   qty: string;
   deadline: string;
-
   amount?: string;
   submittedAt?: string;
-
   detail: {
     orgName: string;
     department: string;

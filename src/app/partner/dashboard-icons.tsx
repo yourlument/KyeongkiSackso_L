@@ -1,3 +1,4 @@
+
 type IconProps = { className?: string; style?: React.CSSProperties };
 
 export function ProductIcon(props: IconProps) {

@@ -126,11 +126,9 @@ function ErrorBanner({ message }: { message: string }) {
 
 function FindIdForm() {
   const [portal, setPortal] = useState<Portal>("OFFICIAL");
-
   const [orgBizNo, setOrgBizNo] = useState("");
   const [orgName, setOrgName] = useState("");
   const [deptName, setDeptName] = useState("");
-
   const [bizNo, setBizNo] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [repName, setRepName] = useState("");
@@ -286,13 +284,10 @@ function FindIdForm() {
 function ResetPwForm() {
   const router = useRouter();
   const [portal, setPortal] = useState<Portal>("OFFICIAL");
-
   const [orgName, setOrgName] = useState("");
   const [deptName, setDeptName] = useState("");
-
   const [companyName, setCompanyName] = useState("");
   const [repName, setRepName] = useState("");
-
   const [email, setEmail] = useState("");
 
   const [loading, setLoading] = useState(false);

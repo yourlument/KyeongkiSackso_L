@@ -5,11 +5,15 @@ import { SiteFooter } from "@/components/site-footer";
 import { KakaoChat } from "@/components/kakao-chat";
 import { QuotesView } from "./quotes-view";
 import { QuoteRegisterButton } from "./quote-register-modal";
+import { loadQuotes } from "@/lib/quotes";
+
+export const dynamic = "force-dynamic";
 
 export default async function QuotesPage() {
   const claims = await getSessionClaims();
   if (claims?.role === "SUPPLIER") redirect("/partner/quotes");
   const isGuest = !claims;
+  const { rows } = await loadQuotes(claims?.sub);
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">
@@ -29,7 +33,7 @@ export default async function QuotesPage() {
             <QuoteRegisterButton disabled={isGuest} />
           </div>
           <div style={{ marginTop: "48.8px", borderTop: "1px solid rgba(210,210,215,0.2)" }} />
-          <QuotesView isGuest={isGuest} />
+          <QuotesView quotes={rows} isGuest={isGuest} />
         </div>
       </main>
       <SiteFooter />

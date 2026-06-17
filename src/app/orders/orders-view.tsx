@@ -52,13 +52,11 @@ export function OrdersView() {
 
   return (
     <div style={{ borderRadius: "19.52px", background: "#fff", border: "1px solid rgba(210,210,215,0.15)", overflow: "hidden" }}>
-
       <div className="grid items-center" style={{ gridTemplateColumns: GRID, gap: "14.64px", padding: "16px 25.4px", borderBottom: "1px solid rgba(210,210,215,0.2)" }}>
         {["결제 일시", "주문 번호", "물품/용역명", "판매 업체명", "결제 금액", "상태", ""].map((h, i) => (
           <span key={i} style={{ fontSize: "12px", fontWeight: 600, letterSpacing: "-0.18px", color: "rgba(29,29,31,0.6)", textAlign: i === 4 ? "right" : "left" }}>{h}</span>
         ))}
       </div>
-
       {rows.map((r, i) => (
         <div key={r.orderNo + i} className="grid items-center" style={{ gridTemplateColumns: GRID, gap: "14.64px", padding: "16px 25.4px", borderTop: i === 0 ? "none" : "1px solid rgba(210,210,215,0.12)" }}>
           <span style={{ fontSize: "13px", fontWeight: 400, color: "rgba(29,29,31,0.5)" }}>{r.date}</span>

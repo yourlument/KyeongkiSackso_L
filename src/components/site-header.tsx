@@ -52,7 +52,6 @@ export function SiteHeader({ variant = "official" }: { variant?: "official" | "s
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
-
     window.location.href = "/";
   }
 
@@ -68,7 +67,6 @@ export function SiteHeader({ variant = "official" }: { variant?: "official" | "s
     <header className="sticky top-0 z-40 h-[61px] border-b border-line bg-surface">
       <div className="flex h-[60px] items-center justify-between px-[48.8px]">
         <Link href="/" aria-label="KORLINK 홈" className="flex items-center">
-
           <img src="/korlink-logo.svg" alt="KORLINK" className="h-[36px] w-auto" />
         </Link>
 
@@ -115,7 +113,6 @@ export function SiteHeader({ variant = "official" }: { variant?: "official" | "s
 
           {supplier || loggedIn ? (
             <>
-
               <Link
                 href="/mypage"
                 aria-label="내 정보"
@@ -123,7 +120,6 @@ export function SiteHeader({ variant = "official" }: { variant?: "official" | "s
               >
                 <UserIcon />
               </Link>
-
               <button
                 type="button"
                 aria-label="로그아웃"

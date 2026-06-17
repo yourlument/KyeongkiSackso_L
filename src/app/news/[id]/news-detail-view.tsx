@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { Attachment, NewsDetail, NewsItem } from "../data";
+import type { Attachment, NewsDetail, NewsItem } from "@/lib/news";
 import {
   CrumbBackIcon,
   ClipHeaderIcon,
@@ -28,10 +28,8 @@ export function NewsDetailView({
   const isNotice = item.category === "공지";
   return (
     <>
-
       <div style={{ background: "#FFFFFF", borderBottom: "1px solid rgba(210,210,215,0.2)" }}>
         <div className="mx-auto w-full max-w-[937px]" style={{ padding: "48.8px 39.04px" }}>
-
           <Link href="/news" className="inline-flex items-center" style={{ gap: "4.88px", marginBottom: "24.4px" }}>
             <span className="flex items-center justify-center" style={{ width: "20px", height: "20px" }}>
               <CrumbBackIcon />
@@ -78,7 +76,6 @@ export function NewsDetailView({
       </div>
 
       <div className="mx-auto w-full max-w-[937px]" style={{ padding: "48.8px 39.04px" }}>
-
         <div style={{ background: "#000000", borderRadius: "19.52px", marginBottom: "39.04px" }}>
           <div
             className="flex items-center justify-center"
@@ -117,14 +114,12 @@ export function NewsDetailView({
       </div>
 
       <div className="mx-auto w-full max-w-[937px]" style={{ padding: "0 39.04px 78.08px" }}>
-
         <div style={{ borderTop: "1px solid rgba(210,210,215,0.2)", paddingTop: "40.04px" }}>
           <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "14.64px" }}>
             <NavCard dir="prev" item={prev} />
             <NavCard dir="next" item={next} />
           </div>
         </div>
-
         <div className="flex justify-center" style={{ marginTop: "29.28px" }}>
           <Link
             href="/news"

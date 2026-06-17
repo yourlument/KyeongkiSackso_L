@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { AdminDashboardData } from "@/lib/admin-dashboard";
 
 const NAVY = "#1E3A5F";
 const CARD_BORDER = "rgba(210,210,215,0.2)";
@@ -10,43 +10,13 @@ const INK_50 = "rgba(29,29,31,0.5)";
 const INK_40 = "rgba(29,29,31,0.4)";
 const INK_30 = "rgba(29,29,31,0.3)";
 
-type Kpi = { label: string; value: string; icon: ReactNode };
-const KPIS: Kpi[] = [
-  { label: "거래액 총합", value: "234억", icon: <KpiMoneyIcon /> },
-  { label: "가입 현황", value: "15", icon: <KpiUserPlusIcon /> },
-  { label: "DAU", value: "1,240", icon: <KpiUserIcon /> },
-  { label: "MAU", value: "8,560", icon: <KpiGroupIcon /> },
-];
-
-type Stage = { label: string; count: string; bg: string; color: string };
-const STAGES: Stage[] = [
-  { label: "공고중", count: "13", bg: "#F0F9FF", color: "#0284C7" },
-  { label: "검토중", count: "8", bg: "#FFFBEB", color: "#D97706" },
-  { label: "선정", count: "6", bg: "#ECFDF5", color: "#059669" },
-  { label: "마감", count: "5", bg: "rgba(29,29,31,0.05)", color: INK_40 },
-];
-
-type Recent = { title: string; meta: string; date: string };
-const RECENT: Recent[] = [
-  { title: "2026년 2분기 도로보수 공사 자재 구매", meta: "경기도 화성시 도로과 · 예산 8,000,000원", date: "2026-06-15" },
-  { title: "2026년 화성시 도시개발 건자재 대규모 구매 (다수 업체 비교)", meta: "경기도 화성시 도시건설과 · 예산 35,000,000원", date: "2026-07-31" },
-  { title: "화성시청 IT장비 신규 구축 프로젝트", meta: "경기도 화성시 정보통신과 · 예산 42,000,000원", date: "2026-05-30" },
-  { title: "화성시 소방서 장비 보강 구매", meta: "경기도 화성시 안전총괄과 · 예산 7,500,000원", date: "2026-05-10" },
-  { title: "2026학년도 교육기관 가구 구매", meta: "경기도 화성시 교육지원청 · 예산 35,000,000원", date: "2026-07-01" },
-];
-
-type Applicant = { name: string; biz: string; category: string };
-const APPLICANTS: Applicant[] = [
-  { name: "새로운건설(주)", biz: "111-22-33344", category: "도로교통 및 토목 분야" },
-  { name: "디지털월드(주)", biz: "222-33-44455", category: "정보통신 및 디지털/4차산업 분야" },
-];
+const KPI_ICONS = [<KpiMoneyIcon key="m" />, <KpiUserPlusIcon key="u" />, <KpiUserIcon key="d" />, <KpiGroupIcon key="g" />];
 
 const TABLE_GRID = "minmax(0,245.9px) minmax(0,255.9px) minmax(0,1fr) 182.5px";
 
-export function DashboardView() {
+export function DashboardView({ data }: { data: AdminDashboardData }) {
   return (
     <div style={{ width: "100%" }}>
-
       <div style={{ paddingBottom: "34.16px" }}>
         <h1 style={{ margin: 0, fontSize: "18px", fontWeight: 700, letterSpacing: "-0.504px", lineHeight: "22.5px", color: INK }}>
           관제 센터
@@ -57,7 +27,7 @@ export function DashboardView() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: "14.64px", paddingBottom: "34.16px" }}>
-        {KPIS.map((k) => (
+        {data.kpis.map((k, i) => (
           <div
             key={k.label}
             style={{
@@ -69,7 +39,7 @@ export function DashboardView() {
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: "14.64px" }}>
               <span style={{ fontSize: "11px", fontWeight: 500, letterSpacing: "-0.165px", lineHeight: "19.8px", color: INK_40 }}>{k.label}</span>
-              {k.icon}
+              {KPI_ICONS[i]}
             </div>
             <p style={{ margin: 0, fontSize: "22px", fontWeight: 700, letterSpacing: "-0.33px", lineHeight: "22px", color: INK }}>{k.value}</p>
           </div>
@@ -77,7 +47,6 @@ export function DashboardView() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24.4px", paddingBottom: "24.4px" }}>
-
         <section style={{ background: "#fff", borderRadius: "14.64px", border: `1px solid ${CARD_BORDER}`, overflow: "hidden" }}>
           <div style={{ padding: "17.08px 24.4px 18.08px" }}>
             <p style={{ margin: 0, fontSize: "13px", fontWeight: 700, letterSpacing: "-0.364px", lineHeight: "16.25px", color: INK }}>
@@ -85,7 +54,7 @@ export function DashboardView() {
             </p>
           </div>
           <div>
-            {STAGES.map((s, i) => (
+            {data.stages.map((s, i) => (
               <div
                 key={s.label}
                 style={{
@@ -132,7 +101,7 @@ export function DashboardView() {
             </span>
           </div>
           <div>
-            {RECENT.map((r, i) => (
+            {data.recentRequests.map((r, i) => (
               <div
                 key={r.title}
                 style={{
@@ -174,7 +143,6 @@ export function DashboardView() {
             전체보기 <ArrowIcon />
           </span>
         </div>
-
         <div
           style={{
             display: "grid",
@@ -191,9 +159,9 @@ export function DashboardView() {
             </span>
           ))}
         </div>
-        {APPLICANTS.map((a, i) => (
+        {data.applicants.map((a, i) => (
           <div
-            key={a.name}
+            key={a.id}
             style={{
               display: "grid",
               gridTemplateColumns: TABLE_GRID,

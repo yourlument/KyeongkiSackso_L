@@ -1,3 +1,4 @@
+
 export type NewsCategory = "공지" | "이벤트";
 
 export type NewsItem = {

@@ -1,11 +1,10 @@
 import { cookies } from "next/headers";
-import { verifyAccessToken, REFRESH_TTL_DAYS, type AccessClaims } from "./jwt";
+import { verifyAccessToken, verifyRefreshToken, REFRESH_TTL_DAYS, type AccessClaims } from "./jwt";
 
 export const ACCESS_COOKIE = "korink_at";
 export const REFRESH_COOKIE = "korink_rt";
 
 const isProd = process.env.NODE_ENV === "production";
-
 const cookieSecure = isProd && process.env.ALLOW_INSECURE_COOKIE !== "1";
 
 export async function setAuthCookies(accessToken: string, refreshToken: string): Promise<void> {
@@ -34,7 +33,16 @@ export async function clearAuthCookies(): Promise<void> {
 
 export async function getSessionClaims(): Promise<AccessClaims | null> {
   const jar = await cookies();
-  const token = jar.get(ACCESS_COOKIE)?.value;
-  if (!token) return null;
-  return verifyAccessToken(token);
+
+  const access = jar.get(ACCESS_COOKIE)?.value;
+  if (access) {
+    const claims = await verifyAccessToken(access);
+    if (claims) return claims;
+  }
+
+  const refresh = jar.get(REFRESH_COOKIE)?.value;
+  if (!refresh) return null;
+  const payload = await verifyRefreshToken(refresh);
+  if (!payload?.role) return null;
+  return { sub: payload.sub, role: payload.role };
 }

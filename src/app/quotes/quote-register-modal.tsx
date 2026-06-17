@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export function QuoteRegisterButton({ disabled = false }: { disabled?: boolean }) {
   const [open, setOpen] = useState(false);
-
   if (disabled) {
     return (
       <span
@@ -69,6 +69,7 @@ const CATEGORY_TREE: TopCat[] = [
 ];
 
 export function QuoteRegisterModal({ onClose }: { onClose: () => void }) {
+  const router = useRouter();
   const [step, setStep] = useState(1);
 
   const [type, setType] = useState<"물품 견적" | "용역 견적">("물품 견적");
@@ -79,13 +80,11 @@ export function QuoteRegisterModal({ onClose }: { onClose: () => void }) {
   const [deadline, setDeadline] = useState("");
   const [budgetTbd, setBudgetTbd] = useState(false);
   const [budget, setBudget] = useState("");
-
   const [items, setItems] = useState<ItemRow[]>([emptyItem()]);
   const [dueDate, setDueDate] = useState("");
   const [delivery, setDelivery] = useState<"상차도" | "하차도">("상차도");
   const [place, setPlace] = useState("");
   const [placeDetail, setPlaceDetail] = useState("");
-
   const [submitting, setSubmitting] = useState(false);
 
   const isGoods = type === "물품 견적";
@@ -93,13 +92,11 @@ export function QuoteRegisterModal({ onClose }: { onClose: () => void }) {
   const [tried1, setTried1] = useState(false);
   const _top = CATEGORY_TREE.find((c) => c.name === cat1);
   const _mid = _top?.subs.find((s) => s.name === cat2);
-
   const catOk = !!cat1 && (!_top?.subs.length || !!cat2) && (!_mid?.subs.length || !!cat3);
   const errTitle = !title.trim();
   const errDeadline = !deadline;
   const errBudget = !budgetTbd && !budget.trim();
   const errCat = !catOk;
-
   const step1Errors = [
     errTitle && "공고 제목을 입력하세요.",
     errDeadline && "마감 일시를 선택하세요.",
@@ -110,7 +107,6 @@ export function QuoteRegisterModal({ onClose }: { onClose: () => void }) {
     setTried1(true);
     if (step1Errors.length === 0) setStep(2);
   }
-
   const npsCode = (() => {
     if (!catOk || !cat1) return "";
     const i1 = CATEGORY_TREE.findIndex((c) => c.name === cat1);
@@ -127,9 +123,30 @@ export function QuoteRegisterModal({ onClose }: { onClose: () => void }) {
   async function handleSubmit() {
     setSubmitting(true);
     try {
-
-      await new Promise((r) => setTimeout(r, 300));
+      const categoryPath = [cat1, cat2, cat3].filter(Boolean);
+      const res = await fetch("/api/quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          quoteType: type,
+          categoryPath,
+          npsCode: npsCode || null,
+          budget,
+          budgetTbd,
+          deadline,
+          dueDate,
+          deliveryCondition: delivery,
+          deliveryAddress: place || null,
+          deliveryAddressDetail: placeDetail || null,
+          items,
+        }),
+      });
+      const data = await res.json() as { id?: string; error?: string };
+      if (!res.ok) { alert(data.error ?? "등록 중 오류가 발생했습니다"); return; }
       onClose();
+      router.push(`/quotes/${data.id}`);
+      router.refresh();
     } finally {
       setSubmitting(false);
     }
@@ -144,7 +161,6 @@ export function QuoteRegisterModal({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
         style={{ position: "relative", width: "624.6px", maxWidth: "100%", maxHeight: "calc(100vh - 32px)", borderRadius: "19.52px", background: "#fff", display: "flex", flexDirection: "column", overflow: "hidden" }}
       >
-
         <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "19.52px 29.28px 20.52px", borderBottom: "1px solid rgba(210,210,215,0.2)" }}>
           <h2 style={{ fontSize: "16px", fontWeight: 600, lineHeight: "20px", letterSpacing: "-0.448px", color: "#1D1D1F", margin: 0 }}>견적 공고 등록</h2>
           <button type="button" aria-label="닫기" onClick={onClose}
@@ -154,7 +170,6 @@ export function QuoteRegisterModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div style={{ overflowY: "auto", padding: "29.28px", display: "flex", flexDirection: "column" }}>
-
           {step === 1 && tried1 && step1Errors.length > 0 && (
             <div style={{ marginBottom: "19.52px", borderRadius: "14.64px", background: "#FEF2F2", border: "1px solid #FEE2E2", padding: "15.64px", display: "flex", flexDirection: "column", gap: "4.88px" }}>
               {step1Errors.map((msg) => (
@@ -213,7 +228,6 @@ export function QuoteRegisterModal({ onClose }: { onClose: () => void }) {
 const labelStyle: React.CSSProperties = { fontSize: "12px", fontWeight: 500, lineHeight: "21.6px", letterSpacing: "-0.18px", color: "rgba(29,29,31,0.5)", display: "block" };
 const captionStyle: React.CSSProperties = { fontSize: "11px", fontWeight: 400, lineHeight: "19.8px", letterSpacing: "-0.165px", color: "rgba(29,29,31,0.4)", display: "block" };
 const reqStar = <span style={{ color: "#F87171" }}>*</span>;
-
 const reqStar1 = <span style={{ color: "rgba(29,29,31,0.5)" }}>*</span>;
 const inputClass = "w-full box-border outline-none placeholder:text-[#1d1d1f]/30 placeholder:font-medium";
 const inputStyle: React.CSSProperties = {
@@ -238,7 +252,6 @@ function Stepper({ step }: { step: number }) {
       </div>
     );
   };
-
   const bar = (n: number) => (
     <div style={{ width: "39px", height: "2.44px", background: step > n ? "#1E3A5F" : "rgba(210,210,215,0.3)", flexShrink: 0 }} />
   );
@@ -272,7 +285,6 @@ function Step1(p: {
 
   return (
     <>
-
       <div style={blockStyle}>
         <label style={{ ...labelStyle, marginBottom: "7.32px" }}>공고 유형 {reqStar1}</label>
         <SegToggle
@@ -356,7 +368,6 @@ function Step1(p: {
           />
           <span style={{ position: "absolute", right: "20.52px", top: "50%", transform: "translateY(-50%)", fontSize: "12px", fontWeight: 400, lineHeight: "21.6px", letterSpacing: "-0.18px", color: "rgba(29,29,31,0.4)", pointerEvents: "none" }}>원</span>
         </div>
-
         {p.budgetErr && (
           <p style={{ margin: "4.88px 0 0", fontSize: "12px", fontWeight: 400, lineHeight: "21.6px", letterSpacing: "-0.18px", color: "#F87171" }}>예산을 입력해주세요.</p>
         )}
@@ -376,10 +387,8 @@ function Step2(p: {
   placeDetail: string; setPlaceDetail: (v: string) => void;
   onPrev: () => void; onNext: () => void;
 }) {
-
   return (
     <>
-
       <div style={{ ...blockStyle, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <label style={labelStyle}>{p.isGoods ? <>물품 상세 사양 {reqStar}</> : "용역 세부 품목 (선택)"}</label>
         <button type="button" onClick={p.addItem} className="flex items-center" style={{ gap: "4.88px", border: "none", background: "none", cursor: "pointer", padding: 0 }}>
@@ -402,7 +411,6 @@ function Step2(p: {
               <label style={{ ...captionStyle, marginBottom: "4.88px" }}>수량{p.isGoods && <> {reqStar}</>}</label>
               <input type="text" inputMode="numeric" className={inputClass} value={it.qty} onChange={(e) => p.setItem(i, { qty: e.target.value.replace(/[^0-9]/g, "") })} placeholder="수량" style={inputStyle} />
             </div>
-
             <div style={{ flex: 1, minWidth: 0 }}>
               <label style={{ ...captionStyle, marginBottom: "4.88px" }}>단위</label>
               <div style={{ position: "relative" }}>
@@ -445,7 +453,6 @@ function Step2(p: {
             <span style={{ fontSize: "12px", fontWeight: 600, lineHeight: "21px", letterSpacing: "-0.293px", color: "#fff", whiteSpace: "nowrap" }}>주소 검색</span>
           </button>
         </div>
-
         {!p.isGoods && (
           <input type="text" className={inputClass} value={p.placeDetail} onChange={(e) => p.setPlaceDetail(e.target.value)}
             placeholder="상세 주소 (동/호수, 층수, 부서명 등)" style={{ ...inputStyle, marginTop: "9.76px" }} />
@@ -486,7 +493,6 @@ function Step3(p: {
 
   return (
     <>
-
       <div style={blockStyle}>
         <label style={{ ...labelStyle, marginBottom: "7.32px" }}>첨부파일</label>
         <div style={{ borderRadius: "14.64px", border: "2px dashed rgba(210,210,215,0.3)", padding: "31.28px", display: "flex", flexDirection: "column", alignItems: "center" }}>

@@ -183,7 +183,6 @@ const CleanIcon = (
     <rect className="ql-fill" height="1" rx="0.5" ry="0.5" width="7" x="2" y="14" />
   </svg>
 );
-
 const ExpandIcon = (
   <svg viewBox="0 0 18 18" aria-hidden xmlns="http://www.w3.org/2000/svg">
     <polygon className="ql-stroke" points="7 11 9 13 11 11 7 11" />
@@ -293,7 +292,6 @@ export function RichEditor({
     } catch {
     }
     if (cmd === "hiliteColor") {
-
       if (!document.execCommand("hiliteColor", false, value)) {
         document.execCommand("backColor", false, value);
       }
@@ -341,7 +339,6 @@ export function RichEditor({
     const imgs = Array.from(files).filter((f) => f.type.startsWith("image/"));
     if (imgs.length === 0) return;
     e.preventDefault();
-
     const doc = document as Document & {
       caretRangeFromPoint?: (x: number, y: number) => Range | null;
     };
@@ -380,10 +377,8 @@ export function RichEditor({
       <style>{TOOLBAR_CSS}</style>
 
       <div className="krte-toolbar">
-
         <span className="krte-group">
           <span className="krte-selwrap">
-
             <select
               className="krte-select"
               defaultValue="p"

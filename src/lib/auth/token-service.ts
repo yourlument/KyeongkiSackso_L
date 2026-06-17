@@ -10,7 +10,7 @@ function sha256(value: string): string {
 export async function issueTokens(userId: string, role: UserRole) {
   const jti = crypto.randomUUID();
   const accessToken = await signAccessToken({ sub: userId, role });
-  const refreshToken = await signRefreshToken(userId, jti);
+  const refreshToken = await signRefreshToken(userId, jti, role);
   const expiresAt = new Date(Date.now() + REFRESH_TTL_DAYS * 24 * 60 * 60 * 1000);
 
   await prisma.refreshToken.create({

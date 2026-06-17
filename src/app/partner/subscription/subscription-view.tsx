@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { PartnerSubscriptionData } from "@/lib/partner-subscription";
 
 const NAVY = "#1E3A5F";
 const INK = "#1D1D1F";
@@ -19,12 +20,6 @@ const FEATURES = [
   "실시간 채팅",
   "우선 노출",
   "전화/이메일 지원",
-];
-
-const HISTORY = [
-  { date: "2026.05.08", amount: "299,000원", method: "법인카드", status: "완료" },
-  { date: "2026.04.08", amount: "299,000원", method: "법인카드", status: "완료" },
-  { date: "2026.03.08", amount: "299,000원", method: "법인카드", status: "완료" },
 ];
 
 function CheckIcon() {
@@ -59,7 +54,7 @@ function ModalCloseIcon() {
   );
 }
 
-export function SubscriptionView() {
+export function SubscriptionView({ data }: { data: PartnerSubscriptionData }) {
   const [cycle, setCycle] = useState<Cycle>("monthly");
   const [modalOpen, setModalOpen] = useState(false);
   const plan = PLAN[cycle];
@@ -162,14 +157,14 @@ export function SubscriptionView() {
             현재 이용 현황
           </h3>
           <div style={{ display: "flex", gap: "19.52px" }}>
-            <StatusItem label="현재 플랜" value="프리미엄" />
-            <StatusItem label="결제 주기" value={plan.cycleLabel} />
-            <StatusItem label="다음 결제일" value="2026.06.08" />
+            <StatusItem label="현재 플랜" value={data.planName || "-"} />
+            <StatusItem label="결제 주기" value={data.cycleLabel || plan.cycleLabel} />
+            <StatusItem label="다음 결제일" value={data.nextBillingDate} />
           </div>
           <div style={{ marginTop: "19.52px", paddingTop: "20.52px", borderTop: "1px solid rgba(210,210,215,0.1)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <p style={{ margin: 0 }}>
               <span style={{ fontSize: "13px", fontWeight: 400, lineHeight: "23.4px", letterSpacing: "-0.195px", color: "rgba(29,29,31,0.6)" }}>{"다음 결제 금액: ​"}</span>
-              <span style={{ fontSize: "13px", fontWeight: 700, lineHeight: "23.4px", letterSpacing: "-0.195px", color: INK }}>{plan.next}</span>
+              <span style={{ fontSize: "13px", fontWeight: 700, lineHeight: "23.4px", letterSpacing: "-0.195px", color: INK }}>{data.nextAmount}</span>
             </p>
             <button
               type="button"
@@ -219,8 +214,8 @@ export function SubscriptionView() {
                 <CardIcon />
               </span>
               <div>
-                <p style={{ fontSize: "12px", fontWeight: 500, lineHeight: "21.6px", letterSpacing: "-0.18px", color: INK, margin: 0 }}>법인카드</p>
-                <p style={{ fontSize: "10px", fontWeight: 400, lineHeight: "18px", letterSpacing: "-0.15px", color: "rgba(29,29,31,0.4)", margin: 0 }}>**** **** **** 1234 (삼성카드)</p>
+                <p style={{ fontSize: "12px", fontWeight: 500, lineHeight: "21.6px", letterSpacing: "-0.18px", color: INK, margin: 0 }}>{data.payMethod}</p>
+                <p style={{ fontSize: "10px", fontWeight: 400, lineHeight: "18px", letterSpacing: "-0.15px", color: "rgba(29,29,31,0.4)", margin: 0 }}>{data.cardNo}</p>
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "9.76px" }}>
@@ -249,9 +244,9 @@ export function SubscriptionView() {
             </h3>
           </div>
           <div>
-            {HISTORY.map((h, i) => (
+            {data.history.map((h, i) => (
               <div
-                key={h.date}
+                key={i}
                 style={{
                   display: "flex",
                   alignItems: "center",

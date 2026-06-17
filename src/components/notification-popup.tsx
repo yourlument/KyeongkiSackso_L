@@ -75,7 +75,6 @@ export function NotificationPopup() {
       aria-label="알림"
       className="absolute right-0 top-[calc(100%+8px)] z-50 flex w-[390px] flex-col overflow-hidden rounded-[9.76px] border border-[#e5e7eb] bg-white shadow-[0px_8px_10px_-6px_rgba(0,0,0,0.1),0px_20px_25px_-5px_rgba(0,0,0,0.1)]"
     >
-
       <div className="flex items-center justify-between border-b border-[#f3f4f6] px-[19.52px] pt-[14.64px] pb-[15.64px]">
         <span className="text-[17.08px] font-semibold leading-[24.4px] tracking-[-0.256px] text-[#111827]">
           알림
@@ -95,12 +94,10 @@ export function NotificationPopup() {
             className="flex gap-[14.64px] border-b border-[#f9fafb] px-[19.52px] pt-[14.64px] pb-[15.64px]"
             style={n.unread ? { backgroundColor: "rgba(249,250,251,0.5)" } : undefined}
           >
-
             <span
               className="mt-[2.44px] flex h-[39px] w-[39px] shrink-0 items-center justify-center rounded-full"
               style={{ backgroundColor: n.circleBg }}
             >
-
               <img src={n.icon} alt="" aria-hidden="true" className="h-[15px] w-[15px]" />
             </span>
 
@@ -131,7 +128,6 @@ export function NotificationPopup() {
           type="button"
           className="flex items-center gap-[4.88px] text-[14.64px] font-medium leading-[19.52px] tracking-[-0.293px] text-[#1e3a5f]"
         >
-
           <img src="/icons/noti-settings.svg" alt="" aria-hidden="true" className="h-[11px] w-[11px]" />
           알림 설정
         </button>

@@ -1,32 +1,15 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
-
-type MemberStatus = "대기" | "승인" | "반려";
-type Member = { name: string; biz: string; date: string; status: MemberStatus };
-
-type CertStatus = "검토중" | "승인완료" | "반려";
-type Cert = { name: string; kind: string; date: string; status: CertStatus };
-
-const MEMBERS: Member[] = [
-  { name: "새로운건설(주)", biz: "111-22-33344", date: "2026-05-01", status: "대기" },
-  { name: "디지털월드(주)", biz: "222-33-44455", date: "2026-05-03", status: "대기" },
-  { name: "그린에너지(주)", biz: "333-44-55566", date: "2026-04-20", status: "승인" },
-  { name: "푸드솔루션(주)", biz: "444-55-66677", date: "2026-04-15", status: "반려" },
-];
-
-const CERTS: Cert[] = [
-  { name: "포장산업(주)", kind: "여성기업", date: "2026-05-05", status: "검토중" },
-  { name: "안전제품(주)", kind: "장애인기업", date: "2026-05-03", status: "승인완료" },
-  { name: "안전난간(주)", kind: "사회적기업", date: "2026-05-01", status: "검토중" },
-  { name: "경기농협(주)", kind: "사회적기업/여성기업", date: "2026-04-28", status: "승인완료" },
-  { name: "화성레미콘(주)", kind: "창업기업", date: "2026-04-25", status: "검토중" },
-  { name: "네트웍솔루션(주)", kind: "ISO9001", date: "2026-04-20", status: "검토중" },
-  { name: "오피스텍(주)", kind: "우수제품", date: "2026-04-18", status: "반려" },
-  { name: "클라이밋텍(주)", kind: "녹색기업", date: "2026-04-15", status: "검토중" },
-  { name: "에듀퍼니처(주)", kind: "사회적기업", date: "2026-04-10", status: "승인완료" },
-  { name: "메디칼텍(주)", kind: "특허보유", date: "2026-04-08", status: "검토중" },
-];
+import { useMemo, useState, useTransition, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import type {
+  AdminApprovalData,
+  MemberRow as Member,
+  MemberStatus,
+  MemberDetailData,
+  CertRow as Cert,
+  CertStatus,
+} from "@/lib/admin-approval";
 
 const MEMBER_BADGE: Record<MemberStatus, { bg: string; border: string; color: string }> = {
   대기: { bg: "#FFFBEB", border: "#FDE68A", color: "#B45309" },
@@ -61,26 +44,45 @@ function ShieldIcon() {
   );
 }
 
-export function ApprovalView() {
+export function ApprovalView({ data }: { data: AdminApprovalData }) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const [tab, setTab] = useState<Tab>("회원가입 승인");
   const [memberFilter, setMemberFilter] = useState<MemberFilter>("전체");
   const [certFilter, setCertFilter] = useState<CertFilter>("전체");
   const [selected, setSelected] = useState<string | null>(null);
-  const [members, setMembers] = useState<Member[]>(MEMBERS);
-  const [certs, setCerts] = useState<Cert[]>(CERTS);
 
   const memberRows = useMemo(
-    () => members.filter((m) => (memberFilter === "전체" ? true : m.status === memberFilter)),
-    [members, memberFilter],
+    () => data.members.filter((m) => (memberFilter === "전체" ? true : m.status === memberFilter)),
+    [data.members, memberFilter],
   );
   const certRows = useMemo(
-    () => certs.filter((c) => (certFilter === "전체" ? true : c.status === certFilter)),
-    [certs, certFilter],
+    () => data.certs.filter((c) => (certFilter === "전체" ? true : c.status === certFilter)),
+    [data.certs, certFilter],
   );
+
+  const refresh = () => startTransition(() => router.refresh());
+  async function mutateMember(id: string, action: "approve" | "reject", reason?: string) {
+    const res = await fetch("/api/admin/approval/member", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, action, reason }),
+    });
+    if (res.ok) refresh();
+  }
+  async function mutateCert(id: string, action: "approve" | "reject", reason?: string) {
+    const res = await fetch("/api/admin/approval/cert", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, action, reason }),
+    });
+    if (res.ok) refresh();
+  }
+
+  const selectedMember = data.members.find((m) => m.id === selected) ?? null;
 
   return (
     <div style={{ width: "100%" }}>
-
       <div style={{ marginBottom: "34.16px" }}>
         <h1
           style={{
@@ -150,87 +152,22 @@ export function ApprovalView() {
           onFilter={setMemberFilter}
           selected={selected}
           onSelect={setSelected}
-          selectedStatus={members.find((m) => m.name === selected)?.status}
-          onSetStatus={(name, status) =>
-            setMembers((prev) => prev.map((m) => (m.name === name ? { ...m, status } : m)))
-          }
+          selectedMember={selectedMember}
+          onApprove={(id) => mutateMember(id, "approve")}
+          onReject={(id, reason) => mutateMember(id, "reject", reason)}
         />
       ) : (
         <CertTab
           rows={certRows}
           filter={certFilter}
           onFilter={setCertFilter}
-          onSetStatus={(name, status) =>
-            setCerts((prev) => prev.map((c) => (c.name === name ? { ...c, status } : c)))
-          }
+          onApprove={(id) => mutateCert(id, "approve")}
+          onReject={(id, reason) => mutateCert(id, "reject", reason)}
         />
       )}
     </div>
   );
 }
-
-type MemberFullData = {
-  email: string;
-  joinDate: string;
-  company: string;
-  corpNo: string;
-  bizType: string;
-  bizItem: string;
-  address: string;
-  phone: string;
-  managerName: string;
-  managerPhone: string;
-  bank: string;
-  account: string;
-  accountHolder: string;
-  accountVerified: boolean;
-};
-
-type MemberDetailData = {
-
-  bizNo: string;
-  ceo: string;
-  category: string;
-  region: string;
-
-  docs: string[];
-
-  full?: MemberFullData;
-};
-
-const MEMBER_DETAILS: Record<string, MemberDetailData> = {
-  "새로운건설(주)": {
-    bizNo: "111-22-33344",
-    ceo: "김새로",
-    category: "도로교통 및 토목 분야",
-    region: "경기도 화성시",
-    docs: ["사업자등록증", "인증서"],
-    full: {
-      email: "새로운건설@email.com",
-      joinDate: "2026-05-01",
-      company: "새로운건설(주)",
-      corpNo: "110111-1234567",
-      bizType: "건설업",
-      bizItem: "토목건설업",
-      address: "경기도 화성시",
-      phone: "031-123-4567",
-      managerName: "김담당",
-      managerPhone: "010-1234-5678",
-      bank: "국민은행",
-      account: "123456-78-901234",
-      accountHolder: "김새로",
-      accountVerified: false,
-    },
-  },
-
-  "디지털월드(주)": {
-    bizNo: "222-33-44455",
-    ceo: "이디지털",
-    category: "정보통신 및 디지털/4차산업 분야",
-    region: "경기도 판교",
-    docs: ["사업자등록증"],
-  },
-};
 
 function MemberDetail({
   name,
@@ -247,7 +184,7 @@ function MemberDetail({
   onShowFull: () => void;
   onViewFile: (docName: string) => void;
   onApprove: () => void;
-  onReject: () => void;
+  onReject: (reason: string) => void;
 }) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -259,7 +196,6 @@ function MemberDetail({
   };
   return (
     <div className="flex flex-col" style={{ background: "#FFFFFF", borderRadius: "19.52px", border: "1px solid rgba(210,210,215,0.2)", padding: "30.28px", gap: "24.4px" }}>
-
       <div className="flex items-start justify-between">
         <p style={{ margin: 0, fontSize: "16px", fontWeight: 700, letterSpacing: "-0.448px", lineHeight: "20px", color: "#1D1D1F" }}>{name}</p>
         <span
@@ -269,7 +205,6 @@ function MemberDetail({
           {status === "대기" ? "승인 대기" : status}
         </span>
       </div>
-
       <div
         className="grid"
         style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))", columnGap: "20px", rowGap: "19.52px", background: "rgba(29,29,31,0.02)", borderRadius: "14.64px", padding: "19.52px" }}
@@ -279,7 +214,6 @@ function MemberDetail({
         <DetailField label="카테고리" value={detail.category} />
         <DetailField label="지역" value={detail.region} />
       </div>
-
       <div>
         <p style={{ margin: "0 0 10.4px", fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>제출 서류</p>
         <div className="flex" style={{ gap: "9.76px" }}>
@@ -288,7 +222,6 @@ function MemberDetail({
           ))}
         </div>
       </div>
-
       <button
         type="button"
         onClick={onShowFull}
@@ -299,11 +232,8 @@ function MemberDetail({
         <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.293px", lineHeight: "22.8px", color: "rgba(29,29,31,0.6)" }}>가입 시 입력한 전체 정보 보기</span>
       </button>
       {rejectOpen ? (
-
         <div className="flex flex-col" style={{ paddingTop: "15.64px", borderTop: "1px solid rgba(210,210,215,0.1)" }}>
-
           <p style={{ margin: "0 0 7.32px", fontSize: "12px", fontWeight: 500, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.5)" }}>반려 사유</p>
-
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -311,7 +241,6 @@ function MemberDetail({
             className="block w-full resize-none outline-none placeholder:font-medium placeholder:text-[#9CA3AF]"
             style={{ height: "94.625px", borderRadius: "14.64px", background: "#FFFFFF", border: "1px solid rgba(210,210,215,0.3)", padding: "13.2px 15.64px", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#1D1D1F" }}
           />
-
           <div className="flex" style={{ gap: "14.64px", paddingTop: "14.64px" }}>
             <button
               type="button"
@@ -326,7 +255,7 @@ function MemberDetail({
               disabled={empty}
               onClick={() => {
                 if (!empty) {
-                  onReject();
+                  onReject(reason);
                   closeReject();
                 }
               }}
@@ -338,7 +267,6 @@ function MemberDetail({
           </div>
         </div>
       ) : (
-
         <div className="flex" style={{ gap: "15px", paddingTop: "10.76px", borderTop: "1px solid rgba(210,210,215,0.1)" }}>
           <button
             type="button"
@@ -363,7 +291,6 @@ function MemberDetail({
 }
 
 function DocCard({ name, onView }: { name: string; onView: () => void }) {
-
   return (
     <div
       className="flex items-center justify-between"
@@ -395,7 +322,6 @@ function MemberFullModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.45)", padding: "24px" }} onClick={onClose}>
       <div className="flex w-full flex-col overflow-y-auto" style={{ maxWidth: "625px", maxHeight: "90vh", background: "#FFFFFF", borderRadius: "19.52px", border: "1px solid rgba(210,210,215,0.2)" }} onClick={(e) => e.stopPropagation()}>
-
       <div className="flex items-start justify-between" style={{ padding: "19.52px 29.28px 20.52px", borderBottom: "1px solid rgba(210,210,215,0.1)" }}>
         <div>
           <p style={{ margin: 0, fontSize: "16px", fontWeight: 700, letterSpacing: "-0.448px", lineHeight: "20px", color: "#1D1D1F" }}>가입 정보 상세</p>
@@ -406,7 +332,6 @@ function MemberFullModal({
         </button>
       </div>
       {full ? (
-
         <div className="flex flex-col" style={{ padding: "29.28px", gap: "24.4px" }}>
           <DetailSection title="계정 정보">
             <DetailGrid>
@@ -445,7 +370,6 @@ function MemberFullModal({
           </DetailSection>
         </div>
       ) : (
-
         <div style={{ padding: "29.28px" }}>
           <p style={{ margin: 0, fontSize: "14px", fontWeight: 400, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "rgba(29,29,31,0.4)", textAlign: "center" }}>
             상세 데이터가 없습니다
@@ -538,22 +462,23 @@ function MemberTab({
   onFilter,
   selected,
   onSelect,
-  selectedStatus,
-  onSetStatus,
+  selectedMember,
+  onApprove,
+  onReject,
 }: {
   rows: Member[];
   filter: MemberFilter;
   onFilter: (f: MemberFilter) => void;
   selected: string | null;
-  onSelect: (name: string | null) => void;
-  selectedStatus?: MemberStatus;
-  onSetStatus: (name: string, status: MemberStatus) => void;
+  onSelect: (id: string | null) => void;
+  selectedMember: Member | null;
+  onApprove: (id: string) => void;
+  onReject: (id: string, reason: string) => void;
 }) {
   const [showFull, setShowFull] = useState(false);
   const [fileView, setFileView] = useState<string | null>(null);
   return (
     <>
-
       <div className="flex items-center" style={{ gap: "9.76px", marginBottom: "24.4px" }}>
         {MEMBER_FILTERS.map((f) => {
           const active = filter === f;
@@ -586,7 +511,6 @@ function MemberTab({
       </div>
 
       <div className="grid" style={{ gridTemplateColumns: "347px 1fr", gap: "24.4px", alignItems: "start" }}>
-
         <div
           style={{
             background: "#FFFFFF",
@@ -595,7 +519,6 @@ function MemberTab({
             overflow: "hidden",
           }}
         >
-
           <div style={{ padding: "19.52px 24.4px 20.52px" }}>
             <p
               style={{
@@ -612,14 +535,14 @@ function MemberTab({
           </div>
 
           {rows.map((m, i) => {
-            const isSel = selected === m.name;
+            const isSel = selected === m.id;
             const badge = MEMBER_BADGE[m.status];
             return (
               <button
-                key={m.name}
+                key={m.id}
                 type="button"
                 onClick={() => {
-                  onSelect(m.name);
+                  onSelect(m.id);
                   setShowFull(false);
                 }}
                 className="w-full text-left"
@@ -682,19 +605,18 @@ function MemberTab({
           })}
         </div>
 
-        {selected && MEMBER_DETAILS[selected] ? (
+        {selectedMember ? (
           <MemberDetail
-            key={selected}
-            name={selected}
-            status={selectedStatus ?? "대기"}
-            detail={MEMBER_DETAILS[selected]}
+            key={selectedMember.id}
+            name={selectedMember.name}
+            status={selectedMember.status}
+            detail={selectedMember.detail}
             onShowFull={() => setShowFull(true)}
             onViewFile={setFileView}
-            onApprove={() => onSetStatus(selected, "승인")}
-            onReject={() => onSetStatus(selected, "반려")}
+            onApprove={() => onApprove(selectedMember.id)}
+            onReject={(reason) => onReject(selectedMember.id, reason)}
           />
         ) : (
-
           <div
             className="flex flex-col items-center justify-start"
             style={{
@@ -729,15 +651,14 @@ function MemberTab({
                 textAlign: "center",
               }}
             >
-
               {selected ? "상세 데이터가 없습니다" : "왼쪽 목록에서 신청을 선택하세요"}
             </p>
           </div>
         )}
       </div>
 
-      {showFull && selected && MEMBER_DETAILS[selected] && (
-        <MemberFullModal name={selected} detail={MEMBER_DETAILS[selected]} onClose={() => setShowFull(false)} onViewFile={setFileView} />
+      {showFull && selectedMember && (
+        <MemberFullModal name={selectedMember.name} detail={selectedMember.detail} onClose={() => setShowFull(false)} onViewFile={setFileView} />
       )}
 
       {fileView && <FileViewModal fileName={fileView} onClose={() => setFileView(null)} />}
@@ -749,19 +670,20 @@ function CertTab({
   rows,
   filter,
   onFilter,
-  onSetStatus,
+  onApprove,
+  onReject,
 }: {
   rows: Cert[];
   filter: CertFilter;
   onFilter: (f: CertFilter) => void;
-  onSetStatus: (name: string, status: CertStatus) => void;
+  onApprove: (id: string) => void;
+  onReject: (id: string, reason: string) => void;
 }) {
   const [fileView, setFileView] = useState<string | null>(null);
   const [approveTarget, setApproveTarget] = useState<Cert | null>(null);
   const [rejectTarget, setRejectTarget] = useState<Cert | null>(null);
   return (
     <>
-
       <div className="flex items-center" style={{ gap: "9.76px", marginBottom: "24.4px" }}>
         {CERT_FILTERS.map((f) => {
           const active = filter === f;
@@ -801,7 +723,6 @@ function CertTab({
           overflow: "hidden",
         }}
       >
-
         <div
           className="flex items-center"
           style={{
@@ -899,7 +820,6 @@ function CertTab({
                   {c.status}
                 </span>
               </div>
-
               <div className="flex items-center" style={{ flex: 1, padding: "17.08px 24.4px" }}>
                 <div className="flex items-center" style={{ gap: "9.76px" }}>
                   <button
@@ -1001,7 +921,7 @@ function CertTab({
           kind={approveTarget.kind}
           onCancel={() => setApproveTarget(null)}
           onConfirm={() => {
-            onSetStatus(approveTarget.name, "승인완료");
+            onApprove(approveTarget.id);
             setApproveTarget(null);
           }}
         />
@@ -1012,8 +932,8 @@ function CertTab({
           name={rejectTarget.name}
           kind={rejectTarget.kind}
           onClose={() => setRejectTarget(null)}
-          onConfirm={() => {
-            onSetStatus(rejectTarget.name, "반려");
+          onConfirm={(reason) => {
+            onReject(rejectTarget.id, reason);
             setRejectTarget(null);
           }}
         />
@@ -1026,7 +946,6 @@ function FileViewModal({ fileName, onClose }: { fileName: string; onClose: () =>
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.45)", padding: "24px" }} onClick={onClose}>
       <div className="flex w-full flex-col" style={{ maxWidth: "625px", background: "#FFFFFF", borderRadius: "19.52px" }} onClick={(e) => e.stopPropagation()}>
-
         <div className="flex items-center justify-between" style={{ padding: "19.52px 29.28px 20.52px", borderBottom: "1px solid rgba(210,210,215,0.1)" }}>
           <div>
             <p style={{ margin: 0, fontSize: "16px", fontWeight: 700, letterSpacing: "-0.448px", lineHeight: "20px", color: "#1D1D1F" }}>인증서 파일 열람</p>
@@ -1036,7 +955,6 @@ function FileViewModal({ fileName, onClose }: { fileName: string; onClose: () =>
             <CloseIcon />
           </button>
         </div>
-
         <div style={{ padding: "29.28px" }}>
           <div className="flex flex-col items-center" style={{ borderRadius: "19.52px", background: "rgba(29,29,31,0.02)", border: "1px solid rgba(210,210,215,0.15)", padding: "40.04px" }}>
             <div className="flex shrink-0 items-center justify-center" style={{ width: "78.08px", height: "78.08px", borderRadius: "19.52px", background: "#FEF2F2", marginBottom: "19.52px" }}>
@@ -1045,7 +963,6 @@ function FileViewModal({ fileName, onClose }: { fileName: string; onClose: () =>
             <p style={{ margin: "0 0 4.88px", fontSize: "15px", fontWeight: 600, letterSpacing: "-0.225px", lineHeight: "27px", color: "#1D1D1F", textAlign: "center" }}>{fileName}</p>
             <p style={{ margin: 0, fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)", textAlign: "center" }}>PDF 파일 · 2.3MB</p>
             <div className="flex items-center justify-center" style={{ gap: "14.64px", marginTop: "29.28px" }}>
-
               <button
                 type="button"
                 className="inline-flex items-center justify-center"
@@ -1054,7 +971,6 @@ function FileViewModal({ fileName, onClose }: { fileName: string; onClose: () =>
                 <NewTabIcon />
                 새 탭에서 열기
               </button>
-
               <button
                 type="button"
                 className="inline-flex items-center justify-center"
@@ -1085,22 +1001,18 @@ function CertApproveModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.45)", padding: "24px" }} onClick={onCancel}>
       <div className="flex w-full flex-col" style={{ maxWidth: "468px", background: "#FFFFFF", borderRadius: "19.52px", padding: "29.28px" }} onClick={(e) => e.stopPropagation()}>
-
         <div className="flex justify-center" style={{ paddingBottom: "19.52px" }}>
           <div className="flex shrink-0 items-center justify-center" style={{ width: "68.31px", height: "68.31px", borderRadius: "19.52px", background: "#ECFDF5" }}>
             <CheckCircleIcon />
           </div>
         </div>
-
         <p style={{ margin: 0, paddingBottom: "9.76px", fontSize: "17px", fontWeight: 700, letterSpacing: "-0.476px", lineHeight: "21.25px", color: "#1D1D1F", textAlign: "center" }}>인증서 승인</p>
-
         <div className="flex flex-wrap justify-center" style={{ paddingBottom: "29.28px" }}>
           <span style={{ whiteSpace: "pre", fontSize: "14px", fontWeight: 600, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "#1D1D1F" }}>{name}</span>
           <span style={{ whiteSpace: "pre", fontSize: "14px", fontWeight: 400, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "rgba(29,29,31,0.6)" }}>의</span>
           <span style={{ whiteSpace: "pre", fontSize: "14px", fontWeight: 400, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "#1E3A5F" }}>{kind}</span>
           <span style={{ whiteSpace: "pre", fontSize: "14px", fontWeight: 400, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "rgba(29,29,31,0.6)" }}> 인증서를 승인하시겠습니까?</span>
         </div>
-
         <div className="flex" style={{ gap: "14.64px" }}>
           <button
             type="button"
@@ -1140,7 +1052,6 @@ function CertRejectModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.45)", padding: "24px" }} onClick={onClose}>
       <div className="flex w-full flex-col" style={{ maxWidth: "547px", background: "#FFFFFF", borderRadius: "19.52px" }} onClick={(e) => e.stopPropagation()}>
-
         <div className="flex items-center justify-between" style={{ padding: "19.52px 29.28px 20.52px", borderBottom: "1px solid rgba(210,210,215,0.1)" }}>
           <div>
             <p style={{ margin: 0, fontSize: "16px", fontWeight: 700, letterSpacing: "-0.448px", lineHeight: "20px", color: "#1D1D1F" }}>인증서 반려</p>
@@ -1151,7 +1062,6 @@ function CertRejectModal({
           </button>
         </div>
         <div style={{ padding: "29.28px" }}>
-
           <div style={{ borderRadius: "14.64px", background: "#FEF2F2", border: "1px solid #FEE2E2", padding: "20.52px" }}>
             <div className="flex items-center" style={{ gap: "9.76px", paddingBottom: "9.76px" }}>
               <WarnIcon />
@@ -1159,7 +1069,6 @@ function CertRejectModal({
             </div>
             <p style={{ margin: 0, fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(239,68,68,0.8)" }}>반려 후 업체에게 사유가 안내됩니다. 명확한 사유를 입력해주세요.</p>
           </div>
-
           <p style={{ margin: "19.52px 0 9.76px", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.5)" }}>반려 사유 *</p>
           <textarea
             value={reason}
@@ -1168,7 +1077,6 @@ function CertRejectModal({
             className="block w-full resize-none outline-none placeholder:font-medium placeholder:text-[#9CA3AF]"
             style={{ height: "122.25px", borderRadius: "14.64px", background: "#FFFFFF", border: "1px solid rgba(210,210,215,0.3)", padding: "15.64px 20.52px", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#1D1D1F" }}
           />
-
           <div className="flex" style={{ gap: "14.64px", paddingTop: "24.4px" }}>
             <button
               type="button"

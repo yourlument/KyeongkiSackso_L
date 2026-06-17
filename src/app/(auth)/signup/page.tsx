@@ -31,7 +31,6 @@ const emptyForm = {
   email: "",
   password: "",
   passwordConfirm: "",
-
   organizationBizNo: "",
   organizationName: "",
   departmentName: "",
@@ -41,7 +40,6 @@ const emptyForm = {
   orgRepresentativeName: "",
   orgTaxEmail: "",
   orgAddress: "",
-
   companyName: "",
   representativeName: "",
   businessRegistrationNo: "",
@@ -316,7 +314,6 @@ function Card({ children }: { children: React.ReactNode }) {
 function Header() {
   return (
     <div className="mb-6 text-center">
-
       <img src="/korlink-logo.svg" alt="KORLINK" className="mx-auto h-8 w-auto" />
       <h1 className="mt-5 text-[22px] font-bold tracking-[-0.55px] text-ink">KORLINK 회원가입</h1>
       <p className="mt-1 text-[13px] tracking-[-0.195px] text-ink/40">지자체 공공조달 플랫폼</p>
@@ -649,7 +646,6 @@ function Completion({ portal, form }: { portal: Portal; form: Form }) {
   const isOfficial = portal === "OFFICIAL";
   return (
     <div className="rounded-[19.52px] bg-surface p-[29.28px] text-center shadow-[0px_2px_20px_rgba(0,0,0,0.06)]">
-
       {isOfficial ? (
         <div className="mx-auto flex h-[97.59px] w-[97.59px] items-center justify-center rounded-full bg-[#ECFDF5] text-[#10B981]">
           <ShieldCheckIcon width={45} height={45} />

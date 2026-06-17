@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import type { DashboardOverview, PartnerStats } from "@/lib/partner-dashboard";
 import {
   ProductIcon,
   ProgressOrderIcon,
@@ -26,12 +27,11 @@ const CARD: React.CSSProperties = {
   border: CARD_BORDER,
 };
 
-export function PartnerDashboardView() {
+export function PartnerDashboardView({ overview, stats }: { overview: DashboardOverview; stats: PartnerStats }) {
   const [tab, setTab] = useState<Tab>("overview");
 
   return (
     <div>
-
       <div style={{ paddingBottom: "29.28px" }}>
         <h1 style={{ fontWeight: 700, fontSize: "20px", letterSpacing: "-0.56px", lineHeight: "25px", color: INK }}>
           파트너 대시보드
@@ -48,7 +48,7 @@ export function PartnerDashboardView() {
         </div>
       </div>
 
-      {tab === "overview" ? <OverviewTab /> : <StatsTab />}
+      {tab === "overview" ? <OverviewTab overview={overview} /> : <StatsTab stats={stats} />}
     </div>
   );
 }
@@ -77,29 +77,14 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
   );
 }
 
-const OVERVIEW_STATS = [
-  { icon: <ProductIcon />, iconBg: "rgba(30,58,95,0.12)", value: "4", label: "등록 상품" },
-  { icon: <ProgressOrderIcon />, iconBg: undefined, value: "6", label: "진행 주문" },
-  { icon: <RevenueIcon />, iconBg: undefined, value: "1680만", label: "이번달 매출" },
-  { icon: <CompletedOrderIcon />, iconBg: undefined, value: "2", label: "완료 주문" },
+const OVERVIEW_STAT_CONFIG = [
+  { icon: <ProductIcon />, iconBg: "rgba(30,58,95,0.12)", label: "등록 상품", key: "products" as const },
+  { icon: <ProgressOrderIcon />, iconBg: undefined, label: "진행 주문", key: "inProgress" as const },
+  { icon: <RevenueIcon />, iconBg: undefined, label: "이번달 매출", key: "thisMonthRevenue" as const },
+  { icon: <CompletedOrderIcon />, iconBg: undefined, label: "완료 주문", key: "completed" as const },
 ];
 
 type OrderStatus = { label: string; bg: string; border: string; color: string };
-const ST_PAID: OrderStatus = { label: "결제완료", bg: "rgba(30,58,95,0.1)", border: "1px solid rgba(30,58,95,0.2)", color: NAVY };
-const ST_WAIT: OrderStatus = { label: "대기", bg: "rgba(29,29,31,0.05)", border: "1px solid rgba(210,210,215,0.2)", color: "rgba(29,29,31,0.5)" };
-const ST_SHIP: OrderStatus = { label: "배송중", bg: "#F0F9FF", border: "1px solid #BAE6FD", color: "#0369A1" };
-
-const RECENT_ORDERS = [
-  { title: "태블릿 PC 10인치 업무용", sub: "임현우 · 부천시청 · 2026-05-15", status: ST_PAID },
-  { title: "무선 AP 엔터프라이즈", sub: "윤서진 · 안산시청 · 2026-05-10", status: ST_WAIT },
-  { title: "서버랙 42U 기업용", sub: "강동현 · 평택시청 · 2026-05-01", status: ST_SHIP },
-];
-
-const OPEN_QUOTES = [
-  { title: "2026년 2분기 도로보수 공사 자재 구매", sub: "경기도 화성시 도로과 · 마감 2026-06-15", budget: "8,000,000원" },
-  { title: "2026년 화성시 도시개발 건자재 대규모 구매 (다수 업체 비교)", sub: "경기도 화성시 도시건설과 · 마감 2026-07-31", budget: "35,000,000원" },
-  { title: "화성시청 IT장비 신규 구축 프로젝트", sub: "경기도 화성시 정보통신과 · 마감 2026-05-30", budget: "42,000,000원" },
-];
 
 const QUICK_ACTIONS = [
   { icon: <PlusIcon />, iconBg: "rgba(30,58,95,0.08)", title: "상품 등록", sub: "새 상품을 등록하세요", href: "/partner/products" },
@@ -107,21 +92,26 @@ const QUICK_ACTIONS = [
   { icon: <ShippingIcon />, iconBg: undefined, title: "배송 처리", sub: "대기 중인 주문을 처리하세요", href: "/partner/orders" },
 ];
 
-function OverviewTab() {
+function OverviewTab({ overview }: { overview: DashboardOverview }) {
   const router = useRouter();
+  const statValue: Record<string, string | number> = {
+    products: overview.stats.products,
+    inProgress: overview.stats.inProgress,
+    thisMonthRevenue: overview.stats.thisMonthRevenue,
+    completed: overview.stats.completed,
+  };
 
   return (
     <div>
-
       <div className="flex" style={{ gap: "19.52px", paddingBottom: "29.28px" }}>
-        {OVERVIEW_STATS.map((s) => (
+        {OVERVIEW_STAT_CONFIG.map((s) => (
           <div key={s.label} style={{ ...CARD, width: "267px", padding: "20.52px" }}>
             <div style={{ paddingBottom: "14.64px" }}>
               <div className="flex items-center justify-center" style={{ width: "44px", height: "44px", borderRadius: "14.64px", background: s.iconBg }}>
                 {s.icon}
               </div>
             </div>
-            <div style={{ fontWeight: 700, fontSize: "20px", letterSpacing: "-0.3px", lineHeight: "36px", color: INK }}>{s.value}</div>
+            <div style={{ fontWeight: 700, fontSize: "20px", letterSpacing: "-0.3px", lineHeight: "36px", color: INK }}>{statValue[s.key]}</div>
             <div style={{ marginTop: "4.88px", fontWeight: 400, fontSize: "12px", letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>{s.label}</div>
           </div>
         ))}
@@ -129,9 +119,9 @@ function OverviewTab() {
 
       <div className="flex" style={{ gap: "24.4px" }}>
         <SectionCard title="최근 주문" onAll={() => router.push("/partner/orders")}>
-          {RECENT_ORDERS.map((o, i) => (
+          {overview.recentOrders.map((o, i) => (
             <div
-              key={o.title}
+              key={o.id}
               className="flex items-center justify-between"
               style={{
                 padding: i === 0 ? "14.64px 24.4px" : "15.64px 24.4px 14.64px",
@@ -148,9 +138,9 @@ function OverviewTab() {
         </SectionCard>
 
         <SectionCard title="참여 가능한 견적" onAll={() => router.push("/partner/quotes")}>
-          {OPEN_QUOTES.map((q, i) => (
+          {overview.openQuotes.map((q, i) => (
             <div
-              key={q.title}
+              key={i}
               style={{
                 padding: i === 0 ? "14.64px 24.4px" : "15.64px 24.4px 14.64px",
                 borderTop: i === 0 ? "none" : ROW_BORDER,
@@ -215,52 +205,13 @@ function StatusPill({ status }: { status: OrderStatus }) {
   );
 }
 
-const STATS_KPIS = [
-  { label: "총 매출", value: "2,280만원", delta: "+23%", deltaColor: "#059669", highlight: false },
-  { label: "견적 채택률", value: "42%", delta: "+5%", deltaColor: "#059669", highlight: true },
-  { label: "평균 단가", value: "89만원", delta: "-3%", deltaColor: "#EF4444", highlight: false },
-  { label: "재구매율", value: "68%", delta: "+8%", deltaColor: "#059669", highlight: false },
-];
-
-const REVENUE_BARS = [
-  { month: "1월", value: "320만", h: 84, color: NAVY },
-  { month: "2월", value: "450만", h: 118, color: "#34D399" },
-  { month: "3월", value: "380만", h: 100, color: "#38BDF8" },
-  { month: "4월", value: "520만", h: 136, color: "#FBBF24" },
-  { month: "5월", value: "610만", h: 160, color: "#2DD4BF" },
-];
-
-const QUOTE_BARS = [
-  { month: "1월", value: "12건", h: 77, color: "rgba(30,58,95,0.8)" },
-  { month: "2월", value: "18건", h: 115, color: "rgba(52,211,153,0.8)" },
-  { month: "3월", value: "15건", h: 96, color: "rgba(56,189,248,0.8)" },
-  { month: "4월", value: "22건", h: 141, color: "rgba(251,191,36,0.8)" },
-  { month: "5월", value: "25건", h: 160, color: "rgba(45,212,191,0.8)" },
-];
-
-const CATEGORY_SHARE = [
-  { name: "컴퓨터/노트북/태블릿", pct: 45, color: NAVY },
-  { name: "프린터/스캐너 및 소모품", pct: 25, color: "#34D399" },
-  { name: "네트워크 장비", pct: 20, color: "#38BDF8" },
-  { name: "컴퓨터 주변기기", pct: 10, color: "#FBBF24" },
-];
-
-const MONTHLY_ORDERS = [
-  { month: "5월", w: 291, color: NAVY, won: "610만원", cnt: "25건" },
-  { month: "4월", w: 247, color: "#34D399", won: "520만원", cnt: "22건" },
-  { month: "3월", w: 180, color: "#38BDF8", won: "380만원", cnt: "15건" },
-  { month: "2월", w: 215, color: "#FBBF24", won: "450만원", cnt: "18건" },
-  { month: "1월", w: 151, color: "#2DD4BF", won: "320만원", cnt: "12건" },
-];
-
 const MONTHLY_TRACK = 291;
 
-function StatsTab() {
+function StatsTab({ stats }: { stats: PartnerStats }) {
   return (
     <div>
-
       <div className="flex" style={{ gap: "19.52px", paddingBottom: "24.4px" }}>
-        {STATS_KPIS.map((k) => (
+        {stats.kpis.map((k) => (
           <div
             key={k.label}
             style={{
@@ -281,16 +232,16 @@ function StatsTab() {
       </div>
 
       <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "24.4px", alignItems: "start" }}>
-        <BarChartCard title="월별 매출 (만원)" bars={REVENUE_BARS} />
-        <BarChartCard title="월별 견적 참여 (건)" bars={QUOTE_BARS} />
-        <CategoryShareCard />
-        <MonthlyOrdersCard />
+        <BarChartCard title="월별 매출 (만원)" bars={stats.revenueBars} />
+        <BarChartCard title="월별 견적 참여 (건)" bars={stats.quoteBars} />
+        <CategoryShareCard items={stats.categoryShare} />
+        <MonthlyOrdersCard rows={stats.monthlyOrders} />
       </div>
     </div>
   );
 }
 
-function BarChartCard({ title, bars }: { title: string; bars: typeof REVENUE_BARS }) {
+function BarChartCard({ title, bars }: { title: string; bars: PartnerStats["revenueBars"] }) {
   return (
     <div style={{ ...CARD, width: "100%", height: "361px", padding: "25.4px" }}>
       <div style={{ paddingBottom: "19.52px", fontWeight: 700, fontSize: "14px", letterSpacing: "-0.392px", lineHeight: "17.5px", color: INK }}>{title}</div>
@@ -307,12 +258,12 @@ function BarChartCard({ title, bars }: { title: string; bars: typeof REVENUE_BAR
   );
 }
 
-function CategoryShareCard() {
+function CategoryShareCard({ items }: { items: PartnerStats["categoryShare"] }) {
   return (
     <div style={{ ...CARD, width: "100%", height: "284px", padding: "25.4px" }}>
       <div style={{ paddingBottom: "19.52px", fontWeight: 700, fontSize: "14px", letterSpacing: "-0.392px", lineHeight: "17.5px", color: INK }}>카테고리별 매출 비중</div>
       <div className="flex flex-col" style={{ gap: "17.08px" }}>
-        {CATEGORY_SHARE.map((c) => (
+        {items.map((c) => (
           <div key={c.name}>
             <div className="flex items-center justify-between" style={{ paddingBottom: "7.32px" }}>
               <span style={{ fontWeight: 400, fontSize: "12px", letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.6)" }}>{c.name}</span>
@@ -328,12 +279,12 @@ function CategoryShareCard() {
   );
 }
 
-function MonthlyOrdersCard() {
+function MonthlyOrdersCard({ rows }: { rows: PartnerStats["monthlyOrders"] }) {
   return (
     <div style={{ ...CARD, width: "100%", height: "284px", padding: "25.4px" }}>
       <div style={{ paddingBottom: "19.52px", fontWeight: 700, fontSize: "14px", letterSpacing: "-0.392px", lineHeight: "17.5px", color: INK }}>월별 주문 현황</div>
       <div className="flex flex-col" style={{ gap: "14.64px" }}>
-        {MONTHLY_ORDERS.map((m) => (
+        {rows.map((m) => (
           <div key={m.month} className="flex items-center" style={{ gap: "14.64px" }}>
             <span style={{ flexShrink: 0, width: "39px", fontWeight: 400, fontSize: "12px", letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.5)" }}>{m.month}</span>
             <div style={{ flexShrink: 0, width: `${MONTHLY_TRACK}px`, height: "7px", borderRadius: "9999px", background: "rgba(210,210,215,0.2)", overflow: "hidden" }}>

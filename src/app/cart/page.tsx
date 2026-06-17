@@ -14,7 +14,6 @@ export default async function CartPage() {
       <SiteHeader />
       <main className="flex-1">
         <div className="mx-auto w-full max-w-[1146px] px-[48.8px] pb-[78.08px] pt-[58.56px]">
-
           <p style={{ fontSize: "12px", fontWeight: 500, letterSpacing: "-0.18px", color: "rgba(29,29,31,0.4)", margin: 0 }}>Cart</p>
           <h1 style={{ fontSize: "28px", fontWeight: 700, lineHeight: "36px", letterSpacing: "-0.7px", color: "#1D1D1F", margin: "4px 0 0" }}>
             장바구니

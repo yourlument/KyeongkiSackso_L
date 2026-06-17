@@ -86,10 +86,8 @@ export default async function HomePage() {
       <SiteHeader />
 
       <main className="flex-1">
-
         <section className="flex flex-col items-center bg-surface px-[29.28px] pb-[136.64px] pt-[114.68px] text-center">
           <span className="mb-[24.4px] inline-flex items-center gap-[7.32px] rounded-full bg-field px-[14.64px] py-[4.88px] text-[13px] font-medium leading-[23.4px] tracking-[-0.195px] text-ink/60">
-
             <img src="/icons/land-hero-badge.svg" alt="" aria-hidden="true" width={11} height={11} />
             지자체 공공조달 플랫폼
           </span>
@@ -105,7 +103,6 @@ export default async function HomePage() {
             className="flex h-[64px] w-full max-w-[820px] items-center rounded-[19.52px] border border-[#D2D2D7]/40 bg-white p-[1px]"
           >
             <span className="flex h-[59px] w-[59px] flex-none items-center justify-center" aria-hidden="true">
-
               <img src="/icons/land-hero-search.svg" alt="" width={59} height={59} />
             </span>
             <input
@@ -143,7 +140,6 @@ export default async function HomePage() {
 
         <section className="bg-surface px-[48.8px] pb-[39.04px]">
           <div className="mx-auto max-w-[1249px]">
-
             <div className="flex flex-wrap gap-[9.76px]">
               {NOTICES.map((n) => (
                 <div
@@ -156,7 +152,6 @@ export default async function HomePage() {
                   <span className="text-[14.64px] font-normal leading-[19.52px] tracking-[-0.2196px] text-[#4b5563]">
                     {n.text}
                   </span>
-
                   <img src="/icons/land-notice-chevron.svg" alt="" aria-hidden="true" width={15} height={15} />
                 </div>
               ))}
@@ -164,7 +159,6 @@ export default async function HomePage() {
 
             <div className="mt-[9.76px] flex items-center gap-[9.76px] rounded-[4.88px] border border-[#E5E7EB] bg-white px-[15.64px] py-[10.76px]">
               <span className="flex-none" aria-hidden="true">
-
                 <img src="/icons/land-cat-empty.svg" alt="" width={15} height={12} className="opacity-60" />
               </span>
               <div className="flex min-w-0 flex-1 flex-col gap-[9.76px]">
@@ -222,7 +216,6 @@ export default async function HomePage() {
                 className="inline-flex items-center gap-[4px] text-[13px] font-medium leading-[22.75px] tracking-[-0.293px] text-brand"
               >
                 전체보기
-
                 <img src="/icons/land-products-arrow.svg" alt="" aria-hidden="true" width={14} height={13} />
               </Link>
             </div>
@@ -230,10 +223,8 @@ export default async function HomePage() {
             <div className="grid grid-cols-2 gap-[19.52px] sm:grid-cols-3 lg:grid-cols-6">
               {products.map((p) => (
                 <Link key={p.id} href={`/products/${p.id}`} className="group flex flex-col">
-
                   <div className="mb-[9.76px] aspect-square overflow-hidden rounded-[14.64px] bg-field">
                     {p.imageUrl ? (
-
                       <img
                         src={p.imageUrl}
                         alt={p.name}
@@ -242,15 +233,12 @@ export default async function HomePage() {
                     ) : null}
                   </div>
                   <div className="flex flex-col px-[2.44px]">
-
                     <p className="mb-[2.44px] truncate text-[11px] font-normal leading-[19.8px] tracking-[-0.165px] text-ink/40">
                       {p.companyName}
                     </p>
-
                     <p className="line-clamp-2 text-[13px] font-medium leading-[17.875px] tracking-[-0.364px] text-ink">
                       {p.name}
                     </p>
-
                     <p className="pt-[4.88px] text-[14px] font-semibold leading-[25.2px] tracking-[-0.21px] text-ink">
                       {KRW.format(p.price)}원
                     </p>
@@ -263,7 +251,6 @@ export default async function HomePage() {
 
         <section className="bg-surface px-[48.8px] pb-[97.6px]">
           <div className="mx-auto max-w-[1249px]">
-
             <div className="mb-[48.8px]">
               <p className="mb-[9.76px] text-[12px] font-medium leading-[21.6px] tracking-[1.2px] text-ink/40">
                 Categories
@@ -300,9 +287,7 @@ export default async function HomePage() {
                   key={f.title}
                   className="rounded-[19.52px] border border-[#D2D2D7]/10 bg-white p-[30.28px]"
                 >
-
                   <div className="mb-[19.52px] h-[54px] w-[54px] overflow-hidden">
-
                     <img
                       src={f.icon}
                       alt=""

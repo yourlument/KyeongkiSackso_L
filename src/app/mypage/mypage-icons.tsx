@@ -1,3 +1,4 @@
+
 type IconProps = { className?: string; style?: React.CSSProperties };
 
 const wrap = (vb: string, d: string) => (props: IconProps) => (

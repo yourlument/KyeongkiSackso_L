@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ORDERS,
   ORDER_STATS,
   ORDER_FILTERS,
   STATUS_STYLE,
@@ -19,37 +18,46 @@ const INK = "#1D1D1F";
 
 const GRID = "162px 261px 115px 150px 224px 129px 84px";
 
-export function OrdersListView() {
+export function OrdersListView({
+  rows: allRows,
+  stats,
+}: {
+  rows: OrderRow[];
+  stats: { total: number; paid: number; shipping: number; delivered: number };
+}) {
   const router = useRouter();
   const [filter, setFilter] = useState<OrderFilter>("전체");
-  const [statuses, setStatuses] = useState<Record<string, OrderStatus>>(
-    () => Object.fromEntries(ORDERS.map((o) => [o.orderNo, o.status])),
-  );
   const [invoiceFor, setInvoiceFor] = useState<OrderRow | null>(null);
   const [confirmFor, setConfirmFor] = useState<{ order: OrderRow; next: OrderStatus } | null>(null);
 
-  const rows = useMemo(() => {
-    return ORDERS.map((o) => ({ ...o, status: statuses[o.orderNo] })).filter((o) =>
-      filter === "전체" ? true : o.status === filter,
-    );
-  }, [filter, statuses]);
+  const statValue: Record<string, number> = { total: stats.total, paid: stats.paid, shipping: stats.shipping, delivered: stats.delivered };
+
+  const rows = useMemo(
+    () => allRows.filter((o) => (filter === "전체" ? true : o.status === filter)),
+    [filter, allRows],
+  );
 
   function advance(order: OrderRow) {
-    const cur = statuses[order.orderNo];
-    const action = NEXT_ACTION[cur];
+    const action = NEXT_ACTION[order.status];
     if (!action) return;
-
-    if (cur === "결제완료") {
-      setInvoiceFor({ ...order, status: cur });
+    if (order.status === "결제완료") {
+      setInvoiceFor(order);
       return;
     }
+    setConfirmFor({ order, next: action.next });
+  }
 
-    setConfirmFor({ order: { ...order, status: cur }, next: action.next });
+  async function patchStatus(id: string, payload: Record<string, unknown>) {
+    const res = await fetch(`/api/partner/orders/${id}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) router.refresh();
   }
 
   return (
     <>
-
       <div style={{ paddingBottom: "34.16px" }}>
         <h1 style={{ fontSize: "20px", fontWeight: 700, letterSpacing: "-0.56px", lineHeight: "25px", color: INK, margin: 0 }}>
           주문 / 배송 관리
@@ -65,12 +73,11 @@ export function OrdersListView() {
             <div className="flex items-start justify-between" style={{ paddingBottom: "14.64px" }}>
               <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>{s.label}</span>
               <span className="flex items-center justify-center" style={{ width: "34px", height: "34px", borderRadius: "9.76px", background: s.tint ? "rgba(30,58,95,0.12)" : "transparent" }}>
-
                 <img src={s.icon} alt="" width={18} height={24} aria-hidden="true" />
               </span>
             </div>
             <div className="flex items-baseline">
-              <span style={{ fontSize: "22px", fontWeight: 700, letterSpacing: "-0.33px", lineHeight: "39.6px", color: INK }}>{s.value}</span>
+              <span style={{ fontSize: "22px", fontWeight: 700, letterSpacing: "-0.33px", lineHeight: "39.6px", color: INK }}>{statValue[s.key] ?? 0}</span>
               <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.4)" }}>건</span>
             </div>
           </div>
@@ -94,7 +101,6 @@ export function OrdersListView() {
       </div>
 
       <div style={{ borderRadius: "19.52px", background: "#fff", border: "1px solid rgba(210,210,215,0.2)", overflow: "hidden" }}>
-
         <div className="grid" style={{ gridTemplateColumns: GRID, background: "rgba(29,29,31,0.02)", borderBottom: "1px solid rgba(210,210,215,0.1)" }}>
           {["주문번호", "품목", "구매자", "금액", "상태", "주문일", "관리"].map((h) => (
             <div key={h} style={{ padding: "17.08px 19.52px" }}>
@@ -159,8 +165,8 @@ export function OrdersListView() {
         <InvoiceModal
           order={invoiceFor}
           onClose={() => setInvoiceFor(null)}
-          onSubmit={() => {
-            setStatuses((s) => ({ ...s, [invoiceFor.orderNo]: "배송중" }));
+          onSubmit={async (courier, trackingNo) => {
+            await patchStatus(invoiceFor.id, { status: "SHIPPING", courier, trackingNo });
             setInvoiceFor(null);
           }}
         />
@@ -171,8 +177,8 @@ export function OrdersListView() {
           order={confirmFor.order}
           next={confirmFor.next}
           onClose={() => setConfirmFor(null)}
-          onConfirm={() => {
-            setStatuses((s) => ({ ...s, [confirmFor.order.orderNo]: confirmFor.next }));
+          onConfirm={async () => {
+            await patchStatus(confirmFor.order.id, { status: "DELIVERED" });
             setConfirmFor(null);
           }}
         />

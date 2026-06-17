@@ -1,85 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-
-type Settle = "정산완료" | "정산대기";
-
-type Txn = {
-  date: string;
-  pg: string;
-  method: string;
-  buyer: string;
-  buyerDept: string;
-  supplier: string;
-  supplierBiz: string;
-  amount: string;
-  settle: Settle;
-};
-
-const TXNS: Txn[] = [
-  {
-    date: "2026-04-15 11:20",
-    pg: "PG-20260415-001234",
-    method: "가상계좌",
-    buyer: "화성시청",
-    buyerDept: "정보통신과",
-    supplier: "디지털솔루션(주)",
-    supplierBiz: "678-90-12345",
-    amount: "4,450,000",
-    settle: "정산완료",
-  },
-  {
-    date: "2026-04-01 09:30",
-    pg: "PG-20260401-002345",
-    method: "법인카드",
-    buyer: "화성시청",
-    buyerDept: "도로관리과",
-    supplier: "경기건설(주)",
-    supplierBiz: "123-45-67890",
-    amount: "1,625,000",
-    settle: "정산완료",
-  },
-  {
-    date: "2026-04-20 14:15",
-    pg: "PG-20260420-003456",
-    method: "법인카드",
-    buyer: "화성시청",
-    buyerDept: "안전총괄과",
-    supplier: "안전소방(주)",
-    supplierBiz: "901-23-45678",
-    amount: "1,780,000",
-    settle: "정산대기",
-  },
-  {
-    date: "2026-03-10 10:00",
-    pg: "PG-20260310-004567",
-    method: "법인카드",
-    buyer: "수원시청",
-    buyerDept: "스마트도시과",
-    supplier: "디지털솔루션(주)",
-    supplierBiz: "678-90-12345",
-    amount: "22,600,000",
-    settle: "정산완료",
-  },
-  {
-    date: "2026-03-20 11:30",
-    pg: "PG-20260320-005678",
-    method: "법인카드",
-    buyer: "화성시청",
-    buyerDept: "보건소",
-    supplier: "메디칼텍(주)",
-    supplierBiz: "456-78-90123",
-    amount: "475,000",
-    settle: "정산완료",
-  },
-];
-
-const KPIS: Array<{ label: string; value: string }> = [
-  { label: "금일 총 결제 건수", value: "0건" },
-  { label: "금일 총 결제 금액", value: "0원" },
-  { label: "정산 대기", value: "1건" },
-  { label: "이용권 만료 예정", value: "0건" },
-];
+import type { AdminPaymentData, Txn, Settle, SubRow, SubStatus, RefundReq, Kpi } from "@/lib/admin-payment";
 
 const TABS = ["전체 거래 모니터링", "이용권 수납 관리", "환불 요청 관리"] as const;
 const CHIPS = ["전체", "정산대기", "정산완료"] as const;
@@ -171,32 +93,6 @@ function RejectCircleIcon() {
     </svg>
   );
 }
-
-type TxnExtra = {
-  manager: string;
-  buyerPhone: string;
-  tax: { bizNo: string; ceo: string; email: string; address: string; status: string };
-  supplierCeo: string;
-  supplierPhone: string;
-  settleNote: string;
-};
-
-const TXN_EXTRAS: Record<string, TxnExtra> = {
-  "PG-20260415-001234": {
-    manager: "박주임",
-    buyerPhone: "031-369-1234",
-    tax: {
-      bizNo: "134-83-00001",
-      ceo: "이민혁",
-      email: "tax@hwaseong.go.kr",
-      address: "경기도 화성시 향남로 45 시청본관",
-      status: "미발행",
-    },
-    supplierCeo: "김태현",
-    supplierPhone: "031-780-4500",
-    settleNote: "2026-04-16 송금",
-  },
-};
 
 function ModalField({ label, value, big }: { label: string; value: string; big?: boolean }) {
   return (
@@ -298,7 +194,7 @@ function ModalGrid({ children }: { children: React.ReactNode }) {
 }
 
 function TxnDetailModal({ txn, onClose }: { txn: Txn; onClose: () => void }) {
-  const extra = TXN_EXTRAS[txn.pg];
+  const extra = txn.extra;
   const st = SETTLE_STYLE[txn.settle];
   return (
     <div
@@ -317,7 +213,6 @@ function TxnDetailModal({ txn, onClose }: { txn: Txn; onClose: () => void }) {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-
         <div
           className="flex shrink-0 items-center justify-between"
           style={{ padding: "19.52px 29.28px 20.52px", borderBottom: "1px solid rgba(210,210,215,0.1)" }}
@@ -353,7 +248,6 @@ function TxnDetailModal({ txn, onClose }: { txn: Txn; onClose: () => void }) {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto" style={{ padding: "29.28px" }}>
-
           <div className="flex flex-col" style={{ gap: "14.64px" }}>
             <div className="flex" style={{ gap: "14.64px" }}>
               <ModalField label="결제 일시" value={txn.date} />
@@ -613,7 +507,6 @@ function RefundField({
 function RefundModal({ txn, onClose }: { txn: Txn; onClose: () => void }) {
   return (
     <ModalOverlay maxWidth="468px" onClose={onClose}>
-
       <div className="flex justify-center" style={{ paddingBottom: "19.52px" }}>
         <span
           className="flex shrink-0 items-center justify-center"
@@ -636,7 +529,6 @@ function RefundModal({ txn, onClose }: { txn: Txn; onClose: () => void }) {
       >
         환불 처리
       </p>
-
       <div
         style={{
           marginBottom: "19.52px",
@@ -691,7 +583,6 @@ function RefundModal({ txn, onClose }: { txn: Txn; onClose: () => void }) {
           }}
         />
       </div>
-
       <ModalActions onCancel={onClose} onConfirm={onClose} confirmLabel="환불 처리" confirmBg="#EF4444" confirmDim />
     </ModalOverlay>
   );
@@ -734,7 +625,6 @@ function SubConfirmModal({
       >
         {message}
       </p>
-
       <ModalActions onCancel={onClose} onConfirm={onClose} confirmLabel="확인" confirmBg="#1E3A5F" />
     </ModalOverlay>
   );
@@ -752,7 +642,6 @@ function RefundDecisionModal({
   const approve = kind === "approve";
   return (
     <ModalOverlay maxWidth="468px" onClose={onClose}>
-
       <div className="flex justify-center" style={{ paddingBottom: "19.52px" }}>
         <span
           className="flex shrink-0 items-center justify-center"
@@ -832,7 +721,6 @@ function RefundDecisionModal({
       >
         {req.amount}
       </p>
-
       <ModalActions
         onCancel={onClose}
         onConfirm={onClose}
@@ -897,30 +785,7 @@ const ROW_BTN_BASE: React.CSSProperties = {
   flexShrink: 0,
 };
 
-const SUB_KPIS: Array<{ label: string; value: string }> = [
-  { label: "플랫폼 이용료 수익 (월)", value: "1,196,000원" },
-];
-
 const SUB_CHIPS = ["전체", "정상", "미납"] as const;
-
-type SubStatus = "정상" | "미납";
-
-type SubRow = {
-  name: string;
-  plan: string;
-  fee: string;
-  nextPay: string;
-  remain: string;
-  status: SubStatus;
-};
-
-const SUB_ROWS: SubRow[] = [
-  { name: "디지털솔루션(주)", plan: "프리미엄", fee: "299,000원", nextPay: "2026-06-08", remain: "31일", status: "정상" },
-  { name: "오피스텍(주)", plan: "프리미엄", fee: "299,000원", nextPay: "2026-06-03", remain: "26일", status: "정상" },
-  { name: "안전소방(주)", plan: "프리미엄", fee: "299,000원", nextPay: "2026-05-20", remain: "12일", status: "정상" },
-  { name: "포장산업(주)", plan: "프리미엄", fee: "299,000원", nextPay: "2026-05-01", remain: "7일 초과", status: "미납" },
-  { name: "경기건설(주)", plan: "프리미엄", fee: "299,000원", nextPay: "2026-06-10", remain: "33일", status: "정상" },
-];
 
 const SUB_STATUS_STYLE: Record<SubStatus, { bg: string; border: string; color: string }> = {
   정상: { bg: "#ECFDF5", border: "#A7F3D0", color: "#047857" },
@@ -937,22 +802,19 @@ const SUB_COLS = [
   { label: "", w: 252.17 },
 ] as const;
 
-function SubscriptionTab() {
+function SubscriptionTab({ subscriptions, subKpi }: { subscriptions: SubRow[]; subKpi: Kpi }) {
   const [chip, setChip] = useState<(typeof SUB_CHIPS)[number]>("전체");
   const [confirm, setConfirm] = useState<{ title: string; message: string } | null>(null);
 
   const rows = useMemo(
-    () => SUB_ROWS.filter((r) => chip === "전체" || r.status === chip),
-    [chip],
+    () => subscriptions.filter((r) => chip === "전체" || r.status === chip),
+    [subscriptions, chip],
   );
 
   return (
     <div>
-
       <div className="flex" style={{ gap: "14.64px", marginBottom: "24.4px" }}>
-        {SUB_KPIS.map((k) => (
-          <TabKpiCard key={k.label} label={k.label} value={k.value} width="536.72px" />
-        ))}
+        <TabKpiCard label={subKpi.label} value={subKpi.value} width="536.72px" />
       </div>
 
       <div
@@ -1036,7 +898,6 @@ function SubscriptionTab() {
         }}
       >
         <div>
-
           <div
             className="flex"
             style={{ background: "rgba(29,29,31,0.02)", borderBottom: "1px solid rgba(210,210,215,0.1)" }}
@@ -1066,7 +927,6 @@ function SubscriptionTab() {
                 className="flex items-center"
                 style={{ borderTop: i === 0 ? "none" : "1px solid rgba(210,210,215,0.1)" }}
               >
-
                 <div style={{ width: "184.78px", flexShrink: 0, padding: CELL_PAD }}>
                   <span
                     style={{
@@ -1081,7 +941,6 @@ function SubscriptionTab() {
                     {r.name}
                   </span>
                 </div>
-
                 <div style={{ width: "121.83px", flexShrink: 0, padding: CELL_PAD }}>
                   <span
                     style={{
@@ -1096,7 +955,6 @@ function SubscriptionTab() {
                     {r.plan}
                   </span>
                 </div>
-
                 <div style={{ width: "140.5px", flexShrink: 0, padding: CELL_PAD }}>
                   <span
                     style={{
@@ -1111,7 +969,6 @@ function SubscriptionTab() {
                     {r.fee}
                   </span>
                 </div>
-
                 <div style={{ width: "142px", flexShrink: 0, padding: CELL_PAD }}>
                   <span
                     style={{
@@ -1126,7 +983,6 @@ function SubscriptionTab() {
                     {r.nextPay}
                   </span>
                 </div>
-
                 <div style={{ width: "119.81px", flexShrink: 0, padding: CELL_PAD }}>
                   <span
                     style={{
@@ -1141,7 +997,6 @@ function SubscriptionTab() {
                     {r.remain}
                   </span>
                 </div>
-
                 <div style={{ width: "125.58px", flexShrink: 0, padding: CELL_PAD }}>
                   <span
                     className="inline-flex items-center justify-center"
@@ -1162,7 +1017,6 @@ function SubscriptionTab() {
                     {r.status}
                   </span>
                 </div>
-
                 <div style={{ width: "252.17px", flexShrink: 0, padding: CELL_PAD }}>
                   <div className="flex items-center" style={{ gap: "7.32px" }}>
                     {r.status === "미납" ? (
@@ -1240,45 +1094,6 @@ function SubscriptionTab() {
   );
 }
 
-const REFUND_KPIS: Array<{ label: string; value: string }> = [
-  { label: "전체 환불 요청", value: "2건" },
-  { label: "처리 대기", value: "2건" },
-];
-
-type RefundReq = {
-  order: string;
-  buyer: string;
-  buyerOrg: string;
-  supplier: string;
-  item: string;
-  amount: string;
-  date: string;
-  reason: string;
-};
-
-const REFUND_ROWS: RefundReq[] = [
-  {
-    order: "o003",
-    buyer: "이대리",
-    buyerOrg: "화성시청",
-    supplier: "안전소방(주)",
-    item: "분말소화기 3.3kg, 소방호스 65A 20m",
-    amount: "1,780,000원",
-    date: "2026-04-22",
-    reason: "납품 물품 규격 불일치 (발주한 3.3kg 소화기가 아닌 2.5kg 제품 배송됨)",
-  },
-  {
-    order: "o008",
-    buyer: "박과장",
-    buyerOrg: "성남시청",
-    supplier: "디지털솔루션(주)",
-    item: "48포트 L3 관리형 스위치",
-    amount: "9,250,000원",
-    date: "2026-05-04",
-    reason: "예산 삭감으로 인해 구매 취소 요청",
-  },
-];
-
 const REFUND_COLS = [
   { label: "주문번호", w: 74.63 },
   { label: "구매자", w: 88.61 },
@@ -1291,14 +1106,13 @@ const REFUND_COLS = [
   { label: "처리", w: 146.38 },
 ] as const;
 
-function RefundRequestTab() {
+function RefundRequestTab({ refunds, refundKpis }: { refunds: RefundReq[]; refundKpis: Kpi[] }) {
   const [decision, setDecision] = useState<{ kind: "approve" | "reject"; req: RefundReq } | null>(null);
 
   return (
     <div>
-
       <div className="flex" style={{ gap: "14.64px", marginBottom: "24.4px" }}>
-        {REFUND_KPIS.map((k) => (
+        {refundKpis.map((k) => (
           <TabKpiCard key={k.label} label={k.label} value={k.value} width="353.42px" />
         ))}
       </div>
@@ -1313,7 +1127,6 @@ function RefundRequestTab() {
         }}
       >
         <div>
-
           <div
             className="flex"
             style={{ background: "rgba(29,29,31,0.02)", borderBottom: "1px solid rgba(210,210,215,0.1)" }}
@@ -1335,7 +1148,7 @@ function RefundRequestTab() {
             ))}
           </div>
 
-          {REFUND_ROWS.map((r, i) => (
+          {refunds.map((r, i) => (
             <div
               key={r.order}
               className="flex items-center"
@@ -1344,7 +1157,6 @@ function RefundRequestTab() {
                 borderTop: i === 0 ? "none" : "1px solid rgba(210,210,215,0.1)",
               }}
             >
-
               <div style={{ flex: "74.63 1 0px", minWidth: 0, padding: CELL_PAD }}>
                 <span
                   style={{
@@ -1359,7 +1171,6 @@ function RefundRequestTab() {
                   {r.order}
                 </span>
               </div>
-
               <div style={{ flex: "88.61 1 0px", minWidth: 0, padding: CELL_PAD }}>
                 <p
                   style={{
@@ -1388,7 +1199,6 @@ function RefundRequestTab() {
                   {r.buyerOrg}
                 </p>
               </div>
-
               <div style={{ flex: "132.72 1 0px", minWidth: 0, padding: CELL_PAD }}>
                 <span
                   style={{
@@ -1403,7 +1213,6 @@ function RefundRequestTab() {
                   {r.supplier}
                 </span>
               </div>
-
               <div style={{ flex: "160 1 0px", minWidth: 0, padding: CELL_PAD, overflow: "hidden" }}>
                 <span
                   style={{
@@ -1420,7 +1229,6 @@ function RefundRequestTab() {
                   {r.item}
                 </span>
               </div>
-
               <div style={{ flex: "117.36 1 0px", minWidth: 0, padding: CELL_PAD }}>
                 <span
                   style={{
@@ -1435,7 +1243,6 @@ function RefundRequestTab() {
                   {r.amount}
                 </span>
               </div>
-
               <div style={{ flex: "107.52 1 0px", minWidth: 0, padding: CELL_PAD }}>
                 <span
                   style={{
@@ -1450,7 +1257,6 @@ function RefundRequestTab() {
                   {r.date}
                 </span>
               </div>
-
               <div style={{ flex: "200 1 0px", minWidth: 0, padding: CELL_PAD, overflow: "hidden" }}>
                 <span
                   style={{
@@ -1467,7 +1273,6 @@ function RefundRequestTab() {
                   {r.reason}
                 </span>
               </div>
-
               <div style={{ flex: "117.56 1 0px", minWidth: 0, padding: CELL_PAD }}>
                 <span
                   className="inline-flex items-center justify-center"
@@ -1488,7 +1293,6 @@ function RefundRequestTab() {
                   처리 대기
                 </span>
               </div>
-
               <div style={{ flex: "146.38 1 0px", minWidth: 0, padding: CELL_PAD }}>
                 <div className="flex items-center" style={{ gap: "7.32px" }}>
                   <button
@@ -1531,7 +1335,7 @@ function RefundRequestTab() {
   );
 }
 
-export function PaymentView() {
+export function PaymentView({ data }: { data: AdminPaymentData }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("전체 거래 모니터링");
   const [chip, setChip] = useState<(typeof CHIPS)[number]>("전체");
   const [detailTxn, setDetailTxn] = useState<Txn | null>(null);
@@ -1539,16 +1343,15 @@ export function PaymentView() {
 
   const rows = useMemo(
     () =>
-      TXNS.filter((t) => {
+      data.txns.filter((t) => {
         if (chip === "전체") return true;
         return t.settle === chip;
       }),
-    [chip],
+    [data.txns, chip],
   );
 
   return (
     <div style={{ width: "100%" }}>
-
       <div style={{ marginBottom: "34.16px" }}>
         <h1
           style={{
@@ -1577,7 +1380,7 @@ export function PaymentView() {
       </div>
 
       <div className="flex" style={{ gap: "14.64px", marginBottom: "29.28px" }}>
-        {KPIS.map((k) => (
+        {data.kpis.map((k) => (
           <div
             key={k.label}
             style={{
@@ -1654,7 +1457,7 @@ export function PaymentView() {
                     color: "#DC2626",
                   }}
                 >
-                  2
+                  {data.refunds.length}
                 </span>
               )}
               {active && (
@@ -1676,9 +1479,7 @@ export function PaymentView() {
 
       {tab === "전체 거래 모니터링" && (
         <>
-
       <div className="flex items-center" style={{ gap: "14.64px", marginBottom: "19.52px" }}>
-
         <div
           className="flex items-center"
           style={{
@@ -1749,7 +1550,6 @@ export function PaymentView() {
         }}
       >
         <div>
-
           <div
             className="flex"
             style={{ background: "rgba(29,29,31,0.02)", borderBottom: "1px solid rgba(210,210,215,0.1)" }}
@@ -1793,7 +1593,6 @@ export function PaymentView() {
                 className="flex items-start"
                 style={{ borderTop: i === 0 ? "none" : "1px solid rgba(210,210,215,0.1)" }}
               >
-
                 <div style={{ width: "139px", flexShrink: 0, padding: CELL_PAD }}>
                   <span
                     style={{
@@ -1808,7 +1607,6 @@ export function PaymentView() {
                     {r.date}
                   </span>
                 </div>
-
                 <div style={{ width: "159px", flexShrink: 0, padding: CELL_PAD }}>
                   <span
                     style={{
@@ -1823,7 +1621,6 @@ export function PaymentView() {
                     {r.pg}
                   </span>
                 </div>
-
                 <div style={{ width: "89px", flexShrink: 0, padding: CELL_PAD }}>
                   <span
                     style={{
@@ -1838,7 +1635,6 @@ export function PaymentView() {
                     {r.method}
                   </span>
                 </div>
-
                 <div style={{ width: "104px", flexShrink: 0, padding: CELL_PAD }}>
                   <p
                     style={{
@@ -1865,7 +1661,6 @@ export function PaymentView() {
                     {r.buyerDept}
                   </p>
                 </div>
-
                 <div style={{ width: "134px", flexShrink: 0, padding: CELL_PAD }}>
                   <p
                     style={{
@@ -1892,7 +1687,6 @@ export function PaymentView() {
                     {r.supplierBiz}
                   </p>
                 </div>
-
                 <div style={{ width: "129px", flexShrink: 0, padding: CELL_PAD }}>
                   <span className="inline-flex items-baseline">
                     <span
@@ -1920,7 +1714,6 @@ export function PaymentView() {
                     </span>
                   </span>
                 </div>
-
                 <div style={{ width: "115px", flexShrink: 0, padding: CELL_PAD }}>
                   <span
                     className="inline-flex items-center justify-center"
@@ -1940,7 +1733,6 @@ export function PaymentView() {
                     {r.settle}
                   </span>
                 </div>
-
                 <div style={{ width: "218px", flexShrink: 0, padding: "14.64px 14.64px" }}>
                   <div className="flex items-center" style={{ gap: "4.88px" }}>
                     <button
@@ -2017,8 +1809,8 @@ export function PaymentView() {
         </>
       )}
 
-      {tab === "이용권 수납 관리" && <SubscriptionTab />}
-      {tab === "환불 요청 관리" && <RefundRequestTab />}
+      {tab === "이용권 수납 관리" && <SubscriptionTab subscriptions={data.subscriptions} subKpi={data.subKpi} />}
+      {tab === "환불 요청 관리" && <RefundRequestTab refunds={data.refunds} refundKpis={data.refundKpis} />}
 
       {detailTxn && <TxnDetailModal txn={detailTxn} onClose={() => setDetailTxn(null)} />}
       {refundTxn && <RefundModal txn={refundTxn} onClose={() => setRefundTxn(null)} />}

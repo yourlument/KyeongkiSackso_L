@@ -60,7 +60,6 @@ export default function MilestonePage() {
       <header className="sticky top-0 z-40 border-b border-line bg-surface">
         <div className="mx-auto flex h-[60px] max-w-[960px] items-center justify-between px-6">
           <Link href="/" className="flex items-center">
-
             <img src="/korlink-logo.svg" alt="KORLINK" className="h-6 w-auto" />
           </Link>
           <span className="text-[13px] font-medium tracking-[-0.2px] text-ink/60">개발 일정 (마일스톤)</span>
@@ -68,7 +67,6 @@ export default function MilestonePage() {
       </header>
 
       <main className="mx-auto max-w-[960px] px-6 py-10">
-
         <section className="rounded-[16px] border border-line bg-surface p-7">
           <h1 className="text-[22px] font-bold tracking-[-0.5px] text-ink">KORLINK 개발 일정</h1>
           <p className="mt-1 text-[14px] tracking-[-0.2px] text-ink/50">

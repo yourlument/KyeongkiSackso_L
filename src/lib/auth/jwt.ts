@@ -22,8 +22,8 @@ export async function signAccessToken(claims: AccessClaims): Promise<string> {
     .sign(accessSecret);
 }
 
-export async function signRefreshToken(userId: string, jti: string): Promise<string> {
-  return new SignJWT({})
+export async function signRefreshToken(userId: string, jti: string, role: UserRole): Promise<string> {
+  return new SignJWT({ role })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(userId)
     .setJti(jti)
@@ -43,10 +43,10 @@ export async function verifyAccessToken(token: string): Promise<AccessClaims | n
 
 export async function verifyRefreshToken(
   token: string,
-): Promise<{ sub: string; jti: string } | null> {
+): Promise<{ sub: string; jti: string; role: UserRole } | null> {
   try {
     const { payload } = await jwtVerify(token, refreshSecret);
-    return { sub: payload.sub as string, jti: payload.jti as string };
+    return { sub: payload.sub as string, jti: payload.jti as string, role: payload.role as UserRole };
   } catch {
     return null;
   }

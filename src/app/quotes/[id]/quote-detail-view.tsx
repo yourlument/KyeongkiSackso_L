@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { QuoteDetailData, QuoteDetailProposal } from "@/lib/quotes";
 import { EditNoticeModal, QuotePreviewModal, ProposalStatusModal, DeleteNoticeModal } from "./quote-action-modals";
 
 const NAVY = "#1E3A5F";
@@ -9,21 +10,20 @@ const TEXT = "#1D1D1F";
 const TABS = ["개요", "제안서", "실시간 상담", "제안서 비교"] as const;
 type Tab = (typeof TABS)[number];
 
-export function QuoteDetailView({ id }: { id: string }) {
-  void id;
+export function QuoteDetailView({ id, data }: { id: string; data: QuoteDetailData }) {
   const [tab, setTab] = useState<Tab>("개요");
   const [modal, setModal] = useState<null | "edit" | "quote" | "status" | "delete">(null);
+  const [selectedProposal, setSelectedProposal] = useState<QuoteDetailProposal | null>(null);
 
   return (
     <div>
-
       <nav className="flex items-center" style={{ gap: "7.32px", marginBottom: "24.4px" }}>
         <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21px", color: "rgba(29,29,31,0.4)" }}>견적요청</span>
         <svg width={4} height={6} viewBox="0 0 4 6" fill="none" aria-hidden>
           <path d="M1 1l2 2-2 2" stroke="rgba(29,29,31,0.4)" strokeWidth={1} strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.7)" }}>
-          수지 보강 프로젝트 발전기 및 베어링 구매
+          {data.title}
         </span>
       </nav>
 
@@ -31,36 +31,36 @@ export function QuoteDetailView({ id }: { id: string }) {
         <div className="flex items-start justify-between" style={{ paddingBottom: "19.52px" }}>
           <div style={{ minWidth: 0 }}>
             <div className="flex items-center" style={{ gap: "9.76px", marginBottom: "9.76px" }}>
-              <span style={pill(NAVY, "rgba(30,58,95,0.1)", "rgba(30,58,95,0.2)")}>견적공고중</span>
-              <span style={pill("rgba(29,29,31,0.5)", "#F5F5F7", "rgba(210,210,215,0.2)")}>물품 견적</span>
+              <span style={pill(NAVY, "rgba(30,58,95,0.1)", "rgba(30,58,95,0.2)")}>{data.statusLabel}</span>
+              <span style={pill("rgba(29,29,31,0.5)", "#F5F5F7", "rgba(210,210,215,0.2)")}>{data.quoteType}</span>
               <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>
-                등록일: 2026-05-08
+                등록일: {data.createdAt}
               </span>
             </div>
             <h1 style={{ fontSize: "22px", fontWeight: 700, letterSpacing: "-0.55px", lineHeight: "27.5px", color: TEXT, margin: 0 }}>
-              수지 보강 프로젝트 발전기 및 베어링 구매
+              {data.title}
             </h1>
             <p style={{ fontSize: "14px", fontWeight: 400, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "rgba(29,29,31,0.5)", margin: "4.88px 0 0" }}>
-              경기도 화성시 화폐과
+              {data.org}
             </p>
             <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)", margin: "4.88px 0 0" }}>
-              기계·산업장비 &gt; 발전·전력장비 &gt; 발전기
+              {data.categoryPath}
             </p>
           </div>
           <div className="text-right" style={{ flexShrink: 0 }}>
             <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)", margin: 0 }}>예산</p>
-            <p style={{ fontSize: "24px", fontWeight: 700, letterSpacing: "-0.36px", lineHeight: "43.2px", color: TEXT, margin: 0 }}>15,000,000원</p>
+            <p style={{ fontSize: "24px", fontWeight: 700, letterSpacing: "-0.36px", lineHeight: "43.2px", color: TEXT, margin: 0 }}>{data.budget}</p>
           </div>
         </div>
 
         <div className="flex" style={{ gap: "14.64px", borderTop: `1px solid rgba(210,210,215,0.15)`, paddingTop: "20.52px" }}>
           {[
-            ["마감 일시", "2026. 06. 20"],
-            ["납기 기한", "2026-07-15"],
-            ["인도 조건", "상차도"],
-            ["납품 장소", "[18289] 경기도 화성시 시청로 159 화성시청"],
-            ["요청 품목", "2개"],
-            ["접수 제안", "1건"],
+            ["마감 일시", data.deadline],
+            ["납기 기한", data.dueDate],
+            ["인도 조건", data.deliveryCondition],
+            ["납품 장소", data.deliveryPlace],
+            ["요청 품목", `${data.items.length}개`],
+            ["접수 제안", `${data.proposals.length}건`],
           ].map(([label, value]) => (
             <div key={label} style={{ flex: 1, minWidth: 0 }}>
               <p style={caption(0.4)}>{label}</p>
@@ -72,22 +72,25 @@ export function QuoteDetailView({ id }: { id: string }) {
         <div style={{ borderTop: `1px solid rgba(210,210,215,0.15)`, paddingTop: "20.52px", marginTop: "19.52px" }}>
           <p style={{ ...caption(0.4), fontWeight: 600, marginBottom: "9.76px" }}>요청 품목</p>
           <div className="flex flex-wrap items-center" style={{ gap: "9.76px" }}>
-            <span style={chip()}>발전기 100kW급 · 2대</span>
-            <span style={chip()}>베어링 6206-2RS · 500개</span>
+            {data.items.map((item) => (
+              <span key={item.no} style={chip()}>{item.chipLabel}</span>
+            ))}
           </div>
         </div>
       </section>
 
-      <div className="flex items-center" style={{ gap: "9.76px", marginTop: "24.4px", marginBottom: "19.52px" }}>
-        <button type="button" onClick={() => setModal("edit")} style={actionBtn("rgba(210,210,215,0.3)", "rgba(29,29,31,0.6)")}>
-          <PencilIcon />
-          <span>수정</span>
-        </button>
-        <button type="button" onClick={() => setModal("delete")} style={actionBtn("#FECACA", "#F87171")}>
-          <TrashIcon />
-          <span>삭제</span>
-        </button>
-      </div>
+      {data.isOwner && (
+        <div className="flex items-center" style={{ gap: "9.76px", marginTop: "24.4px", marginBottom: "19.52px" }}>
+          <button type="button" onClick={() => setModal("edit")} style={actionBtn("rgba(210,210,215,0.3)", "rgba(29,29,31,0.6)")}>
+            <PencilIcon />
+            <span>수정</span>
+          </button>
+          <button type="button" onClick={() => setModal("delete")} style={actionBtn("#FECACA", "#F87171")}>
+            <TrashIcon />
+            <span>삭제</span>
+          </button>
+        </div>
+      )}
 
       <div className="flex" style={{ gap: "4.88px", borderBottom: `1px solid rgba(210,210,215,0.2)`, marginBottom: "29.28px" }}>
         {TABS.map((t) => {
@@ -119,7 +122,6 @@ export function QuoteDetailView({ id }: { id: string }) {
 
       {tab === "개요" ? (
         <>
-
           <section style={{ ...card(), marginBottom: "24.4px" }}>
             <p style={{ fontSize: "15px", fontWeight: 600, letterSpacing: "-0.42px", lineHeight: "18.75px", color: TEXT, margin: "0 0 24.4px" }}>
               공고 상세 정보
@@ -127,10 +129,10 @@ export function QuoteDetailView({ id }: { id: string }) {
 
             <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "24.4px", rowGap: "24.4px" }}>
               {[
-                ["공고 유형", "물품 견적"],
-                ["카테고리", "기계·산업장비 > 발전·전력장비 > 발전기"],
-                ["마감 일시", "2026. 06. 20"],
-                ["요청 기관", "경기도 화성시 화폐과"],
+                ["공고 유형", data.quoteType],
+                ["카테고리", data.categoryPath],
+                ["마감 일시", data.deadline],
+                ["요청 기관", data.org],
               ].map(([label, value]) => (
                 <div key={label}>
                   <p style={{ ...caption(0.4), fontWeight: 500, marginBottom: "4.88px" }}>{label}</p>
@@ -143,16 +145,19 @@ export function QuoteDetailView({ id }: { id: string }) {
               <p style={{ fontSize: "12px", fontWeight: 600, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.5)", margin: "0 0 14.64px" }}>
                 물품 상세 사양
               </p>
-              <SpecRow no="01" title="발전기 100kW급" detail="수량: 2대 · 3상 4선식, 60Hz, 연속운전 가능" />
-              <div style={{ height: "9.76px" }} />
-              <SpecRow no="02" title="베어링 6206-2RS" detail="수량: 500개 · 내경 30mm, 외경 62mm" />
+              {data.items.map((item, i) => (
+                <div key={item.no}>
+                  {i > 0 && <div style={{ height: "9.76px" }} />}
+                  <SpecRow no={item.no} title={item.name} detail={item.detail} />
+                </div>
+              ))}
             </div>
 
             <div className="flex" style={{ gap: "24.4px", borderTop: `1px solid rgba(210,210,215,0.15)`, paddingTop: "20.52px", marginTop: "24.4px" }}>
               {[
-                ["납기 기한", "2026-07-15"],
-                ["납품 장소", "[18289] 경기도 화성시 시청로 159 화성시청"],
-                ["인도 조건", "상차도"],
+                ["납기 기한", data.dueDate],
+                ["납품 장소", data.deliveryPlace],
+                ["인도 조건", data.deliveryCondition],
               ].map(([label, value]) => (
                 <div key={label} style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ ...caption(0.4), fontWeight: 500, marginBottom: "4.88px" }}>{label}</p>
@@ -165,12 +170,23 @@ export function QuoteDetailView({ id }: { id: string }) {
               <p style={{ fontSize: "12px", fontWeight: 600, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.5)", margin: "0 0 14.64px" }}>
                 첨부파일
               </p>
-              <div className="flex items-center" style={{ gap: "14.64px", borderRadius: "14.64px", border: `1px dashed rgba(210,210,215,0.3)`, padding: "20.52px" }}>
-                <AttachIcon />
-                <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.4)" }}>
-                  첨부된 파일이 없습니다
-                </span>
-              </div>
+              {data.attachments.length === 0 ? (
+                <div className="flex items-center" style={{ gap: "14.64px", borderRadius: "14.64px", border: `1px dashed rgba(210,210,215,0.3)`, padding: "20.52px" }}>
+                  <AttachIcon />
+                  <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.4)" }}>
+                    첨부된 파일이 없습니다
+                  </span>
+                </div>
+              ) : (
+                <div className="flex flex-col" style={{ gap: "7.32px" }}>
+                  {data.attachments.map((a, i) => (
+                    <div key={i} className="flex items-center" style={{ gap: "9.76px", borderRadius: "14.64px", border: `1px solid rgba(210,210,215,0.2)`, padding: "12.2px 15.64px" }}>
+                      <AttachIcon />
+                      <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.7)" }}>{a.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </section>
 
@@ -188,7 +204,7 @@ export function QuoteDetailView({ id }: { id: string }) {
           </section>
         </>
       ) : tab === "제안서" ? (
-        <ProposalsPanel onQuote={() => setModal("quote")} onStatus={() => setModal("status")} onChat={() => setTab("실시간 상담")} onCompare={() => setTab("제안서 비교")} />
+        <ProposalsPanel proposals={data.proposals} onQuote={() => setModal("quote")} onStatus={(p) => { setSelectedProposal(p); setModal("status"); }} onChat={() => setTab("실시간 상담")} onCompare={() => setTab("제안서 비교")} />
       ) : tab === "실시간 상담" ? (
         <ChatPanel onQuote={() => setModal("quote")} />
       ) : (
@@ -196,8 +212,17 @@ export function QuoteDetailView({ id }: { id: string }) {
       )}
       {modal === "edit" && <EditNoticeModal onClose={() => setModal(null)} />}
       {modal === "quote" && <QuotePreviewModal onClose={() => setModal(null)} />}
-      {modal === "status" && <ProposalStatusModal onClose={() => setModal(null)} />}
-      {modal === "delete" && <DeleteNoticeModal onClose={() => setModal(null)} />}
+      {modal === "status" && selectedProposal && (
+        <ProposalStatusModal
+          onClose={() => setModal(null)}
+          quoteId={id}
+          responseId={selectedProposal.id}
+          company={selectedProposal.company}
+          totalAmount={selectedProposal.totalAmount}
+          current={selectedProposal.statusLabel}
+        />
+      )}
+      {modal === "delete" && <DeleteNoticeModal onClose={() => setModal(null)} quoteId={id} quoteTitle={data.title} />}
     </div>
   );
 }
@@ -211,11 +236,10 @@ const PROP_COLS = [
   { label: "작업", width: "29.66%" },
 ];
 
-function ProposalsPanel({ onQuote, onStatus, onChat, onCompare }: { onQuote: () => void; onStatus: () => void; onChat: () => void; onCompare: () => void }) {
+function ProposalsPanel({ proposals, onQuote, onStatus, onChat, onCompare }: { proposals: QuoteDetailProposal[]; onQuote: () => void; onStatus: (p: QuoteDetailProposal) => void; onChat: () => void; onCompare: () => void }) {
   return (
     <div style={{ paddingBottom: "58.6px" }}>
       <div style={{ borderRadius: "19.52px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff", overflow: "hidden" }}>
-
         <div className="flex" style={{ borderBottom: `1px solid rgba(210,210,215,0.2)` }}>
           {PROP_COLS.map((c) => (
             <div key={c.label} className="flex items-center" style={{ width: c.width, padding: "17.08px 24.4px" }}>
@@ -223,29 +247,34 @@ function ProposalsPanel({ onQuote, onStatus, onChat, onCompare }: { onQuote: () 
             </div>
           ))}
         </div>
-
-        <div className="flex items-center">
-          <div className="flex items-center" style={{ width: PROP_COLS[0].width, padding: "19.52px 24.4px" }}>
-            <span style={{ fontSize: "14px", fontWeight: 600, letterSpacing: "-0.21px", lineHeight: "25.2px", color: TEXT }}>기계공업(주)</span>
+        {proposals.length === 0 ? (
+          <div className="flex items-center justify-center" style={{ padding: "39.04px 24.4px" }}>
+            <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.3)" }}>접수된 제안이 없습니다</span>
           </div>
-          <div className="flex items-center" style={{ width: PROP_COLS[1].width, padding: "19.52px 24.4px" }}>
-            <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.5)" }}>031-123-4567</span>
+        ) : proposals.map((p) => (
+          <div key={p.id} className="flex items-center" style={{ borderTop: `1px solid rgba(210,210,215,0.1)` }}>
+            <div className="flex items-center" style={{ width: PROP_COLS[0].width, padding: "19.52px 24.4px" }}>
+              <span style={{ fontSize: "14px", fontWeight: 600, letterSpacing: "-0.21px", lineHeight: "25.2px", color: TEXT }}>{p.company}</span>
+            </div>
+            <div className="flex items-center" style={{ width: PROP_COLS[1].width, padding: "19.52px 24.4px" }}>
+              <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.5)" }}>{p.phone}</span>
+            </div>
+            <div className="flex items-center" style={{ width: PROP_COLS[2].width, padding: "19.52px 24.4px" }}>
+              <span style={{ fontSize: "15px", fontWeight: 700, letterSpacing: "-0.225px", lineHeight: "27px", color: TEXT }}>{p.totalAmount}</span>
+            </div>
+            <div className="flex items-center" style={{ width: PROP_COLS[3].width, padding: "19.52px 24.4px" }}>
+              <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.5)" }}>{p.specSummary}</span>
+            </div>
+            <div className="flex items-center" style={{ width: PROP_COLS[4].width, padding: "19.52px 24.4px" }}>
+              <span style={statusBadge()}>{p.statusLabel}</span>
+            </div>
+            <div className="flex items-center" style={{ width: PROP_COLS[5].width, padding: "19.52px 24.4px", gap: "9.76px" }}>
+              <button type="button" onClick={onQuote} style={chipBtn()}><QuoteIcon /><span>견적서</span></button>
+              <button type="button" onClick={onChat} style={chipBtn()}><ChatBubbleIcon /><span>대화</span></button>
+              <button type="button" onClick={() => onStatus(p)} style={chipBtn()}><StatusIcon /><span>상태 변경</span></button>
+            </div>
           </div>
-          <div className="flex items-center" style={{ width: PROP_COLS[2].width, padding: "19.52px 24.4px" }}>
-            <span style={{ fontSize: "15px", fontWeight: 700, letterSpacing: "-0.225px", lineHeight: "27px", color: TEXT }}>14,800,000원</span>
-          </div>
-          <div className="flex items-center" style={{ width: PROP_COLS[3].width, padding: "19.52px 24.4px" }}>
-            <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.5)" }}>발전기 100kW 2대, 베어링 500개, 설치 포함</span>
-          </div>
-          <div className="flex items-center" style={{ width: PROP_COLS[4].width, padding: "19.52px 24.4px" }}>
-            <span style={statusBadge()}>접수</span>
-          </div>
-          <div className="flex items-center" style={{ width: PROP_COLS[5].width, padding: "19.52px 24.4px", gap: "9.76px" }}>
-            <button type="button" onClick={onQuote} style={chipBtn()}><QuoteIcon /><span>견적서</span></button>
-            <button type="button" onClick={onChat} style={chipBtn()}><ChatBubbleIcon /><span>대화</span></button>
-            <button type="button" onClick={onStatus} style={chipBtn()}><StatusIcon /><span>상태 변경</span></button>
-          </div>
-        </div>
+        ))}
       </div>
 
       <div className="flex justify-end" style={{ paddingTop: "19.52px" }}>
@@ -281,7 +310,6 @@ function ChatPanel({ onQuote }: { onQuote: () => void }) {
   };
   return (
     <div className="flex" style={{ gap: "19.52px", marginBottom: "58.6px" }}>
-
       <div style={{ width: "422.9px", flexShrink: 0, borderRadius: "19.52px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff", overflow: "hidden" }}>
         <div className="flex items-center justify-between" style={{ padding: "19.52px 24.4px 20.52px", borderBottom: `1px solid rgba(210,210,215,0.15)` }}>
           <span style={{ fontSize: "14px", fontWeight: 600, letterSpacing: "-0.392px", lineHeight: "17.5px", color: TEXT }}>참여 업체</span>
@@ -301,7 +329,6 @@ function ChatPanel({ onQuote }: { onQuote: () => void }) {
       </div>
 
       <div className="flex flex-col" style={{ flex: 1, minWidth: 0, borderRadius: "19.52px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff", overflow: "hidden" }}>
-
         <div className="flex items-center justify-between" style={{ padding: "19.52px 24.4px 20.52px", borderBottom: `1px solid rgba(210,210,215,0.15)` }}>
           <div className="flex items-center" style={{ gap: "14.64px" }}>
             <span className="flex items-center justify-center" style={{ width: "43.9px", height: "43.9px", borderRadius: "9999px", background: "rgba(30,58,95,0.1)", flexShrink: 0 }}>
@@ -396,7 +423,6 @@ function ComparePanel({ onQuote, onStatus, onChat, onBack }: { onQuote: () => vo
   const LABEL_W = "175.7px";
   return (
     <div style={{ paddingBottom: "58.6px" }}>
-
       <div className="flex items-center justify-between">
         <div>
           <p style={{ fontSize: "15px", fontWeight: 600, letterSpacing: "-0.42px", lineHeight: "18.75px", color: TEXT, margin: 0 }}>업체별 제안 비교 분석</p>
@@ -411,7 +437,6 @@ function ComparePanel({ onQuote, onStatus, onChat, onBack }: { onQuote: () => vo
       </div>
 
       <div style={{ marginTop: "19.52px", borderRadius: "19.52px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff", overflow: "hidden" }}>
-
         <div className="flex" style={{ background: "rgba(210,210,215,0.1)", gap: "1px" }}>
           <SummaryCell label="최저 제안가" value="14,800,000원" color="#EF4444" />
           <SummaryCell label="평균 제안가" value="14,800,000원" color={TEXT} />
@@ -419,7 +444,6 @@ function ComparePanel({ onQuote, onStatus, onChat, onBack }: { onQuote: () => vo
         </div>
 
         <div style={{ maxWidth: "700px" }}>
-
           <div className="flex" style={{ borderBottom: `1px solid rgba(210,210,215,0.1)` }}>
             <CompareLabel w={LABEL_W} text="비교 항목" padY="19.52px" />
             <div className="flex flex-col items-center justify-center" style={{ flex: 1, padding: "19.52px 14.64px", gap: "4.88px" }}>
@@ -428,14 +452,12 @@ function ComparePanel({ onQuote, onStatus, onChat, onBack }: { onQuote: () => vo
               <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "-0.15px", lineHeight: "18px", color: "rgba(29,29,31,0.3)" }}>2026-05-09</span>
             </div>
           </div>
-
           <div className="flex" style={{ background: "rgba(29,29,31,0.01)", borderBottom: `1px solid rgba(210,210,215,0.1)` }}>
             <CompareLabel w={LABEL_W} text="제안 금액" />
             <div className="flex items-center justify-center" style={{ flex: 1, padding: "17.08px 14.64px" }}>
               <span style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "#EF4444" }}>14,800,000원</span>
             </div>
           </div>
-
           <div className="flex" style={{ borderBottom: `1px solid rgba(210,210,215,0.1)` }}>
             <CompareLabel w={LABEL_W} text="예산 대비" />
             <div className="flex flex-col items-center justify-center" style={{ flex: 1, padding: "17.08px 14.64px" }}>
@@ -446,21 +468,18 @@ function ComparePanel({ onQuote, onStatus, onChat, onBack }: { onQuote: () => vo
               <span style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#10B981", paddingTop: "4.88px" }}>예산내</span>
             </div>
           </div>
-
           <div className="flex" style={{ background: "rgba(29,29,31,0.01)", borderBottom: `1px solid rgba(210,210,215,0.1)` }}>
             <CompareLabel w={LABEL_W} text="규격 요약" />
             <div className="flex items-center justify-center" style={{ flex: 1, padding: "17.08px 14.64px" }}>
               <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "19.5px", color: "rgba(29,29,31,0.6)", textAlign: "center" }}>발전기 100kW 2대, 베어링 500개, 설치 포함</span>
             </div>
           </div>
-
           <div className="flex" style={{ borderBottom: `1px solid rgba(210,210,215,0.1)` }}>
             <CompareLabel w={LABEL_W} text="상태" />
             <div className="flex items-center justify-center" style={{ flex: 1, padding: "17.08px 14.64px" }}>
               <span style={statusBadge()}>접수</span>
             </div>
           </div>
-
           <div className="flex">
             <CompareLabel w={LABEL_W} text="작업" />
             <div className="flex flex-col items-center justify-center" style={{ flex: 1, padding: "17.08px 14.64px", gap: "7.32px" }}>

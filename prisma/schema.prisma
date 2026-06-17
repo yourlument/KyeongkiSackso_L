@@ -1,5 +1,4 @@
 
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -30,6 +29,9 @@ model User {
   name         String
   phone        String?
 
+  mustChangePassword Boolean   @default(false) @map("must_change_password")
+  deletedAt          DateTime? @map("deleted_at")
+
   organizationId String?       @map("organization_id")
   organization   Organization? @relation(fields: [organizationId], references: [id])
   departmentName String?       @map("department_name")
@@ -47,6 +49,14 @@ model User {
   comments      Comment[]
   inquiries     Inquiry[]
   reports       Report[]
+
+  buyerOrders         Order[]                  @relation("BuyerOrders")
+  reviews             Review[]
+  postReactions       PostReaction[]
+  commentReactions    CommentReaction[]
+  chatMessages        ChatMessage[]
+  refundRequests      RefundRequest[]
+  notificationSetting UserNotificationSetting?
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -74,7 +84,7 @@ model Organization {
   businessRegistrationNo String?  @unique @map("business_registration_no")
   type                   String?
   region                 String?
-
+  phone                  String?
   representativeName String? @map("representative_name")
   taxEmail           String? @map("tax_email")
   address            String?
@@ -113,16 +123,91 @@ model SupplierCompany {
   certifications    String[] @default([])
   portfolioFileName String?  @map("portfolio_file_name")
 
-  users          User[]
-  products       Product[]
-  quoteResponses QuoteResponse[]
-  settlements    Settlement[]
+  managerName     String? @map("manager_name")
+  managerPhone    String? @map("manager_phone")
+  managerEmail    String? @map("manager_email")
+  managerPosition String? @map("manager_position")
+
+  taxEmail String? @map("tax_email")
+
+  bankName          String?   @map("bank_name")
+  bankAccountNo     String?   @map("bank_account_no")
+  bankAccountHolder String?   @map("bank_account_holder")
+  bankbookFileUrl   String?   @map("bankbook_file_url")
+  bankVerifiedAt    DateTime? @map("bank_verified_at")
+
+  categoryId String?   @map("category_id")
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  isRestricted Boolean @default(false) @map("is_restricted")
+
+  users                 User[]
+  products              Product[]
+  quoteResponses        QuoteResponse[]
+  settlements           Settlement[]
+  certificationRequests SupplierCertification[]
+  performances          SupplierPerformance[]
+  equipments            SupplierEquipment[]
+  subscriptions         Subscription[]
+  chatThreads           ChatThread[]
+  orderItems            OrderItem[]
+  targetedQuoteRequests QuoteRequest[]          @relation("DirectQuoteTarget")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([approvalStatus])
   @@map("supplier_companies")
+}
+
+enum CertificationStatus {
+  REVIEWING
+  APPROVED
+  REJECTED
+}
+
+model SupplierCertification {
+  id                String              @id @default(cuid())
+  supplierCompanyId String              @map("supplier_company_id")
+  supplierCompany   SupplierCompany     @relation(fields: [supplierCompanyId], references: [id], onDelete: Cascade)
+  name              String
+  description       String?
+  fileUrl           String?             @map("file_url")
+  fileName          String?             @map("file_name")
+  status            CertificationStatus @default(REVIEWING)
+  rejectReason      String?             @map("reject_reason")
+  submittedAt       DateTime            @default(now()) @map("submitted_at")
+  reviewedAt        DateTime?           @map("reviewed_at")
+
+  @@index([supplierCompanyId])
+  @@index([status])
+  @@map("supplier_certifications")
+}
+
+model SupplierPerformance {
+  id                String          @id @default(cuid())
+  supplierCompanyId String          @map("supplier_company_id")
+  supplierCompany   SupplierCompany @relation(fields: [supplierCompanyId], references: [id], onDelete: Cascade)
+  projectName       String          @map("project_name")
+  client            String?
+  year              Int?
+  amount            Decimal?        @db.Decimal(14, 2)
+  sortOrder         Int             @default(0) @map("sort_order")
+
+  @@index([supplierCompanyId])
+  @@map("supplier_performances")
+}
+
+model SupplierEquipment {
+  id                String          @id @default(cuid())
+  supplierCompanyId String          @map("supplier_company_id")
+  supplierCompany   SupplierCompany @relation(fields: [supplierCompanyId], references: [id], onDelete: Cascade)
+  name              String
+  quantity          Int             @default(1)
+  sortOrder         Int             @default(0) @map("sort_order")
+
+  @@index([supplierCompanyId])
+  @@map("supplier_equipments")
 }
 
 enum TermType {
@@ -149,15 +234,29 @@ model Term {
 }
 
 model UserTermAgreement {
-  id       String   @id @default(cuid())
-  userId   String   @map("user_id")
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  termId   String   @map("term_id")
-  term     Term     @relation(fields: [termId], references: [id])
-  agreedAt DateTime @default(now()) @map("agreed_at")
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  termId    String    @map("term_id")
+  term      Term      @relation(fields: [termId], references: [id])
+  agreedAt  DateTime  @default(now()) @map("agreed_at")
+  revokedAt DateTime? @map("revoked_at")
 
   @@unique([userId, termId])
   @@map("user_term_agreements")
+}
+
+model UserNotificationSetting {
+  userId       String  @id @map("user_id")
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderPayment Boolean @default(true) @map("order_payment")
+  quoteNotice  Boolean @default(true) @map("quote_notice")
+  delivery     Boolean @default(true)
+  marketing    Boolean @default(false)
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("user_notification_settings")
 }
 
 enum CategoryItemType {
@@ -174,6 +273,9 @@ model Category {
   parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
   children Category[] @relation("CategoryTree")
   products Product[]
+
+  supplierCompanies SupplierCompany[]
+  quoteRequests     QuoteRequest[]
 
   itemType CategoryItemType? @map("item_type")
 
@@ -213,9 +315,14 @@ model Product {
   deliveryCondition String?  @map("delivery_condition")
   specs             Json?
 
-  images    ProductImage[]
-  inventory Inventory?
-  cartItems CartItem[]
+  salesCount Int @default(0) @map("sales_count")
+  viewCount  Int @default(0) @map("view_count")
+
+  images     ProductImage[]
+  inventory  Inventory?
+  cartItems  CartItem[]
+  reviews    Review[]
+  orderItems OrderItem[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -226,12 +333,18 @@ model Product {
   @@map("products")
 }
 
+enum ProductImageType {
+  THUMBNAIL
+  DETAIL
+}
+
 model ProductImage {
-  id        String  @id @default(cuid())
-  productId String  @map("product_id")
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id        String           @id @default(cuid())
+  productId String           @map("product_id")
+  product   Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
   url       String
-  sortOrder Int     @default(0) @map("sort_order")
+  type      ProductImageType @default(THUMBNAIL)
+  sortOrder Int              @default(0) @map("sort_order")
 
   @@index([productId])
   @@map("product_images")
@@ -243,6 +356,32 @@ model Inventory {
   quantity  Int     @default(0)
 
   @@map("inventories")
+}
+
+model Review {
+  id        String  @id @default(cuid())
+  productId String  @map("product_id")
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    String  @map("user_id")
+  user      User    @relation(fields: [userId], references: [id])
+  rating    Int
+  content   String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([productId])
+  @@index([userId])
+  @@map("reviews")
+}
+
+model NaraItem {
+  id       String  @id @default(cuid())
+  npsCode  String  @unique @map("nps_code")
+  name     String
+  spec     String?
+  category String?
+
+  @@map("nara_items")
 }
 
 model Cart {
@@ -269,9 +408,15 @@ model CartItem {
 enum QuoteRequestStatus {
   DRAFT
   OPEN
+  REVIEWING
   CLOSED
   AWARDED
   CANCELLED
+}
+
+enum QuoteRequestKind {
+  OPEN_BID
+  DIRECT
 }
 
 model QuoteRequest {
@@ -283,9 +428,32 @@ model QuoteRequest {
   status      QuoteRequestStatus @default(DRAFT)
   deadline    DateTime?
 
+  kind                    QuoteRequestKind  @default(OPEN_BID)
+  targetSupplierCompanyId String?           @map("target_supplier_company_id")
+  targetSupplierCompany   SupplierCompany?  @relation("DirectQuoteTarget", fields: [targetSupplierCompanyId], references: [id])
+
+  quoteType         CategoryItemType? @map("quote_type")
+  categoryId        String?           @map("category_id")
+  category          Category?         @relation(fields: [categoryId], references: [id])
+  npsCode           String?           @map("nps_code")
+  budget            Decimal?          @db.Decimal(14, 2)
+  budgetTbd         Boolean           @default(false) @map("budget_tbd")
+  dueDate           DateTime?         @map("due_date")
+  deliveryCondition String?           @map("delivery_condition")
+  deliveryPlace     String?           @map("delivery_place")
+  deliveryAddress   String?           @map("delivery_address")
+  deliveryAddressDetail String?       @map("delivery_address_detail")
+  desiredDeliveryDate   DateTime?     @map("desired_delivery_date")
+
+  contactOrgName    String? @map("contact_org_name")
+  contactDepartment String? @map("contact_department")
+  contactEmail      String? @map("contact_email")
+  contactPhone      String? @map("contact_phone")
+
   items       QuoteRequestItem[]
   attachments QuoteRequestAttachment[]
   responses   QuoteResponse[]
+  chatThreads ChatThread[]
 
   awardedResponseId String?        @unique @map("awarded_response_id")
   awardedResponse   QuoteResponse? @relation("AwardedResponse", fields: [awardedResponseId], references: [id])
@@ -297,6 +465,7 @@ model QuoteRequest {
 
   @@index([officialId])
   @@index([status])
+  @@index([categoryId])
   @@map("quote_requests")
 }
 
@@ -308,6 +477,7 @@ model QuoteRequestItem {
   name           String
   spec           String?
   quantity       Int          @default(1)
+  unit           String?
 
   responseItems QuoteResponseItem[]
 
@@ -328,6 +498,7 @@ model QuoteRequestAttachment {
 
 enum QuoteResponseStatus {
   SUBMITTED
+  UNDER_REVIEW
   AWARDED
   REJECTED
   WITHDRAWN
@@ -344,7 +515,12 @@ model QuoteResponse {
   validUntil        DateTime?           @map("valid_until")
   memo              String?
 
+  quoteNo      String?   @unique @map("quote_no")
+  specSummary  String?   @map("spec_summary")
+  deliveryDate DateTime? @map("delivery_date")
+
   items       QuoteResponseItem[]
+  attachments QuoteResponseAttachment[]
   awardedFor  QuoteRequest?       @relation("AwardedResponse")
   order       Order?
 
@@ -369,28 +545,104 @@ model QuoteResponseItem {
   @@map("quote_response_items")
 }
 
+model QuoteResponseAttachment {
+  id              String        @id @default(cuid())
+  quoteResponseId String        @map("quote_response_id")
+  quoteResponse   QuoteResponse @relation(fields: [quoteResponseId], references: [id], onDelete: Cascade)
+  fileUrl         String        @map("file_url")
+  fileName        String        @map("file_name")
+
+  @@index([quoteResponseId])
+  @@map("quote_response_attachments")
+}
+
+model ChatThread {
+  id                String          @id @default(cuid())
+  quoteRequestId    String          @map("quote_request_id")
+  quoteRequest      QuoteRequest    @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
+  supplierCompanyId String          @map("supplier_company_id")
+  supplierCompany   SupplierCompany @relation(fields: [supplierCompanyId], references: [id])
+
+  messages ChatMessage[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([quoteRequestId, supplierCompanyId])
+  @@map("chat_threads")
+}
+
+model ChatMessage {
+  id       String     @id @default(cuid())
+  threadId String     @map("thread_id")
+  thread   ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  senderId String?    @map("sender_id")
+  sender   User?      @relation(fields: [senderId], references: [id])
+  body     String?
+  fileUrl  String?    @map("file_url")
+  fileName String?    @map("file_name")
+  isSystem Boolean    @default(false) @map("is_system")
+  isRead   Boolean    @default(false) @map("is_read")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([threadId])
+  @@map("chat_messages")
+}
+
 enum OrderStatus {
   PENDING
   PAID
   CONTRACTED
+  SHIPPING
   DELIVERED
   COMPLETED
   CANCELLED
 }
 
+enum TaxInvoiceStatus {
+  NONE
+  REQUESTED
+  ISSUED
+}
+
 model Order {
-  id              String        @id @default(cuid())
-  quoteRequestId  String        @unique @map("quote_request_id")
-  quoteRequest    QuoteRequest  @relation(fields: [quoteRequestId], references: [id])
-  quoteResponseId String        @unique @map("quote_response_id")
-  quoteResponse   QuoteResponse @relation(fields: [quoteResponseId], references: [id])
+  id String @id @default(cuid())
+
+  orderNo String @unique @map("order_no")
+
+  quoteRequestId  String?        @unique @map("quote_request_id")
+  quoteRequest    QuoteRequest?  @relation(fields: [quoteRequestId], references: [id])
+  quoteResponseId String?        @unique @map("quote_response_id")
+  quoteResponse   QuoteResponse? @relation(fields: [quoteResponseId], references: [id])
+
+  buyerId String @map("buyer_id")
+  buyer   User   @relation("BuyerOrders", fields: [buyerId], references: [id])
 
   totalAmount Decimal     @db.Decimal(14, 2) @map("total_amount")
   status      OrderStatus @default(PENDING)
 
-  items    OrderItem[]
-  contract Contract?
-  payments Payment[]
+  recipientName         String? @map("recipient_name")
+  recipientPhone        String? @map("recipient_phone")
+  recipientOrgName      String? @map("recipient_org_name")
+  recipientDepartment   String? @map("recipient_department")
+  deliveryAddress       String? @map("delivery_address")
+  deliveryAddressDetail String? @map("delivery_address_detail")
+  deliveryMemo          String? @map("delivery_memo")
+
+  courier          String?
+  trackingNo       String?   @map("tracking_no")
+  deliveryDeadline DateTime? @map("delivery_deadline")
+  deliveredAt      DateTime? @map("delivered_at")
+  deliveryPlace    String?   @map("delivery_place")
+  siteContactPhone String?   @map("site_contact_phone")
+
+  taxInvoiceStatus TaxInvoiceStatus @default(NONE) @map("tax_invoice_status")
+
+  items          OrderItem[]
+  contract       Contract?
+  payments       Payment[]
+  refundRequests RefundRequest[]
 
   settlementId String?     @map("settlement_id")
   settlement   Settlement? @relation(fields: [settlementId], references: [id])
@@ -399,13 +651,20 @@ model Order {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([status])
+  @@index([buyerId])
   @@map("orders")
 }
 
 model OrderItem {
-  id        String  @id @default(cuid())
-  orderId   String  @map("order_id")
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id      String @id @default(cuid())
+  orderId String @map("order_id")
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId         String?          @map("product_id")
+  product           Product?         @relation(fields: [productId], references: [id])
+  supplierCompanyId String?          @map("supplier_company_id")
+  supplierCompany   SupplierCompany? @relation(fields: [supplierCompanyId], references: [id])
+
   name      String
   spec      String?
   quantity  Int
@@ -413,6 +672,7 @@ model OrderItem {
   amount    Decimal @db.Decimal(14, 2)
 
   @@index([orderId])
+  @@index([productId])
   @@map("order_items")
 }
 
@@ -453,12 +713,41 @@ model Payment {
   metadata      Json?
   paidAt        DateTime?       @map("paid_at")
 
+  refundRequests RefundRequest[]
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([orderId])
   @@index([status])
   @@map("payments")
+}
+
+enum RefundRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model RefundRequest {
+  id          String              @id @default(cuid())
+  orderId     String              @map("order_id")
+  order       Order               @relation(fields: [orderId], references: [id])
+  paymentId   String?             @map("payment_id")
+  payment     Payment?            @relation(fields: [paymentId], references: [id])
+  requesterId String              @map("requester_id")
+  requester   User                @relation(fields: [requesterId], references: [id])
+  reason      String
+  status      RefundRequestStatus @default(PENDING)
+  rejectReason String?            @map("reject_reason")
+  processedAt DateTime?           @map("processed_at")
+  processedBy String?             @map("processed_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([status])
+  @@index([orderId])
+  @@map("refund_requests")
 }
 
 enum SettlementStatus {
@@ -476,6 +765,11 @@ model Settlement {
   status            SettlementStatus @default(PENDING)
   paidAt            DateTime?        @map("paid_at")
 
+  grossAmount         Decimal?  @db.Decimal(14, 2) @map("gross_amount")
+  fee                 Decimal?  @db.Decimal(14, 2)
+  scheduledPayoutDate DateTime? @map("scheduled_payout_date")
+  settleNote          String?   @map("settle_note")
+
   orders Order[]
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -484,15 +778,67 @@ model Settlement {
   @@map("settlements")
 }
 
+enum SubscriptionStatus {
+  ACTIVE
+  OVERDUE
+  CANCELLED
+}
+
+model Subscription {
+  id                String             @id @default(cuid())
+  supplierCompanyId String             @map("supplier_company_id")
+  supplierCompany   SupplierCompany    @relation(fields: [supplierCompanyId], references: [id])
+  planName          String             @map("plan_name")
+  price             Decimal            @db.Decimal(14, 2)
+  status            SubscriptionStatus @default(ACTIVE)
+  startedAt         DateTime           @map("started_at")
+  nextBillingDate   DateTime?          @map("next_billing_date")
+  payMethod         String?            @map("pay_method")
+  cardNo            String?            @map("card_no")
+
+  payments SubscriptionPayment[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([supplierCompanyId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model SubscriptionPayment {
+  id             String        @id @default(cuid())
+  subscriptionId String        @map("subscription_id")
+  subscription   Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  amount         Decimal       @db.Decimal(14, 2)
+  status         PaymentStatus @default(PAID)
+  billingMonth   String?       @map("billing_month")
+  paidAt         DateTime?     @map("paid_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([subscriptionId])
+  @@map("subscription_payments")
+}
+
+enum NotificationType {
+  QUOTE_RESPONSE
+  BOARD_REPLY
+  INFO_COMMENT
+  QUOTE_AWARDED
+  ORDER_STATUS
+  SYSTEM
+}
+
 model Notification {
-  id     String  @id @default(cuid())
-  userId String  @map("user_id")
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type   String
+  id     String           @id @default(cuid())
+  userId String           @map("user_id")
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type   NotificationType @default(SYSTEM)
   title  String
   body   String?
   link   String?
-  isRead Boolean @default(false) @map("is_read")
+  isRead Boolean          @default(false) @map("is_read")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -500,20 +846,72 @@ model Notification {
   @@map("notifications")
 }
 
+enum BoardType {
+  DEMAND
+  INFO
+}
+
+enum PostStatus {
+  OPEN
+  CLOSED
+}
+
 model Post {
-  id       String    @id @default(cuid())
-  authorId String    @map("author_id")
-  author   User      @relation(fields: [authorId], references: [id])
-  category String?
-  title    String
-  content  String
-  comments Comment[]
+  id        String     @id @default(cuid())
+  boardType BoardType  @map("board_type")
+  authorId  String     @map("author_id")
+  author    User       @relation(fields: [authorId], references: [id])
+  category  String?
+  title     String
+  content   String
+  status    PostStatus @default(OPEN)
+  views     Int        @default(0)
+  likes     Int        @default(0)
+  dislikes  Int        @default(0)
+  isPublished Boolean  @default(true) @map("is_published")
+  videoUrl  String?    @map("video_url")
+
+  comments    Comment[]
+  attachments PostAttachment[]
+  reactions   PostReaction[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([authorId])
+  @@index([boardType, createdAt])
   @@map("posts")
+}
+
+model PostAttachment {
+  id       String  @id @default(cuid())
+  postId   String  @map("post_id")
+  post     Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  fileUrl  String  @map("file_url")
+  fileName String  @map("file_name")
+  fileSize Int?    @map("file_size")
+
+  @@index([postId])
+  @@map("post_attachments")
+}
+
+enum ReactionType {
+  LIKE
+  DISLIKE
+}
+
+model PostReaction {
+  id     String       @id @default(cuid())
+  postId String       @map("post_id")
+  post   Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId String       @map("user_id")
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type   ReactionType
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([postId, userId])
+  @@map("post_reactions")
 }
 
 model Comment {
@@ -524,34 +922,75 @@ model Comment {
   author   User   @relation(fields: [authorId], references: [id])
   content  String
 
+  parentId String?   @map("parent_id")
+  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies  Comment[] @relation("CommentReplies")
+
+  likes     Int               @default(0)
+  reactions CommentReaction[]
+
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([postId])
   @@map("comments")
 }
 
-model Notice {
-  id        String  @id @default(cuid())
-  title     String
-  content   String
-  isPinned  Boolean @default(false) @map("is_pinned")
+model CommentReaction {
+  id        String       @id @default(cuid())
+  commentId String       @map("comment_id")
+  comment   Comment      @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    String       @map("user_id")
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      ReactionType
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([commentId, userId])
+  @@map("comment_reactions")
+}
+
+enum NewsType {
+  NOTICE
+  EVENT
+}
+
+enum NewsStatus {
+  PUBLISHED
+  DRAFT
+  ARCHIVED
+}
+
+model News {
+  id         String     @id @default(cuid())
+  type       NewsType
+  title      String
+  content    String
+  status     NewsStatus @default(PUBLISHED)
+  isPinned   Boolean    @default(false) @map("is_pinned")
+  authorName String?    @map("author_name")
+  views      Int        @default(0)
+  videoUrl   String?    @map("video_url")
+  link       String?
+
+  attachments NewsAttachment[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@map("notices")
+  @@index([type, status])
+  @@map("news")
 }
 
-model Event {
-  id          String   @id @default(cuid())
-  title       String
-  content     String
-  startsAt    DateTime? @map("starts_at")
-  endsAt      DateTime? @map("ends_at")
+model NewsAttachment {
+  id       String @id @default(cuid())
+  newsId   String @map("news_id")
+  news     News   @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  fileUrl  String @map("file_url")
+  fileName String @map("file_name")
+  fileSize Int?   @map("file_size")
 
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@map("events")
+  @@index([newsId])
+  @@map("news_attachments")
 }
 
 model Banner {
@@ -566,6 +1005,13 @@ model Banner {
   @@map("banners")
 }
 
+enum Priority {
+  URGENT
+  HIGH
+  NORMAL
+  LOW
+}
+
 enum ReportStatus {
   OPEN
   REVIEWING
@@ -578,9 +1024,22 @@ model Report {
   reporterId String       @map("reporter_id")
   reporter   User         @relation(fields: [reporterId], references: [id])
   targetType String       @map("target_type")
-  targetId   String       @map("target_id")
+  targetId   String?      @map("target_id")
   reason     String
   status     ReportStatus @default(OPEN)
+
+  title    String?
+  category String?
+  priority Priority @default(NORMAL)
+
+  answer     String?
+  answeredAt DateTime? @map("answered_at")
+  answeredBy String?   @map("answered_by")
+
+  contactName  String? @map("contact_name")
+  contactOrg   String? @map("contact_org")
+  contactPhone String? @map("contact_phone")
+  contactEmail String? @map("contact_email")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -590,7 +1049,9 @@ model Report {
 
 enum InquiryStatus {
   OPEN
+  IN_PROGRESS
   ANSWERED
+  REJECTED
   CLOSED
 }
 
@@ -602,6 +1063,15 @@ model Inquiry {
   content  String
   answer   String?
   status   InquiryStatus @default(OPEN)
+
+  category String?
+  priority Priority @default(NORMAL)
+  answeredBy String? @map("answered_by")
+
+  contactName  String? @map("contact_name")
+  contactOrg   String? @map("contact_org")
+  contactPhone String? @map("contact_phone")
+  contactEmail String? @map("contact_email")
 
   createdAt  DateTime  @default(now()) @map("created_at")
   answeredAt DateTime? @map("answered_at")

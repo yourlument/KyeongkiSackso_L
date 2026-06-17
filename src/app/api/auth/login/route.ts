@@ -11,7 +11,6 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const parsed = loginSchema.safeParse(body);
   if (!parsed.success) {
-
     return NextResponse.json(
       { message: "이메일 또는 비밀번호가 올바르지 않습니다.\n다시 확인해주세요." },
       { status: 400 },

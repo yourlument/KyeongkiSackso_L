@@ -47,7 +47,6 @@ export default function LoginPage() {
         setFailMsg(data.message ?? "이메일 또는 비밀번호가 올바르지 않습니다.\n다시 확인해주세요.");
         return;
       }
-
       window.location.href = portal === "SUPPLIER" ? "/partner" : "/";
     } catch {
       setFailMsg("이메일 또는 비밀번호가 올바르지 않습니다.\n다시 확인해주세요.");
@@ -59,7 +58,6 @@ export default function LoginPage() {
   return (
     <div className="w-full max-w-[420px]">
       <div className="mb-[39.04px] text-center">
-
         <img src="/korlink-logo.svg" alt="KORLINK" className="mx-auto h-[36px] w-auto" />
         <h1 className="mt-[24.4px] text-[24px] font-bold leading-[30px] tracking-[-0.6px] text-ink">
           로그인
@@ -218,7 +216,6 @@ function LoginFailModal({
         </button>
 
         <div className="mb-[19.52px] flex h-[68px] w-[68px] items-center justify-center rounded-full bg-[#FEF2F2]">
-
           <img src="/icon-login-fail.svg" alt="" className="h-[26px] w-auto" />
         </div>
 

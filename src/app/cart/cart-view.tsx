@@ -78,7 +78,6 @@ export function CartView() {
 
   return (
     <div className="flex flex-col gap-[24.4px] lg:flex-row" style={{ marginTop: "29.28px" }}>
-
       <div className="flex flex-1 flex-col gap-[19.52px]">
         {items.map((it) => (
           <div
@@ -86,14 +85,11 @@ export function CartView() {
             className="flex"
             style={{ gap: "19.52px", borderRadius: "19.52px", background: "#fff", border: "1px solid rgba(210,210,215,0.15)", padding: "25.4px" }}
           >
-
             <div style={{ width: "117px", height: "117px", borderRadius: "14.64px", background: "rgba(29,29,31,0.05)", flexShrink: 0, overflow: "hidden" }}>
               {it.image && (
-
                 <img src={it.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               )}
             </div>
-
             <div className="flex flex-1 flex-col" style={{ minWidth: 0 }}>
               <div className="flex items-start justify-between" style={{ gap: "12px" }}>
                 <div style={{ minWidth: 0 }}>
@@ -107,7 +103,6 @@ export function CartView() {
                   <XIcon />
                 </button>
               </div>
-
               <div className="mt-auto flex items-end justify-between" style={{ paddingTop: "16px" }}>
                 <div className="flex items-center" style={{ width: "129px", height: "41px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.4)" }}>
                   <button type="button" aria-label="수량 감소" onClick={() => changeQty(it.id, it.quantity - 1)} className="flex flex-1 items-center justify-center" style={{ height: "100%", background: "none", border: "none", cursor: "pointer" }}>
@@ -126,7 +121,6 @@ export function CartView() {
       </div>
 
       <div className="flex w-full flex-col gap-[19.52px] lg:w-[364px]" style={{ flexShrink: 0 }}>
-
         <div style={{ borderRadius: "19.52px", background: "#fff", border: "1px solid rgba(210,210,215,0.15)", padding: "25.4px" }}>
           <p style={{ fontSize: "15px", fontWeight: 600, letterSpacing: "-0.225px", color: "#1D1D1F", margin: "0 0 19.52px" }}>결제 정보</p>
           <SummaryRow label="상품 금액" value={won(productTotal)} />

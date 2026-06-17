@@ -3,15 +3,17 @@ import { getSessionClaims } from "@/lib/auth/session";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { KakaoChat } from "@/components/kakao-chat";
-import { getDemandPost } from "../data";
+import { loadCommunityDetail } from "@/lib/community";
 import { CommunityDetailView } from "./community-detail-view";
+
+export const dynamic = "force-dynamic";
 
 export default async function CommunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const claims = await getSessionClaims();
   const supplier = claims?.role === "SUPPLIER";
   const viewer: "guest" | "official" | "supplier" = !claims ? "guest" : supplier ? "supplier" : "official";
   const { id } = await params;
-  const post = getDemandPost(id);
+  const post = await loadCommunityDetail(id, claims?.sub);
   if (!post) notFound();
 
   return (

@@ -3,6 +3,22 @@ import bcrypt from "bcryptjs";
 import { encField, encryptLookup } from "../src/lib/crypto/pii";
 import { CATEGORY_TAXONOMY, topCode, midCode, leafCode } from "../src/lib/categories";
 
+import type { SeedCtx } from "./seed/types";
+import { seedMembers } from "./seed/members";
+import { seedSupplierProfile } from "./seed/supplier-profile";
+import { seedQuotes } from "./seed/quotes";
+import { seedChats } from "./seed/chats";
+import { seedOrders } from "./seed/orders";
+import { seedSubscriptions } from "./seed/subscriptions";
+import { seedCommunity } from "./seed/community";
+import { seedInfo } from "./seed/info";
+import { seedNews } from "./seed/news";
+import { seedClaims } from "./seed/claims";
+import { seedNotifications } from "./seed/notifications";
+import { seedReviews } from "./seed/reviews";
+import { seedNara } from "./seed/nara";
+import { seedPartnerProducts } from "./seed/partner-products";
+
 const prisma = new PrismaClient();
 
 async function main() {
@@ -273,7 +289,6 @@ async function main() {
   for (let i = 0; i < DEMO.length; i++) {
     const p = DEMO[i];
     const comp = "comp" in p ? p.comp : undefined;
-
     const companyFields = comp
       ? {
           representativeName: encField("SupplierCompany", "representativeName", comp.rep)!,
@@ -331,6 +346,28 @@ async function main() {
   }
 
   console.log(`seed done: [korink.co.kr] official@korlink.co.kr / supplier@korlink.co.kr / admin@korlink.co.kr  [test] official@test.com / supplier@test.com / pending@test.com  (pw: Test1234!) + ${DEMO.length} products | categories: ${topCount} top / ${midCount} mid / ${leafCount} leaf`);
+
+  const ctx: SeedCtx = { pwHash: pw };
+  const domainSeeds: [string, (p: PrismaClient, c: SeedCtx) => Promise<string>][] = [
+    ["members", seedMembers],
+    ["supplier-profile", seedSupplierProfile],
+    ["quotes", seedQuotes],
+    ["chats", seedChats],
+    ["orders", seedOrders],
+    ["subscriptions", seedSubscriptions],
+    ["community", seedCommunity],
+    ["info", seedInfo],
+    ["news", seedNews],
+    ["claims", seedClaims],
+    ["notifications", seedNotifications],
+    ["reviews", seedReviews],
+    ["nara", seedNara],
+    ["partner-products", seedPartnerProducts],
+  ];
+  for (const [name, fn] of domainSeeds) {
+    const summary = await fn(prisma, ctx);
+    console.log(`  [${name}] ${summary}`);
+  }
 }
 
 main()

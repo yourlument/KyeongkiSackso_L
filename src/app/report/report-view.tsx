@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { InfoDetailData } from "@/lib/info";
 
 const NAVY = "#1E3A5F";
 const RED = "#EF4444";
@@ -93,7 +94,6 @@ function CloseIcon() {
     </svg>
   );
 }
-
 function InquiryIcon({ color }: { color: string }) {
   return (
     <svg width={13} height={13} viewBox="0 0 11 11" fill="none" aria-hidden>
@@ -101,7 +101,6 @@ function InquiryIcon({ color }: { color: string }) {
     </svg>
   );
 }
-
 function ReportTriIcon({ color }: { color: string }) {
   return (
     <svg width={13} height={12} viewBox="0 0 12 11" fill="none" aria-hidden>
@@ -116,7 +115,6 @@ function ChevronIcon() {
     </svg>
   );
 }
-
 function ThumbUpIcon() {
   return (
     <svg width={27} height={25} viewBox="0 0 27 25" fill="none" aria-hidden>
@@ -124,7 +122,6 @@ function ThumbUpIcon() {
     </svg>
   );
 }
-
 function ThumbDownIcon() {
   return (
     <svg width={27} height={25} viewBox="0 0 27 25" fill="none" aria-hidden>
@@ -132,7 +129,6 @@ function ThumbDownIcon() {
     </svg>
   );
 }
-
 function CommentBubbleIcon() {
   return (
     <svg width={14} height={14} viewBox="0 0 14 14" fill="none" aria-hidden>
@@ -140,7 +136,6 @@ function CommentBubbleIcon() {
     </svg>
   );
 }
-
 function TrophyIcon() {
   return (
     <svg width={11} height={11} viewBox="0 0 11 11" fill="none" aria-hidden>
@@ -148,7 +143,6 @@ function TrophyIcon() {
     </svg>
   );
 }
-
 function BadgeTrophyIcon() {
   return (
     <svg width={11} height={11} viewBox="0 0 11 11" fill="none" aria-hidden>
@@ -156,7 +150,6 @@ function BadgeTrophyIcon() {
     </svg>
   );
 }
-
 function AnonAvatarIcon() {
   return (
     <svg width={13} height={12} viewBox="0 0 13 12" fill="none" aria-hidden>
@@ -164,7 +157,6 @@ function AnonAvatarIcon() {
     </svg>
   );
 }
-
 function PersonAvatarIcon({ color, opacity }: { color: string; opacity: number }) {
   return (
     <svg width={13} height={12} viewBox="0 0 13 12" fill="none" aria-hidden>
@@ -172,7 +164,6 @@ function PersonAvatarIcon({ color, opacity }: { color: string; opacity: number }
     </svg>
   );
 }
-
 function MiniThumbIcon() {
   return (
     <svg width={11} height={10} viewBox="0 0 11 10" fill="none" aria-hidden>
@@ -180,7 +171,6 @@ function MiniThumbIcon() {
     </svg>
   );
 }
-
 function CommentThumbIcon({ opacity }: { opacity: number }) {
   return (
     <svg width={11} height={10} viewBox="0 0 11 10" fill="none" aria-hidden>
@@ -188,7 +178,6 @@ function CommentThumbIcon({ opacity }: { opacity: number }) {
     </svg>
   );
 }
-
 function ReplyArrowIcon() {
   return (
     <svg width={10} height={8} viewBox="0 0 10 8" fill="none" aria-hidden>
@@ -196,7 +185,6 @@ function ReplyArrowIcon() {
     </svg>
   );
 }
-
 function ReplyInputArrowIcon() {
   return (
     <svg width={10} height={9} viewBox="0 0 10 9" fill="none" aria-hidden>
@@ -204,7 +192,6 @@ function ReplyInputArrowIcon() {
     </svg>
   );
 }
-
 function PaperclipIcon() {
   return (
     <svg width={10} height={11} viewBox="0 0 10 11" fill="none" aria-hidden>
@@ -212,7 +199,6 @@ function PaperclipIcon() {
     </svg>
   );
 }
-
 function FilePdfIcon() {
   return (
     <svg width={13} height={15} viewBox="0 0 13 15" fill="none" aria-hidden>
@@ -220,7 +206,6 @@ function FilePdfIcon() {
     </svg>
   );
 }
-
 function FileHwpIcon() {
   return (
     <svg width={15} height={16} viewBox="0 0 15 16" fill="none" aria-hidden>
@@ -228,7 +213,6 @@ function FileHwpIcon() {
     </svg>
   );
 }
-
 function FilePptxIcon() {
   return (
     <svg width={15} height={16} viewBox="0 0 15 16" fill="none" aria-hidden>
@@ -236,7 +220,6 @@ function FilePptxIcon() {
     </svg>
   );
 }
-
 function DownloadIcon() {
   return (
     <svg width={17} height={15} viewBox="0 0 17 15" fill="none" aria-hidden>
@@ -252,7 +235,6 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
     </span>
   );
 }
-
 function PlaceholderInput({ placeholder, width = "100%" }: { placeholder: string; width?: string }) {
   return (
     <div
@@ -317,13 +299,12 @@ function ReplyInput() {
   );
 }
 
-export function ReportView({ initialKind = null }: { initialKind?: ReportKind | null } = {}) {
+export function ReportView({ initialKind = null, data }: { initialKind?: ReportKind | null; data?: InfoDetailData } = {}) {
   const [modalKind, setModalKind] = useState<ReportKind | null>(initialKind);
 
   return (
     <div style={{ background: "#fff" }}>
       <div style={{ width: "937px", margin: "0 auto", boxSizing: "border-box", padding: "48.8px" }}>
-
         <div style={{ display: "flex", alignItems: "center", gap: "7.32px", paddingBottom: "39.04px" }}>
           <svg width={13} height={12} viewBox="0 0 13 12" fill="none" aria-hidden>
             <path d="M5.91408 6.00005L9.46741 9.60252L8.46041 10.638L3.88567 6.00005L8.46041 1.36204L9.46741 2.39757L5.91408 6.00005Z" fill="#1D1D1F" fillOpacity={0.4} />
@@ -335,7 +316,7 @@ export function ReportView({ initialKind = null }: { initialKind?: ReportKind | 
 
         <div style={{ display: "flex", alignItems: "center", gap: "9.76px", paddingBottom: "14.64px" }}>
           <span style={{ display: "inline-flex", alignItems: "center", padding: "4.88px 12.2px", borderRadius: "9.76px", background: "#F5F5F7", fontSize: "12px", fontWeight: 500, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.6)" }}>
-            {POST.category}
+            {data?.category ?? POST.category}
           </span>
           <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.3)" }}>
             {POST.subtitle}
@@ -344,7 +325,7 @@ export function ReportView({ initialKind = null }: { initialKind?: ReportKind | 
 
         <div style={{ paddingBottom: "19.52px" }}>
           <h1 style={{ margin: 0, fontSize: "26px", fontWeight: 700, letterSpacing: "-0.728px", lineHeight: "35.75px", color: "#1D1D1F" }}>
-            {POST.title}
+            {data?.title ?? POST.title}
           </h1>
         </div>
 
@@ -355,25 +336,33 @@ export function ReportView({ initialKind = null }: { initialKind?: ReportKind | 
           </span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: "4.88px" }}>
             <CalendarIcon />
-            <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>{POST.date}</span>
+            <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>{data?.date ?? POST.date}</span>
           </span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: "4.88px" }}>
             <EyeIcon />
-            <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>{POST.views}</span>
+            <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>{data?.views ?? POST.views}</span>
           </span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: "4.88px" }}>
             <CommentIcon />
-            <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>{POST.comments}</span>
+            <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>{data?.commentsCount ?? POST.comments}</span>
           </span>
         </div>
 
-        <div style={{ marginTop: "29.28px", height: "472px", borderRadius: "19.52px", background: "#000", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <span style={{ fontSize: "64px", fontWeight: 300, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "#fff" }}>동영상 미디어 플레이어</span>
-        </div>
+        {data ? (
+          data.videoUrl && (
+            <div style={{ marginTop: "29.28px", borderRadius: "19.52px", overflow: "hidden", background: "#000", aspectRatio: "16/9" }}>
+              <iframe src={data.videoUrl} title="동영상" allowFullScreen style={{ width: "100%", height: "100%", border: "none", display: "block" }} />
+            </div>
+          )
+        ) : (
+          <div style={{ marginTop: "29.28px", height: "472px", borderRadius: "19.52px", background: "#000", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontSize: "64px", fontWeight: 300, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "#fff" }}>동영상 미디어 플레이어</span>
+          </div>
+        )}
 
         <div style={{ padding: "39.04px 0" }}>
           <p style={{ margin: 0, fontSize: "15px", fontWeight: 400, letterSpacing: "-0.225px", lineHeight: "24.375px", color: "rgba(29,29,31,0.8)" }}>
-            {POST.body}
+            {data?.body ?? POST.body}
           </p>
         </div>
 
@@ -381,10 +370,10 @@ export function ReportView({ initialKind = null }: { initialKind?: ReportKind | 
           <div style={{ display: "flex", alignItems: "center", gap: "7.32px", paddingBottom: "14.64px" }}>
             <PaperclipIcon />
             <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.364px", lineHeight: "16.25px", color: "rgba(29,29,31,0.6)" }}>첨부파일</span>
-            <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.3)" }}>(4개)</span>
+            <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.3)" }}>({(data?.attachments ?? ATTACHMENTS).length}개)</span>
           </div>
           <div>
-            {ATTACHMENTS.map((f, i) => (
+            {(data?.attachments ?? ATTACHMENTS).map((f, i) => (
               <div
                 key={i}
                 style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: i === 0 ? 0 : "7.32px", padding: "15.64px 20.52px", borderRadius: "14.64px", background: "#fff", border: "1px solid rgba(210,210,215,0.1)" }}
@@ -426,11 +415,10 @@ export function ReportView({ initialKind = null }: { initialKind?: ReportKind | 
         </div>
 
         <div style={{ paddingTop: "48.8px" }}>
-
           <div style={{ display: "flex", alignItems: "center", gap: "9.76px", paddingBottom: "29.28px" }}>
             <CommentBubbleIcon />
             <span style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "-0.448px", lineHeight: "20px", color: "#1D1D1F" }}>댓글 </span>
-            <span style={{ fontSize: "14px", fontWeight: 400, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "rgba(29,29,31,0.4)" }}>{POST.comments}</span>
+            <span style={{ fontSize: "14px", fontWeight: 400, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "rgba(29,29,31,0.4)" }}>{data?.commentsCount ?? POST.comments}</span>
           </div>
 
           <div style={{ paddingBottom: "39.04px" }}>
@@ -441,7 +429,6 @@ export function ReportView({ initialKind = null }: { initialKind?: ReportKind | 
             <div style={{ borderRadius: "19.52px", background: "rgba(30,58,95,0.02)", border: "1px solid rgba(30,58,95,0.1)" }}>
               {POPULAR_COMMENTS.map((c, i) => (
                 <div key={i} style={{ padding: "19.52px 24.4px 20.52px", borderTop: i === 0 ? "none" : "1px solid rgba(210,210,215,0.2)" }}>
-
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: "7.32px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "9.76px" }}>
                       <span style={{ width: "34px", height: "34px", borderRadius: "9999px", background: "rgba(30,58,95,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -459,7 +446,6 @@ export function ReportView({ initialKind = null }: { initialKind?: ReportKind | 
                       <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "21px", color: "rgba(29,29,31,0.4)" }}>답글</span>
                     </button>
                   </div>
-
                   <div style={{ paddingLeft: "43.92px" }}>
                     <p style={{ margin: 0, fontSize: "14px", fontWeight: 400, letterSpacing: "-0.21px", lineHeight: "22.75px", color: "rgba(29,29,31,0.7)" }}>{c.text}</p>
                     <div style={{ display: "flex", alignItems: "center", gap: "14.64px", paddingTop: "9.76px" }}>
@@ -483,7 +469,6 @@ export function ReportView({ initialKind = null }: { initialKind?: ReportKind | 
             {COMMENTS.map((c, i) => (
               <div key={i} style={{ borderBottom: "1px solid rgba(210,210,215,0.2)" }}>
                 <div style={{ padding: "24.4px 0" }}>
-
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: "9.76px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "9.76px" }}>
                       <span style={{ width: "34px", height: "34px", borderRadius: "9999px", background: "#F5F5F7", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -497,7 +482,6 @@ export function ReportView({ initialKind = null }: { initialKind?: ReportKind | 
                       <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "21px", color: "rgba(29,29,31,0.4)" }}>답글</span>
                     </button>
                   </div>
-
                   <div style={{ paddingLeft: "43.92px" }}>
                     <p style={{ margin: 0, fontSize: "14px", fontWeight: 400, letterSpacing: "-0.21px", lineHeight: "22.75px", color: "rgba(29,29,31,0.7)" }}>{c.text}</p>
                     <CommentActions likes={c.likes} replies={c.replies} />
@@ -571,153 +555,129 @@ function ReportModal({ kind, onKind, onClose }: { kind: ReportKind; onKind: (k: 
   const isReport = kind === "신고";
   const accent = isReport ? RED : NAVY;
 
+  const CATS_Q = ["견적문의", "결제문의", "입점신청", "구독문의", "시스템오류", "기타"];
+  const CATS_R = ["허위상품", "부정거래", "악성유저", "기타"];
+
+  const [category, setCategory] = useState(CATS_Q[0]);
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactOrg, setContactOrg] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleKind = (k: ReportKind) => {
+    onKind(k);
+    setCategory(k === "신고" ? CATS_R[0] : CATS_Q[0]);
+    setError("");
+  };
+
+  const handleSubmit = async () => {
+    if (!title.trim() || !content.trim()) { setError("제목과 내용을 입력하세요"); return; }
+    setSubmitting(true); setError("");
+    try {
+      const res = await fetch("/api/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, category, title, content, contactName, contactOrg, contactPhone, contactEmail }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        setError(data.error ?? "오류가 발생했습니다");
+      } else {
+        setDone(true);
+        setTimeout(onClose, 1200);
+      }
+    } catch { setError("네트워크 오류가 발생했습니다"); }
+    finally { setSubmitting(false); }
+  };
+
+  const cats = isReport ? CATS_R : CATS_Q;
+  const inputStyle: React.CSSProperties = { flex: 1, border: "none", outline: "none", background: "transparent", fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#1D1D1F" };
+  const boxStyle: React.CSSProperties = { height: "49px", display: "flex", alignItems: "center", padding: "0 15.64px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.5)", background: "#fff", boxSizing: "border-box" };
+
   return (
-
-    <div
-      onClick={onClose}
-      style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: "19.52px", background: "rgba(0,0,0,0.4)" }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{ width: "625px", maxHeight: "100%", overflowY: "auto", borderRadius: "19.52px", background: "#fff", boxSizing: "border-box" }}
-      >
-
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: "19.52px", background: "rgba(0,0,0,0.4)" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "625px", maxHeight: "100%", overflowY: "auto", borderRadius: "19.52px", background: "#fff", boxSizing: "border-box" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "19.52px 29.28px 20.52px" }}>
-          <span style={{ fontSize: "15px", fontWeight: 600, letterSpacing: "-0.42px", lineHeight: "18.75px", color: "#1D1D1F" }}>
-            신고 / 문의하기
-          </span>
+          <span style={{ fontSize: "15px", fontWeight: 600, letterSpacing: "-0.42px", lineHeight: "18.75px", color: "#1D1D1F" }}>신고 / 문의하기</span>
           <button type="button" onClick={onClose} aria-label="닫기" style={{ width: "39px", height: "39px", borderRadius: "9999px", border: "none", background: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <CloseIcon />
           </button>
         </div>
 
         <div style={{ padding: "29.28px", display: "flex", flexDirection: "column" }}>
-
           <div>
-            <div style={{ paddingBottom: "9.76px" }}>
-              <FieldLabel>유형</FieldLabel>
-            </div>
+            <div style={{ paddingBottom: "9.76px" }}><FieldLabel>유형</FieldLabel></div>
             <div style={{ display: "flex", gap: "9.76px" }}>
-
-              <button
-                type="button"
-                onClick={() => onKind("문의")}
-                style={{
-                  flex: 1,
-                  height: "44px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "4.88px",
-                  padding: "10.76px 1px",
-                  borderRadius: "14.64px",
-                  border: kind === "문의" ? `1px solid ${NAVY}` : "1px solid rgba(210,210,215,0.5)",
-                  background: kind === "문의" ? NAVY : "#fff",
-                  cursor: "pointer",
-                }}
-              >
+              <button type="button" onClick={() => handleKind("문의")} style={{ flex: 1, height: "44px", display: "flex", alignItems: "center", justifyContent: "center", gap: "4.88px", padding: "10.76px 1px", borderRadius: "14.64px", border: kind === "문의" ? `1px solid ${NAVY}` : "1px solid rgba(210,210,215,0.5)", background: kind === "문의" ? NAVY : "#fff", cursor: "pointer" }}>
                 <InquiryIcon color={kind === "문의" ? "#fff" : "rgba(29,29,31,0.6)"} />
-                <span style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: kind === "문의" ? "#fff" : "rgba(29,29,31,0.6)" }}>
-                  문의
-                </span>
+                <span style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: kind === "문의" ? "#fff" : "rgba(29,29,31,0.6)" }}>문의</span>
               </button>
-
-              <button
-                type="button"
-                onClick={() => onKind("신고")}
-                style={{
-                  flex: 1,
-                  height: "44px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "4.88px",
-                  padding: "10.76px 1px",
-                  borderRadius: "14.64px",
-                  border: kind === "신고" ? `1px solid ${RED}` : "1px solid rgba(210,210,215,0.5)",
-                  background: kind === "신고" ? RED : "#fff",
-                  cursor: "pointer",
-                }}
-              >
+              <button type="button" onClick={() => handleKind("신고")} style={{ flex: 1, height: "44px", display: "flex", alignItems: "center", justifyContent: "center", gap: "4.88px", padding: "10.76px 1px", borderRadius: "14.64px", border: kind === "신고" ? `1px solid ${RED}` : "1px solid rgba(210,210,215,0.5)", background: kind === "신고" ? RED : "#fff", cursor: "pointer" }}>
                 <ReportTriIcon color={kind === "신고" ? "#fff" : "rgba(29,29,31,0.6)"} />
-                <span style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: kind === "신고" ? "#fff" : "rgba(29,29,31,0.6)" }}>
-                  신고
-                </span>
+                <span style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: kind === "신고" ? "#fff" : "rgba(29,29,31,0.6)" }}>신고</span>
               </button>
             </div>
           </div>
 
           <div style={{ paddingTop: "19.52px" }}>
-            <div style={{ paddingBottom: "7.32px" }}>
-              <FieldLabel>카테고리</FieldLabel>
-            </div>
-            <div style={{ height: "43px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13.2px 15.64px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.5)", background: "#fff", boxSizing: "border-box" }}>
-              <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "19px", color: "#1D1D1F" }}>견적문의</span>
-              <ChevronIcon />
+            <div style={{ paddingBottom: "7.32px" }}><FieldLabel>카테고리</FieldLabel></div>
+            <div style={{ position: "relative", height: "43px" }}>
+              <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ width: "100%", height: "100%", appearance: "none", WebkitAppearance: "none", paddingLeft: "15.64px", paddingRight: "40px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.5)", background: "#fff", boxSizing: "border-box", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", color: "#1D1D1F", cursor: "pointer", outline: "none" }}>
+                {cats.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <span style={{ position: "absolute", right: "15.64px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><ChevronIcon /></span>
             </div>
           </div>
 
           <div style={{ paddingTop: "19.52px" }}>
-            <div style={{ paddingBottom: "7.32px" }}>
-              <FieldLabel>제목</FieldLabel>
+            <div style={{ paddingBottom: "7.32px" }}><FieldLabel>제목</FieldLabel></div>
+            <div style={boxStyle}>
+              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="제목을 입력하세요" className="placeholder:text-[rgba(29,29,31,0.3)]" style={inputStyle} />
             </div>
-            <PlaceholderInput placeholder="제목을 입력하세요" />
           </div>
 
           <div style={{ paddingTop: "19.52px" }}>
-            <div style={{ paddingBottom: "7.32px" }}>
-              <FieldLabel>내용</FieldLabel>
-            </div>
+            <div style={{ paddingBottom: "7.32px" }}><FieldLabel>내용</FieldLabel></div>
             <div style={{ height: "117px", padding: "13.2px 15.64px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.5)", background: "#fff", boxSizing: "border-box" }}>
-              <span style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "rgba(29,29,31,0.3)" }}>
-                상세 내용을 입력하세요 (최대 500자)
-              </span>
+              <textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="상세 내용을 입력하세요 (최대 500자)" maxLength={500} className="placeholder:text-[rgba(29,29,31,0.3)]" style={{ width: "100%", height: "100%", border: "none", outline: "none", resize: "none", background: "transparent", fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#1D1D1F" }} />
             </div>
           </div>
 
           <div style={{ paddingTop: "19.52px", display: "flex", gap: "14.64px" }}>
             <div style={{ flex: 1 }}>
-              <div style={{ paddingBottom: "7.32px" }}>
-                <FieldLabel>이름</FieldLabel>
-              </div>
-              <PlaceholderInput placeholder="이름" />
+              <div style={{ paddingBottom: "7.32px" }}><FieldLabel>이름</FieldLabel></div>
+              <div style={boxStyle}><input type="text" value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="이름" className="placeholder:text-[rgba(29,29,31,0.3)]" style={inputStyle} /></div>
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ paddingBottom: "7.32px" }}>
-                <FieldLabel>소속기관/업체</FieldLabel>
-              </div>
-              <PlaceholderInput placeholder="소속 기관" />
+              <div style={{ paddingBottom: "7.32px" }}><FieldLabel>소속기관/업체</FieldLabel></div>
+              <div style={boxStyle}><input type="text" value={contactOrg} onChange={(e) => setContactOrg(e.target.value)} placeholder="소속 기관" className="placeholder:text-[rgba(29,29,31,0.3)]" style={inputStyle} /></div>
             </div>
           </div>
 
           <div style={{ paddingTop: "19.52px", display: "flex", gap: "14.64px" }}>
             <div style={{ flex: 1 }}>
-              <div style={{ paddingBottom: "7.32px" }}>
-                <FieldLabel>연락처</FieldLabel>
-              </div>
-              <PlaceholderInput placeholder="010-0000-0000" />
+              <div style={{ paddingBottom: "7.32px" }}><FieldLabel>연락처</FieldLabel></div>
+              <div style={boxStyle}><input type="tel" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="010-0000-0000" className="placeholder:text-[rgba(29,29,31,0.3)]" style={inputStyle} /></div>
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ paddingBottom: "7.32px" }}>
-                <FieldLabel>이메일</FieldLabel>
-              </div>
-              <PlaceholderInput placeholder="email@example.com" />
+              <div style={{ paddingBottom: "7.32px" }}><FieldLabel>이메일</FieldLabel></div>
+              <div style={boxStyle}><input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="email@example.com" className="placeholder:text-[rgba(29,29,31,0.3)]" style={inputStyle} /></div>
             </div>
           </div>
+
+          {error && <p style={{ paddingTop: "9.76px", fontSize: "12px", color: RED, margin: 0 }}>{error}</p>}
 
           <div style={{ paddingTop: "19.52px", display: "flex", gap: "14.64px", alignItems: "center" }}>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{ flex: 1, height: "49px", display: "flex", alignItems: "center", justifyContent: "center", padding: "13.2px 1px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.5)", background: "#fff", cursor: "pointer", fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "rgba(29,29,31,0.6)" }}
-            >
+            <button type="button" onClick={onClose} style={{ flex: 1, height: "49px", display: "flex", alignItems: "center", justifyContent: "center", padding: "13.2px 1px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.5)", background: "#fff", cursor: "pointer", fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "rgba(29,29,31,0.6)" }}>
               취소
             </button>
-            <button
-              type="button"
-              style={{ flex: 1, height: "49px", display: "flex", alignItems: "center", justifyContent: "center", padding: "12.2px 0", borderRadius: "14.64px", border: "none", background: accent, cursor: "pointer", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#fff" }}
-            >
-              {isReport ? "신고 접수" : "문의 접수"}
+            <button type="button" onClick={handleSubmit} disabled={submitting || done} style={{ flex: 1, height: "49px", display: "flex", alignItems: "center", justifyContent: "center", padding: "12.2px 0", borderRadius: "14.64px", border: "none", background: done ? "#059669" : accent, cursor: submitting || done ? "default" : "pointer", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#fff" }}>
+              {done ? "접수 완료" : submitting ? "처리중..." : isReport ? "신고 접수" : "문의 접수"}
             </button>
           </div>
         </div>

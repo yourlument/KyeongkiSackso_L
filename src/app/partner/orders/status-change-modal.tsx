@@ -28,7 +28,6 @@ export function StatusChangeModal({
       >
         <div className="flex" style={{ gap: "14.64px", paddingBottom: "19.52px" }}>
           <span className="flex items-center justify-center shrink-0" style={{ width: "44px", height: "44px", borderRadius: "9.76px", background: "rgba(30,58,95,0.1)" }}>
-
             <img src="/icons/ord-status-change.svg" alt="" width={16} height={16} aria-hidden="true" />
           </span>
           <div>

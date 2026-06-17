@@ -16,7 +16,6 @@ const STORAGE_DIR = process.env.STORAGE_DIR ?? path.join(process.cwd(), "storage
 const META_SUFFIX = ".meta.json";
 
 function safeKey(key: string): string {
-
   return key.replace(/[^a-zA-Z0-9._-]/g, "");
 }
 

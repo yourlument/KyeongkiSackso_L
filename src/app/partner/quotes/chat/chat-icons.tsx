@@ -1,3 +1,4 @@
+
 type IconProps = { className?: string; style?: React.CSSProperties };
 
 export function PersonIcon({ opacity = 1, ...props }: IconProps & { opacity?: number }) {

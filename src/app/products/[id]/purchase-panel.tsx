@@ -39,8 +39,11 @@ export function ProductPurchasePanel({
   deliveryCondition,
   specs,
   company,
+  detailImages,
   isLoggedIn,
   isSupplier,
+  hasPurchaseRecord,
+  supplierCompanyId,
 }: {
   productId: string;
   npsCode?: string;
@@ -56,8 +59,11 @@ export function ProductPurchasePanel({
   deliveryCondition?: string;
   specs: Spec[];
   company: Company;
+  detailImages: string[];
   isLoggedIn: boolean;
   isSupplier: boolean;
+  hasPurchaseRecord: boolean;
+  supplierCompanyId: string;
 }) {
   const router = useRouter();
   const [qty, setQty] = useState(1);
@@ -88,6 +94,7 @@ export function ProductPurchasePanel({
   }
 
   function handleQuote() {
+    if (!isLoggedIn) { setShowLogin(true); return; }
     if (blocked) return;
     setShowQuote(true);
   }
@@ -101,7 +108,6 @@ export function ProductPurchasePanel({
 
   return (
     <>
-
       <div className="flex w-full flex-col lg:flex-[859_1_0%]">
 
         <div className="flex items-center" style={{ gap: "9.76px", marginBottom: "14.64px" }}>
@@ -184,7 +190,6 @@ export function ProductPurchasePanel({
         </div>
 
         <div className="mt-[20px] flex" style={{ gap: "9.76px" }}>
-
           <button
             type="button"
             disabled={blocked || adding}
@@ -230,7 +235,6 @@ export function ProductPurchasePanel({
         className="w-full lg:order-last lg:basis-full"
         style={{ borderRadius: "19.52px", border: "1px solid #e5e7eb", background: "#fff", overflow: "hidden" }}
       >
-
         <div className="flex" style={{ borderBottom: "1px solid rgba(210,210,215,0.15)" }}>
           {TABS.map(t => (
             <button
@@ -258,15 +262,14 @@ export function ProductPurchasePanel({
         </div>
 
         <div style={{ padding: "24px" }}>
-          {tab === "제품 상세" && <ProductDetailTab />}
+          {tab === "제품 상세" && <ProductDetailTab detailImages={detailImages} />}
           {tab === "상세 스펙" && <SpecTab specs={specs} />}
           {tab === "업체 정보" && <CompanyTab company={company} />}
-
           {tab === "평점 등록" && (
             <ReviewTab
               productId={productId}
               isLoggedIn={isLoggedIn}
-              hasPurchaseRecord={false}
+              hasPurchaseRecord={hasPurchaseRecord}
               onRequireLogin={() => setShowLogin(true)}
             />
           )}
@@ -275,6 +278,8 @@ export function ProductPurchasePanel({
 
       {showQuote && (
         <QuoteModal
+          productId={productId}
+          supplierCompanyId={supplierCompanyId}
           productName={name}
           supplierName={supplierCompanyName}
           price={price}
@@ -290,13 +295,22 @@ export function ProductPurchasePanel({
   );
 }
 
-function ProductDetailTab() {
+function ProductDetailTab({ detailImages }: { detailImages: string[] }) {
+  if (detailImages.length === 0) {
+    return (
+      <div
+        className="flex items-center justify-center"
+        style={{ minHeight: "360px", background: "#FAFAFA", borderRadius: "8px", border: "1px dashed rgba(210,210,215,0.4)" }}
+      >
+        <span style={{ fontSize: "13px", fontWeight: 500, lineHeight: "23.4px", letterSpacing: "-0.195px", color: "rgba(29,29,31,0.3)" }}>상세 이미지 삽입 영역</span>
+      </div>
+    );
+  }
   return (
-    <div
-      className="flex items-center justify-center"
-      style={{ minHeight: "360px", background: "#FAFAFA", borderRadius: "8px", border: "1px dashed rgba(210,210,215,0.4)" }}
-    >
-      <span style={{ fontSize: "13px", fontWeight: 500, lineHeight: "23.4px", letterSpacing: "-0.195px", color: "rgba(29,29,31,0.3)" }}>상세 이미지 삽입 영역</span>
+    <div className="flex flex-col" style={{ gap: "8px" }}>
+      {detailImages.map((url, i) => (
+        <img key={i} src={url} alt={`상세 이미지 ${i + 1}`} style={{ width: "100%", borderRadius: "8px", display: "block" }} />
+      ))}
     </div>
   );
 }
@@ -304,11 +318,9 @@ function ProductDetailTab() {
 function SpecTab({ specs }: { specs: Spec[] }) {
   return (
     <div>
-
       <h2 style={{ fontSize: "14px", fontWeight: 700, lineHeight: "20px", color: "#111827", margin: 0, marginBottom: "16px" }}>
         상세 스펙
       </h2>
-
       {specs.length > 0 ? (
         <div style={{ borderRadius: "8px", border: "1px solid #e5e7eb", overflow: "hidden" }}>
           {specs.map((s, i) => (
@@ -325,7 +337,6 @@ function SpecTab({ specs }: { specs: Spec[] }) {
           ))}
         </div>
       ) : null}
-
       <div className="mt-[20px] flex items-center gap-[4px]" style={{ background: "#f9fafb", border: "1px solid #f3f4f6", borderRadius: "8px", padding: "17px" }}>
         <InfoIcon color="#6b7280" size={12} />
         <span style={{ fontSize: "12px", lineHeight: "16px", color: "#6b7280" }}>
@@ -338,7 +349,6 @@ function SpecTab({ specs }: { specs: Spec[] }) {
 
 function CompanyTab({ company }: { company: Company }) {
   const [open, setOpen] = useState(true);
-
   const ROWS: { label: string; value?: string }[] = [
     { label: "대표자", value: company.representativeName },
     { label: "사업자번호", value: company.businessRegistrationNo },
@@ -351,7 +361,6 @@ function CompanyTab({ company }: { company: Company }) {
 
   return (
     <div>
-
       <div className="flex" style={{ gap: "19.52px" }}>
         <div
           className="flex items-center justify-center"
@@ -441,7 +450,6 @@ function ReviewTab({
 
   async function submit() {
     if (stars === 0 || submitting || done) return;
-
     if (!isLoggedIn) { onRequireLogin(); return; }
     setSubmitting(true);
     try {
@@ -487,13 +495,11 @@ function ReviewTab({
 
   return (
     <div>
-
       <h2 style={{ fontSize: "15px", fontWeight: 600, lineHeight: "18.8px", letterSpacing: "-0.42px", color: "#1D1D1F", margin: 0, marginBottom: "24.4px" }}>
         평점 등록
       </h2>
 
       <div style={{ maxWidth: "546.55px" }}>
-
         <p style={{ fontSize: "13px", fontWeight: 400, lineHeight: "23.4px", letterSpacing: "-0.195px", color: "rgba(29,29,31,0.5)", margin: 0 }}>
           이 상품을 납품받으셨나요? 평점을 남겨주세요.
         </p>
@@ -635,18 +641,23 @@ function LoginModal({ onClose, onSignup }: { onClose: () => void; onSignup: () =
 }
 
 function QuoteModal({
+  productId,
+  supplierCompanyId,
   productName,
   supplierName,
   price,
   unit,
   onClose,
 }: {
+  productId: string;
+  supplierCompanyId: string;
   productName: string;
   supplierName: string;
   price: number;
   unit: string;
   onClose: () => void;
 }) {
+  const router = useRouter();
   const [organ, setOrgan] = useState("");
   const [dept, setDept] = useState("");
   const [email, setEmail] = useState("");
@@ -664,10 +675,35 @@ function QuoteModal({
     if (!canSubmit) return;
     setSubmitting(true);
     try {
-
-      await new Promise(r => setTimeout(r, 300));
+      const res = await fetch("/api/quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: `${productName} 견적 요청`,
+          quoteType: "물품 견적",
+          kind: "DIRECT",
+          targetSupplierCompanyId: supplierCompanyId,
+          productId,
+          budgetTbd: true,
+          desiredDeliveryDate: date,
+          deliveryAddress: addr,
+          contactOrgName: organ,
+          contactDepartment: dept,
+          contactEmail: email,
+          contactPhone: phone,
+          description: note || undefined,
+          items: [{ name: productName, qty, unit, spec: "" }],
+        }),
+      });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        alert(d.error ?? "견적 요청 중 오류가 발생했습니다");
+        return;
+      }
       setDone(true);
       onClose();
+      router.push("/quotes");
+      router.refresh();
     } finally {
       setSubmitting(false);
     }
@@ -695,12 +731,10 @@ function QuoteModal({
       onClick={onClose}
       style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
     >
-
       <div
         onClick={e => e.stopPropagation()}
         style={{ position: "relative", width: "625px", maxWidth: "100%", maxHeight: "calc(100vh - 32px)", borderRadius: "19.52px", background: "#fff", display: "flex", flexDirection: "column", overflow: "hidden" }}
       >
-
         <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "19.52px 29.28px", borderBottom: "1px solid rgba(210,210,215,0.2)" }}>
           <h2 style={{ fontSize: "16px", fontWeight: 600, lineHeight: "24px", letterSpacing: "-0.48px", color: "#1D1D1F", margin: 0 }}>견적 요청</h2>
           <button type="button" aria-label="닫기" onClick={onClose}
@@ -710,7 +744,6 @@ function QuoteModal({
         </div>
 
         <div style={{ overflowY: "auto", padding: "29.28px", display: "flex", flexDirection: "column", gap: "19.52px" }}>
-
           <div style={{ borderRadius: "14.64px", background: "#fff", border: "1px solid rgba(210,210,215,0.2)", padding: "15.64px" }}>
             <p style={{ fontSize: "11px", fontWeight: 400, lineHeight: "19.8px", letterSpacing: "-0.165px", color: "rgba(29,29,31,0.4)", margin: 0, marginBottom: "4.88px" }}>견적 요청 상품</p>
             <p style={{ fontSize: "14px", fontWeight: 500, lineHeight: "25px", letterSpacing: "-0.21px", color: "#1D1D1F", margin: 0 }}>{productName}</p>

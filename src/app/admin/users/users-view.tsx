@@ -1,57 +1,48 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useMemo, useState, useTransition, type CSSProperties, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import type { AdminUserRow, AdminUserStatus } from "@/lib/admin-users";
 
-type Role = "공급업체" | "공무원";
-type Status = "정상";
-type User = { name: string; role: Role; field: string; region: string; status: Status };
+type RoleLabel = "공급업체" | "공무원";
 
-const USERS: User[] = [
-  { name: "경기건설(주)", role: "공급업체", field: "도로교통 및 토목 분야", region: "경기도 화성시", status: "정상" },
-  { name: "화성레미콘(주)", role: "공급업체", field: "도로교통 및 토목 분야", region: "경기도 화성시", status: "정상" },
-  { name: "포장산업(주)", role: "공급업체", field: "도로교통 및 토목 분야", region: "경기도 이천시", status: "정상" },
-  { name: "안전제품(주)", role: "공급업체", field: "도로교통 및 토목 분야", region: "경기도 안산시", status: "정상" },
-  { name: "안전난간(주)", role: "공급업체", field: "도로교통 및 토목 분야", region: "경기도 용인시", status: "정상" },
-  { name: "디지털솔루션(주)", role: "공급업체", field: "정보통신 및 디지털/4차산업 분야", region: "경기도 성남시", status: "정상" },
-  { name: "오피스텍(주)", role: "공급업체", field: "정보통신 및 디지털/4차산업 분야", region: "경기도 수원시", status: "정상" },
-  { name: "네트웍솔루션(주)", role: "공급업체", field: "정보통신 및 디지털/4차산업 분야", region: "경기도 판교", status: "정상" },
-  { name: "안전소방(주)", role: "공급업체", field: "재난안전 및 소방/보건 분야", region: "경기도 평택시", status: "정상" },
-  { name: "안전복지(주)", role: "공급업체", field: "재난안전 및 소방/보건 분야", region: "경기도 광주시", status: "정상" },
-  { name: "메디칼텍(주)", role: "공급업체", field: "재난안전 및 소방/보건 분야", region: "경기도 의정부시", status: "정상" },
-  { name: "오피스퍼니처(주)", role: "공급업체", field: "일반행정 및 교육/지원 분야", region: "경기도 김포시", status: "정상" },
-  { name: "에듀퍼니처(주)", role: "공급업체", field: "일반행정 및 교육/지원 분야", region: "경기도 안성시", status: "정상" },
-  { name: "클라이밋텍(주)", role: "공급업체", field: "건축시설 및 전기/설비 분야", region: "경기도 오산시", status: "정상" },
-  { name: "경기농협(주)", role: "공급업체", field: "복지/식품 및 문화/관광 분야", region: "경기도 이천시", status: "정상" },
-  { name: "김주임", role: "공무원", field: "화성시 도로과", region: "경기도 화성시", status: "정상" },
-  { name: "박주임", role: "공무원", field: "화성시 정보통신과", region: "경기도 화성시", status: "정상" },
-  { name: "이대리", role: "공무원", field: "화성시 안전총괄과", region: "경기도 화성시", status: "정상" },
-];
-
-const ROLE_FILTERS: Array<"전체" | Role> = ["전체", "공무원", "공급업체"];
+const ROLE_FILTERS: Array<"전체" | RoleLabel> = ["전체", "공무원", "공급업체"];
 const PAGE_SIZE = 18;
-
 const GRID = "194px 157px 294px 177px 128px 137px";
 const CELL_PAD = "17.08px 24.4px";
 
-export function UsersView() {
-  const [roleF, setRoleF] = useState<"전체" | Role>("전체");
+export function UsersView({ rows }: { rows: AdminUserRow[] }) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  const [roleF, setRoleF] = useState<"전체" | RoleLabel>("전체");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
-
-  const [detail, setDetail] = useState<User | null>(null);
+  const [detail, setDetail] = useState<AdminUserRow | null>(null);
 
   const filtered = useMemo(() => {
-    return USERS.filter((u) => (roleF === "전체" ? true : u.role === roleF)).filter((u) =>
-      q.trim() ? (u.name + u.field).includes(q.trim()) : true,
-    );
-  }, [roleF, q]);
+    return rows
+      .filter((u) => (roleF === "전체" ? true : u.role === roleF))
+      .filter((u) => (q.trim() ? (u.name + u.field).includes(q.trim()) : true));
+  }, [rows, roleF, q]);
 
-  const safePage = Math.min(page, 2);
-  const rows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  async function handleBlock(row: AdminUserRow) {
+    const res = await fetch("/api/admin/users/block", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: row.kind, id: row.id }),
+    });
+    if (res.ok) {
+      setDetail(null);
+      startTransition(() => router.refresh());
+    }
+  }
 
   return (
     <div style={{ width: "100%" }}>
-
       <div style={{ paddingBottom: "34.16px" }}>
         <h1
           style={{
@@ -90,7 +81,6 @@ export function UsersView() {
           marginBottom: "19.52px",
         }}
       >
-
         <div className="flex items-center" style={{ gap: "9.76px" }}>
           {ROLE_FILTERS.map((r) => {
             const active = roleF === r;
@@ -165,7 +155,6 @@ export function UsersView() {
           overflow: "hidden",
         }}
       >
-
         <div
           className="grid"
           style={{
@@ -193,9 +182,9 @@ export function UsersView() {
           ))}
         </div>
 
-        {rows.map((u, i) => (
+        {pageRows.map((u, i) => (
           <div
-            key={u.name}
+            key={u.id}
             className="grid items-center"
             style={{
               gridTemplateColumns: GRID,
@@ -203,7 +192,6 @@ export function UsersView() {
               borderTop: i === 0 ? "none" : "1px solid rgba(210,210,215,0.1)",
             }}
           >
-
             <div style={{ padding: CELL_PAD }}>
               <span
                 style={{
@@ -217,7 +205,6 @@ export function UsersView() {
                 {u.name}
               </span>
             </div>
-
             <div style={{ padding: CELL_PAD }}>
               <span
                 className="inline-flex items-center justify-center"
@@ -238,7 +225,6 @@ export function UsersView() {
                 {u.role}
               </span>
             </div>
-
             <div style={{ padding: CELL_PAD }}>
               <span
                 style={{
@@ -252,7 +238,6 @@ export function UsersView() {
                 {u.field}
               </span>
             </div>
-
             <div style={{ padding: CELL_PAD }}>
               <span
                 style={{
@@ -266,28 +251,9 @@ export function UsersView() {
                 {u.region}
               </span>
             </div>
-
             <div style={{ padding: CELL_PAD }}>
-              <span
-                className="inline-flex items-center justify-center"
-                style={{
-                  borderRadius: "9999px",
-                  height: "26px",
-                  padding: "0 13.2px",
-                  fontSize: "12px",
-                  fontWeight: 500,
-                  letterSpacing: "-0.18px",
-                  lineHeight: "21.6px",
-                  background: "#ECFDF5",
-                  border: "1px solid #A7F3D0",
-                  color: "#047857",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {u.status}
-              </span>
+              <StatusBadge status={u.status} />
             </div>
-
             <div style={{ padding: CELL_PAD }}>
               <button
                 type="button"
@@ -323,7 +289,7 @@ export function UsersView() {
             disabled={safePage <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
           />
-          {[1, 2].map((n) => {
+          {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((n) => {
             const active = n === safePage;
             return (
               <button
@@ -351,21 +317,43 @@ export function UsersView() {
           })}
           <PageArrow
             dir="next"
-            disabled={safePage >= 2}
-            onClick={() => setPage((p) => Math.min(2, p + 1))}
+            disabled={safePage >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
           />
         </div>
       </div>
 
       {detail &&
-        (detail.name === "경기건설(주)" ? (
-          <SupplierDetailModal onClose={() => setDetail(null)} />
-        ) : detail.name === "박주임" ? (
-          <OfficialDetailModal onClose={() => setDetail(null)} />
+        (detail.kind === "supplier" ? (
+          <SupplierDetailModal row={detail} onClose={() => setDetail(null)} onBlock={() => handleBlock(detail)} />
         ) : (
-          <NoDetailModal user={detail} onClose={() => setDetail(null)} />
+          <OfficialDetailModal row={detail} onClose={() => setDetail(null)} onBlock={() => handleBlock(detail)} />
         ))}
     </div>
+  );
+}
+
+function StatusBadge({ status }: { status: AdminUserStatus }) {
+  const blocked = status === "차단";
+  return (
+    <span
+      className="inline-flex items-center justify-center"
+      style={{
+        borderRadius: "9999px",
+        height: "26px",
+        padding: "0 13.2px",
+        fontSize: "12px",
+        fontWeight: 500,
+        letterSpacing: "-0.18px",
+        lineHeight: "21.6px",
+        background: blocked ? "#FEF2F2" : "#ECFDF5",
+        border: blocked ? "1px solid #FECACA" : "1px solid #A7F3D0",
+        color: blocked ? "#DC2626" : "#047857",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {status}
+    </span>
   );
 }
 
@@ -451,7 +439,17 @@ function ModalHeader({ title, sub, onClose }: { title: string; sub: string; onCl
   );
 }
 
-function ProfileRow({ initial, name, sub }: { initial: string; name: string; sub: string }) {
+function ProfileRow({
+  initial,
+  name,
+  sub,
+  status,
+}: {
+  initial: string;
+  name: string;
+  sub: string;
+  status: AdminUserStatus;
+}) {
   return (
     <div className="flex items-center" style={{ gap: "14.64px" }}>
       <div
@@ -502,23 +500,22 @@ function ProfileRow({ initial, name, sub }: { initial: string; name: string; sub
           {sub}
         </p>
       </div>
-
       <span
         className="inline-flex items-center justify-center"
         style={{
           borderRadius: "9999px",
           padding: "5.88px 13.2px",
-          background: "#ECFDF5",
-          border: "1px solid #A7F3D0",
+          background: status === "차단" ? "#FEF2F2" : "#ECFDF5",
+          border: status === "차단" ? "1px solid #FECACA" : "1px solid #A7F3D0",
           fontSize: "12px",
           fontWeight: 500,
           letterSpacing: "-0.18px",
           lineHeight: "21.6px",
-          color: "#047857",
+          color: status === "차단" ? "#DC2626" : "#047857",
           whiteSpace: "nowrap",
         }}
       >
-        정상
+        {status}
       </span>
     </div>
   );
@@ -606,7 +603,7 @@ function Field({
   );
 }
 
-function ModalFooter({ onClose, withBlock }: { onClose: () => void; withBlock?: boolean }) {
+function ModalFooter({ onClose, onBlock }: { onClose: () => void; onBlock?: () => void }) {
   return (
     <div style={{ paddingTop: "24.4px" }}>
       <div
@@ -617,9 +614,10 @@ function ModalFooter({ onClose, withBlock }: { onClose: () => void; withBlock?: 
           paddingTop: "10.76px",
         }}
       >
-        {withBlock && (
+        {onBlock && (
           <button
             type="button"
+            onClick={onBlock}
             className="flex-1 items-center justify-center"
             style={{
               height: "55.75px",
@@ -661,31 +659,45 @@ function ModalFooter({ onClose, withBlock }: { onClose: () => void; withBlock?: 
   );
 }
 
-function SupplierDetailModal({ onClose }: { onClose: () => void }) {
+function SupplierDetailModal({
+  row,
+  onClose,
+  onBlock,
+}: {
+  row: AdminUserRow;
+  onClose: () => void;
+  onBlock: () => void;
+}) {
+  const s = row.supplier!;
   return (
     <ModalShell onClose={onClose}>
-      <ModalHeader title="공급업체 상세 정보" sub="도로교통 및 토목 분야" onClose={onClose} />
+      <ModalHeader title="공급업체 상세 정보" sub={s.fieldLabel} onClose={onClose} />
       <div style={{ padding: "29.28px" }}>
-        <ProfileRow initial="경" name="경기건설(주)" sub="공급업체 · 도로교통 및 토목 분야" />
+        <ProfileRow
+          initial={row.name.slice(0, 1)}
+          name={row.name}
+          sub={s.fieldLabel ? `공급업체 · ${s.fieldLabel}` : "공급업체"}
+          status={row.status}
+        />
 
         <div style={{ paddingTop: "24.4px" }}>
           <SectionLabel>기본 정보</SectionLabel>
           <InfoBox>
-            <Field label="가입일" value="2010-01-01" />
-            <Field label="지역" value="경기도 화성시" />
-            <Field label="사업자등록번호" value="123-45-67890" />
-            <Field label="대표자" value="김철수" />
+            <Field label="가입일" value={s.joinDate} />
+            <Field label="지역" value={s.region} />
+            <Field label="사업자등록번호" value={s.bizNo} />
+            <Field label="대표자" value={s.repName} />
           </InfoBox>
         </div>
 
         <div style={{ paddingTop: "24.4px" }}>
           <SectionLabel>세금계산서 발행 정보</SectionLabel>
           <InfoBox variant="navy">
-            <Field label="사업자등록번호" value="123-45-67890" />
-            <Field label="기관(상호)명" value="경기건설(주)" />
-            <Field label="대표자 성함" value="김철수" />
-            <Field label="수신용 이메일" value="tax@.com" />
-            <Field label="사업장 주소" value="경기도 화성시 산업단지로 123" full />
+            <Field label="사업자등록번호" value={s.bizNo} />
+            <Field label="기관(상호)명" value={s.taxOrgName} />
+            <Field label="대표자 성함" value={s.repName} />
+            <Field label="수신용 이메일" value={s.taxEmail} />
+            <Field label="사업장 주소" value={s.taxAddress} full />
           </InfoBox>
         </div>
 
@@ -723,7 +735,7 @@ function SupplierDetailModal({ onClose }: { onClose: () => void }) {
                 color: "rgba(29,29,31,0.7)",
               }}
             >
-              사업자등록증_경기건설(주).pdf
+              {s.licenseFileName}
             </span>
             <button
               type="button"
@@ -745,112 +757,101 @@ function SupplierDetailModal({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <div style={{ paddingTop: "24.4px" }}>
-          <SectionLabel>보유 인증</SectionLabel>
-          <div className="flex" style={{ gap: "9.76px" }}>
-            <span
-              className="inline-flex items-center justify-center"
-              style={{
-                borderRadius: "9999px",
-                padding: "5.88px 15.64px",
-                background: "rgba(30,58,95,0.05)",
-                border: "1px solid rgba(30,58,95,0.15)",
-                fontSize: "12px",
-                fontWeight: 400,
-                letterSpacing: "-0.18px",
-                lineHeight: "21.6px",
-                color: "rgba(30,58,95,0.7)",
-              }}
-            >
-              우수제품
-            </span>
+        {s.certifications.length > 0 && (
+          <div style={{ paddingTop: "24.4px" }}>
+            <SectionLabel>보유 인증</SectionLabel>
+            <div className="flex flex-wrap" style={{ gap: "9.76px" }}>
+              {s.certifications.map((cert) => (
+                <span
+                  key={cert}
+                  className="inline-flex items-center justify-center"
+                  style={{
+                    borderRadius: "9999px",
+                    padding: "5.88px 15.64px",
+                    background: "rgba(30,58,95,0.05)",
+                    border: "1px solid rgba(30,58,95,0.15)",
+                    fontSize: "12px",
+                    fontWeight: 400,
+                    letterSpacing: "-0.18px",
+                    lineHeight: "21.6px",
+                    color: "rgba(30,58,95,0.7)",
+                  }}
+                >
+                  {cert}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         <div style={{ paddingTop: "24.4px" }}>
           <SectionLabel>정산 계좌 정보</SectionLabel>
           <InfoBox>
-
             <Field
               label="인증 상태"
-              value="계좌 인증 완료"
+              value={s.bankVerified ? "계좌 인증 완료" : "미인증"}
               valueStyle={{
                 fontSize: "11px",
                 fontWeight: 500,
                 letterSpacing: "-0.165px",
                 lineHeight: "19.8px",
-                color: "#047857",
+                color: s.bankVerified ? "#047857" : "rgba(29,29,31,0.4)",
               }}
             />
-            <Field label="은행" value="국민은행" />
-            <Field label="계좌번호" value="123456-78-901234" />
-            <Field label="예금주" value="김철수" />
+            <Field label="은행" value={s.bankName} />
+            <Field label="계좌번호" value={s.bankAccountNo} />
+            <Field label="예금주" value={s.bankAccountHolder} />
           </InfoBox>
         </div>
 
-        <ModalFooter onClose={onClose} withBlock />
+        <ModalFooter onClose={onClose} onBlock={onBlock} />
       </div>
     </ModalShell>
   );
 }
 
-function OfficialDetailModal({ onClose }: { onClose: () => void }) {
+function OfficialDetailModal({
+  row,
+  onClose,
+  onBlock,
+}: {
+  row: AdminUserRow;
+  onClose: () => void;
+  onBlock: () => void;
+}) {
+  const o = row.official!;
   return (
     <ModalShell onClose={onClose}>
-      <ModalHeader title="공무원 상세 정보" sub="화성시 정보통신과" onClose={onClose} />
+      <ModalHeader title="공무원 상세 정보" sub={o.dept} onClose={onClose} />
       <div style={{ padding: "29.28px" }}>
-        <ProfileRow initial="박" name="박주임" sub="공무원 · 화성시 정보통신과" />
+        <ProfileRow
+          initial={row.name.slice(0, 1)}
+          name={row.name}
+          sub={o.dept ? `공무원 · ${o.dept}` : "공무원"}
+          status={row.status}
+        />
 
         <div style={{ paddingTop: "24.4px" }}>
           <SectionLabel>기본 정보</SectionLabel>
           <InfoBox>
-            <Field label="가입일" value="2022-08-20" />
-            <Field label="지역" value="경기도 화성시" />
-            <Field label="기관 고유번호" value="134-82-23456" />
+            <Field label="가입일" value={o.joinDate} />
+            <Field label="지역" value={o.region} />
+            <Field label="기관 고유번호" value={o.orgBizNo} />
           </InfoBox>
         </div>
 
         <div style={{ paddingTop: "24.4px" }}>
           <SectionLabel>세금계산서 발행 정보</SectionLabel>
           <InfoBox variant="navy">
-            <Field label="기관 고유번호(사업자번호)" value="134-82-23456" />
-            <Field label="기관(상호)명" value="화성시청" />
-            <Field label="대표자 성함" value="화성시장 정명근" />
-            <Field label="수신용 이메일" value="finance@hwaseong.go.kr" />
-            <Field label="사업장 주소" value="경기도 화성시 시청로 159" full />
+            <Field label="기관 고유번호(사업자번호)" value={o.orgBizNo} />
+            <Field label="기관(상호)명" value={o.orgName} />
+            <Field label="대표자 성함" value={o.orgRepName} />
+            <Field label="수신용 이메일" value={o.orgTaxEmail} />
+            <Field label="사업장 주소" value={o.orgAddress} full />
           </InfoBox>
         </div>
 
-        <ModalFooter onClose={onClose} withBlock />
-      </div>
-    </ModalShell>
-  );
-}
-
-function NoDetailModal({ user, onClose }: { user: User; onClose: () => void }) {
-  return (
-    <ModalShell onClose={onClose}>
-      <ModalHeader
-        title={user.role === "공급업체" ? "공급업체 상세 정보" : "공무원 상세 정보"}
-        sub={user.field}
-        onClose={onClose}
-      />
-      <div style={{ padding: "29.28px" }}>
-        <p
-          style={{
-            margin: 0,
-            padding: "24.4px 0",
-            fontSize: "14px",
-            fontWeight: 400,
-            letterSpacing: "-0.21px",
-            lineHeight: "25.2px",
-            color: "rgba(29,29,31,0.4)",
-            textAlign: "center",
-          }}
-        >
-          상세 데이터가 없습니다
-        </p>
-        <ModalFooter onClose={onClose} />
+        <ModalFooter onClose={onClose} onBlock={onBlock} />
       </div>
     </ModalShell>
   );
