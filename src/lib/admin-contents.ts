@@ -57,6 +57,8 @@ export type QuoteItem = {
 };
 
 export type BidEntry = {
+  quoteId: string;
+  responseId: string;
   company: string;
   phone: string;
   amount: string;
@@ -71,7 +73,7 @@ export type BidEntry = {
 export type AdminContentsData = {
   productRows: ProductRow[];
   bidRows: BidRow[];
-  bidEntries: BidEntry[];
+  bidEntries: Record<string, BidEntry[]>;
   filterCounts: Record<"전체" | BidStatus, number>;
 };
 
@@ -129,29 +131,33 @@ export async function loadAdminContents(): Promise<AdminContentsData> {
     };
   });
 
-  const first = sorted[0];
-  const bidEntries: BidEntry[] = (first?.responses ?? []).map((r) => {
-    const items: QuoteItem[] = (r.quoteRequest.items ?? []).map((it, i) => ({
-      no: String(i + 1),
-      name: it.name,
-      qty: it.unit ? `${it.quantity}${it.unit}` : String(it.quantity),
-    }));
-    const ratio =
-      first?.budget != null && Number(first.budget) > 0
-        ? `${((Number(r.totalAmount) / Number(first.budget)) * 100).toFixed(1)}%`
-        : undefined;
-    return {
-      company: r.supplierCompany.name,
-      phone: dash(decrypt(r.supplierCompany.phone)),
-      amount: won(r.totalAmount),
-      state: RESP_ST[r.status] ?? "접수",
-      spec: dash(r.specSummary),
-      date: ymd(r.createdAt),
-      ...(r.quoteNo ? { quoteNo: r.quoteNo } : {}),
-      ...(ratio ? { budgetRatio: ratio } : {}),
-      ...(items.length ? { items } : {}),
-    };
-  });
+  const bidEntries: Record<string, BidEntry[]> = {};
+  for (const quote of sorted) {
+    bidEntries[quote.id] = quote.responses.map((r) => {
+      const items: QuoteItem[] = (r.quoteRequest.items ?? []).map((it, i) => ({
+        no: String(i + 1),
+        name: it.name,
+        qty: it.unit ? `${it.quantity}${it.unit}` : String(it.quantity),
+      }));
+      const ratio =
+        quote.budget != null && Number(quote.budget) > 0
+          ? `${((Number(r.totalAmount) / Number(quote.budget)) * 100).toFixed(1)}%`
+          : undefined;
+      return {
+        quoteId: quote.id,
+        responseId: r.id,
+        company: r.supplierCompany.name,
+        phone: dash(decrypt(r.supplierCompany.phone)),
+        amount: won(r.totalAmount),
+        state: RESP_ST[r.status] ?? "접수",
+        spec: dash(r.specSummary),
+        date: ymd(r.createdAt),
+        ...(r.quoteNo ? { quoteNo: r.quoteNo } : {}),
+        ...(ratio ? { budgetRatio: ratio } : {}),
+        ...(items.length ? { items } : {}),
+      };
+    });
+  }
 
   const filterCounts: Record<"전체" | BidStatus, number> = {
     전체: bidRows.length,

@@ -8,7 +8,12 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { KakaoChat } from "@/components/kakao-chat";
 
-const SORT_OPTIONS = [{ value: "relevance", label: "관련도순" }] as const;
+const SORT_OPTIONS = [
+  { value: "relevance", label: "관련도순" },
+  { value: "latest", label: "최신순" },
+  { value: "priceLow", label: "낮은 가격순" },
+  { value: "priceHigh", label: "높은 가격순" },
+] as const;
 type SortKey = "relevance" | "latest" | "priceLow" | "priceHigh";
 
 type CatNode = { id: string; name: string; children?: CatNode[] };
@@ -75,6 +80,7 @@ function SearchInner() {
   );
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
+  const [showFilters, setShowFilters] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [catTree, setCatTree] = useState<CatNode[]>([]);
@@ -184,6 +190,8 @@ function SearchInner() {
 
             <button
               type="button"
+              onClick={() => setShowFilters((v) => !v)}
+              aria-expanded={showFilters}
               className="flex shrink-0 items-center transition-opacity hover:opacity-80"
               style={{
                 ...S_FILTER_BTN,
@@ -203,6 +211,7 @@ function SearchInner() {
         </div>
       </div>
 
+      {showFilters && (
       <div style={{ borderBottom: DIVIDER, backgroundColor: "#FFFFFF" }}>
         <div className="mx-auto w-full max-w-[1440px] px-[95.36px]">
           <div className="flex flex-wrap items-center px-[48.8px] py-[24.4px]" style={{ gap: "14.64px" }}>
@@ -300,6 +309,7 @@ function SearchInner() {
           </div>
         </div>
       </div>
+      )}
 
       <main className="flex-1">
         <div className="mx-auto w-full max-w-[1440px] px-[95.36px]">
@@ -311,10 +321,10 @@ function SearchInner() {
             </div>
 
             {loading ? (
-              <div className="grid" style={{ gridTemplateColumns: "repeat(5,minmax(0,1fr))", gap: "39.04px 24.4px" }}>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5" style={{ gap: "39.04px 24.4px" }}>
                 {Array.from({ length: 10 }).map((_, i) => (
-                  <div key={i} className="flex flex-col" style={{ width: "211px" }}>
-                    <div className="animate-pulse" style={{ width: "211px", height: "211px", borderRadius: "19.52px", backgroundColor: "rgba(29,29,31,0.05)" }} />
+                  <div key={i} className="flex flex-col" style={{ width: "100%", maxWidth: "211px" }}>
+                    <div className="animate-pulse" style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: "19.52px", backgroundColor: "rgba(29,29,31,0.05)" }} />
                     <div className="animate-pulse" style={{ marginTop: "14.64px", height: "16px", width: "55%", borderRadius: "7.32px", backgroundColor: "rgba(29,29,31,0.05)" }} />
                     <div className="animate-pulse" style={{ marginTop: "8px", height: "38px", width: "100%", borderRadius: "7.32px", backgroundColor: "rgba(29,29,31,0.05)" }} />
                     <div className="animate-pulse" style={{ marginTop: "8px", height: "22px", width: "60%", borderRadius: "7.32px", backgroundColor: "rgba(29,29,31,0.05)" }} />
@@ -324,11 +334,12 @@ function SearchInner() {
                 ))}
               </div>
             ) : count === 0 ? (
-              <div className="flex items-center justify-center py-[120px]">
-                <img src="/icons/srch-search.svg" alt="" width={40} height={40} style={{ opacity: 0.15 }} aria-hidden="true" />
+              <div className="flex flex-col items-center justify-center py-[120px]" style={{ gap: "12px" }}>
+                <img src="/icons/srch-search.svg" alt="" width={40} height={40} style={{ opacity: 0.4 }} aria-hidden="true" />
+                <span style={{ fontSize: "14px", lineHeight: "25.2px", letterSpacing: "-0.21px", fontWeight: 400, color: "rgba(29,29,31,0.5)" }}>검색 결과가 없습니다.</span>
               </div>
             ) : (
-              <div className="grid" style={{ gridTemplateColumns: "repeat(5,minmax(0,1fr))", gap: "39.04px 24.4px" }}>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5" style={{ gap: "39.04px 24.4px" }}>
                 {visible.map((p) => (
                   <ProductCard key={p.id} product={p} />
                 ))}
@@ -346,13 +357,13 @@ function SearchInner() {
 
 function ProductCard({ product: p }: { product: Product }) {
   return (
-    <Link href={`/products/${p.id}`} className="group flex flex-col" style={{ width: "211px" }}>
+    <Link href={`/products/${p.id}`} className="group flex flex-col" style={{ width: "100%", maxWidth: "211px" }}>
 
       <div
         className="relative overflow-hidden"
         style={{
-          width: "211px",
-          height: "211px",
+          width: "100%",
+          aspectRatio: "1 / 1",
           borderRadius: "19.52px",
           backgroundColor: "rgba(29,29,31,0.05)",
           marginBottom: "14.64px",

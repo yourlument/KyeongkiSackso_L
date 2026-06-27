@@ -182,7 +182,7 @@ function MemberDetail({
   status: MemberStatus;
   detail: MemberDetailData;
   onShowFull: () => void;
-  onViewFile: (docName: string) => void;
+  onViewFile: (doc: { name: string; fileUrl: string }) => void;
   onApprove: () => void;
   onReject: (reason: string) => void;
 }) {
@@ -218,7 +218,7 @@ function MemberDetail({
         <p style={{ margin: "0 0 10.4px", fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>제출 서류</p>
         <div className="flex" style={{ gap: "9.76px" }}>
           {detail.docs.map((doc) => (
-            <DocCard key={doc} name={doc} onView={() => onViewFile(doc)} />
+            <DocCard key={doc.name} name={doc.name} onView={() => onViewFile(doc)} />
           ))}
         </div>
       </div>
@@ -316,7 +316,7 @@ function MemberFullModal({
   name: string;
   detail: MemberDetailData;
   onClose: () => void;
-  onViewFile: (docName: string) => void;
+  onViewFile: (doc: { name: string; fileUrl: string }) => void;
 }) {
   const full = detail.full;
   return (
@@ -364,7 +364,7 @@ function MemberFullModal({
           <DetailSection title="보유 인증 및 제출 서류">
             <div className="flex flex-col" style={{ gap: "9.76px" }}>
               {detail.docs.map((doc) => (
-                <DocRow key={doc} name={doc} onView={() => onViewFile(doc)} />
+                <DocRow key={doc.name} name={doc.name} onView={() => onViewFile(doc)} />
               ))}
             </div>
           </DetailSection>
@@ -476,7 +476,7 @@ function MemberTab({
   onReject: (id: string, reason: string) => void;
 }) {
   const [showFull, setShowFull] = useState(false);
-  const [fileView, setFileView] = useState<string | null>(null);
+  const [fileView, setFileView] = useState<{ fileName: string; fileUrl: string } | null>(null);
   return (
     <>
       <div className="flex items-center" style={{ gap: "9.76px", marginBottom: "24.4px" }}>
@@ -612,7 +612,7 @@ function MemberTab({
             status={selectedMember.status}
             detail={selectedMember.detail}
             onShowFull={() => setShowFull(true)}
-            onViewFile={setFileView}
+            onViewFile={(doc) => setFileView({ fileName: doc.name, fileUrl: doc.fileUrl })}
             onApprove={() => onApprove(selectedMember.id)}
             onReject={(reason) => onReject(selectedMember.id, reason)}
           />
@@ -658,10 +658,10 @@ function MemberTab({
       </div>
 
       {showFull && selectedMember && (
-        <MemberFullModal name={selectedMember.name} detail={selectedMember.detail} onClose={() => setShowFull(false)} onViewFile={setFileView} />
+        <MemberFullModal name={selectedMember.name} detail={selectedMember.detail} onClose={() => setShowFull(false)} onViewFile={(doc) => setFileView({ fileName: doc.name, fileUrl: doc.fileUrl })} />
       )}
 
-      {fileView && <FileViewModal fileName={fileView} onClose={() => setFileView(null)} />}
+      {fileView && <FileViewModal fileName={fileView.fileName} fileUrl={fileView.fileUrl} onClose={() => setFileView(null)} />}
     </>
   );
 }
@@ -679,9 +679,10 @@ function CertTab({
   onApprove: (id: string) => void;
   onReject: (id: string, reason: string) => void;
 }) {
-  const [fileView, setFileView] = useState<string | null>(null);
+  const [fileView, setFileView] = useState<{ fileName: string; fileUrl: string } | null>(null);
   const [approveTarget, setApproveTarget] = useState<Cert | null>(null);
   const [rejectTarget, setRejectTarget] = useState<Cert | null>(null);
+  const [detailTarget, setDetailTarget] = useState<Cert | null>(null);
   return (
     <>
       <div className="flex items-center" style={{ gap: "9.76px", marginBottom: "24.4px" }}>
@@ -824,7 +825,7 @@ function CertTab({
                 <div className="flex items-center" style={{ gap: "9.76px" }}>
                   <button
                     type="button"
-                    onClick={() => setFileView(`${c.kind} 인증서`)}
+                    onClick={() => setFileView({ fileName: c.fileName || `${c.kind} 인증서`, fileUrl: c.fileUrl })}
                     className="inline-flex items-center justify-center"
                     style={{
                       height: "38px",
@@ -888,6 +889,7 @@ function CertTab({
                   ) : (
                     <button
                       type="button"
+                      onClick={() => setDetailTarget(c)}
                       className="inline-flex items-center justify-center"
                       style={{
                         height: "38px",
@@ -913,7 +915,7 @@ function CertTab({
         })}
       </div>
 
-      {fileView && <FileViewModal fileName={fileView} onClose={() => setFileView(null)} />}
+      {fileView && <FileViewModal fileName={fileView.fileName} fileUrl={fileView.fileUrl} onClose={() => setFileView(null)} />}
 
       {approveTarget && (
         <CertApproveModal
@@ -938,11 +940,67 @@ function CertTab({
           }}
         />
       )}
+
+      {detailTarget && (
+        <CertDetailModal
+          cert={detailTarget}
+          onClose={() => setDetailTarget(null)}
+        />
+      )}
     </>
   );
 }
 
-function FileViewModal({ fileName, onClose }: { fileName: string; onClose: () => void }) {
+function CertDetailModal({ cert, onClose }: { cert: Cert; onClose: () => void }) {
+  const [fileView, setFileView] = useState(false);
+  const badge = CERT_BADGE[cert.status];
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.45)", padding: "24px" }} onClick={onClose}>
+      <div className="flex w-full flex-col overflow-y-auto" style={{ maxWidth: "625px", maxHeight: "90vh", background: "#FFFFFF", borderRadius: "19.52px" }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between" style={{ padding: "19.52px 29.28px 20.52px", borderBottom: "1px solid rgba(210,210,215,0.1)" }}>
+          <div>
+            <p style={{ margin: 0, fontSize: "16px", fontWeight: 700, letterSpacing: "-0.448px", lineHeight: "20px", color: "#1D1D1F" }}>인증서 상세</p>
+            <p style={{ margin: "2.44px 0 0", fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>{cert.name}</p>
+          </div>
+          <button type="button" onClick={onClose} className="flex shrink-0 items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "9.76px", background: "transparent", border: "none", cursor: "pointer" }} aria-label="닫기">
+            <CloseIcon />
+          </button>
+        </div>
+        <div className="flex flex-col" style={{ padding: "29.28px", gap: "24.4px" }}>
+          <div className="grid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))", columnGap: "14.64px", rowGap: "14.64px", background: "rgba(29,29,31,0.02)", borderRadius: "14.64px", padding: "19.52px" }}>
+            <DetailField label="업체명" value={cert.name} />
+            <DetailField label="인증 종류" value={cert.kind} />
+            <DetailField label="제출일" value={cert.date} />
+            <DetailField label="처리일" value={cert.reviewedAt !== "-" ? cert.reviewedAt : "-"} />
+          </div>
+          <div>
+            <p style={{ margin: "0 0 10.4px", fontSize: "11px", fontWeight: 600, letterSpacing: "0.55px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)" }}>처리 상태</p>
+            <div className="flex items-center" style={{ gap: "9.76px" }}>
+              <span
+                className="inline-flex items-center justify-center"
+                style={{ borderRadius: "9999px", height: "25px", padding: "0 13.2px", fontSize: "11px", fontWeight: 500, letterSpacing: "-0.165px", lineHeight: "19.8px", background: badge.bg, border: `1px solid ${badge.border}`, color: badge.color }}
+              >
+                {cert.status}
+              </span>
+              {cert.status === "반려" && cert.rejectReason && (
+                <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.6)" }}>{cert.rejectReason}</span>
+              )}
+            </div>
+          </div>
+          {(cert.fileUrl || cert.fileName) && (
+            <div>
+              <p style={{ margin: "0 0 10.4px", fontSize: "11px", fontWeight: 600, letterSpacing: "0.55px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)" }}>제출 서류</p>
+              <DocRow name={cert.fileName || cert.kind} onView={() => setFileView(true)} />
+            </div>
+          )}
+        </div>
+      </div>
+      {fileView && <FileViewModal fileName={cert.fileName || cert.kind} fileUrl={cert.fileUrl} onClose={() => setFileView(false)} />}
+    </div>
+  );
+}
+
+function FileViewModal({ fileName, fileUrl, onClose }: { fileName: string; fileUrl?: string; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.45)", padding: "24px" }} onClick={onClose}>
       <div className="flex w-full flex-col" style={{ maxWidth: "625px", background: "#FFFFFF", borderRadius: "19.52px" }} onClick={(e) => e.stopPropagation()}>
@@ -963,22 +1021,49 @@ function FileViewModal({ fileName, onClose }: { fileName: string; onClose: () =>
             <p style={{ margin: "0 0 4.88px", fontSize: "15px", fontWeight: 600, letterSpacing: "-0.225px", lineHeight: "27px", color: "#1D1D1F", textAlign: "center" }}>{fileName}</p>
             <p style={{ margin: 0, fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)", textAlign: "center" }}>PDF 파일 · 2.3MB</p>
             <div className="flex items-center justify-center" style={{ gap: "14.64px", marginTop: "29.28px" }}>
-              <button
-                type="button"
-                className="inline-flex items-center justify-center"
-                style={{ height: "49.12px", padding: "0 24.4px", gap: "9.76px", borderRadius: "14.64px", background: "#1E3A5F", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#FFFFFF" }}
-              >
-                <NewTabIcon />
-                새 탭에서 열기
-              </button>
-              <button
-                type="button"
-                className="inline-flex items-center justify-center"
-                style={{ height: "49.12px", padding: "0 25.4px", gap: "9.76px", borderRadius: "14.64px", background: "transparent", border: "1px solid rgba(210,210,215,0.2)", cursor: "pointer", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "rgba(29,29,31,0.6)" }}
-              >
-                <DownloadIcon />
-                다운로드
-              </button>
+              {fileUrl ? (
+                <a
+                  href={fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center"
+                  style={{ height: "49.12px", padding: "0 24.4px", gap: "9.76px", borderRadius: "14.64px", background: "#1E3A5F", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#FFFFFF", textDecoration: "none" }}
+                >
+                  <NewTabIcon />
+                  새 탭에서 열기
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center"
+                  style={{ height: "49.12px", padding: "0 24.4px", gap: "9.76px", borderRadius: "14.64px", background: "#1E3A5F", border: "none", cursor: "default", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#FFFFFF", opacity: 0.4 }}
+                  disabled
+                >
+                  <NewTabIcon />
+                  새 탭에서 열기
+                </button>
+              )}
+              {fileUrl ? (
+                <a
+                  href={fileUrl}
+                  download
+                  className="inline-flex items-center justify-center"
+                  style={{ height: "49.12px", padding: "0 25.4px", gap: "9.76px", borderRadius: "14.64px", background: "transparent", border: "1px solid rgba(210,210,215,0.2)", cursor: "pointer", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "rgba(29,29,31,0.6)", textDecoration: "none" }}
+                >
+                  <DownloadIcon />
+                  다운로드
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center"
+                  style={{ height: "49.12px", padding: "0 25.4px", gap: "9.76px", borderRadius: "14.64px", background: "transparent", border: "1px solid rgba(210,210,215,0.2)", cursor: "default", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "rgba(29,29,31,0.6)", opacity: 0.4 }}
+                  disabled
+                >
+                  <DownloadIcon />
+                  다운로드
+                </button>
+              )}
             </div>
           </div>
         </div>

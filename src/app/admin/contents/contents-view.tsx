@@ -13,6 +13,9 @@ const BID_FILTER_LABELS: ("전체" | BidStatus)[] = ["전체", "공고중", "검
 const BID_GRID = "101.61px 253.22px 191.44px 126.59px 124.34px 110.61px 68.27px 110.59px";
 const ENTRY_GRID = "163.17px 160.88px 146.52px 94.83px 247.89px 107.7px 105.16px";
 
+const PRODUCT_PAGE_SIZE = 10;
+const BID_PAGE_SIZE = 10;
+
 export function ContentsView({ data }: { data: AdminContentsData }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -21,9 +24,11 @@ export function ContentsView({ data }: { data: AdminContentsData }) {
   const [deleteTarget, setDeleteTarget] = useState<ProductRow | null>(null);
   const [bidQ, setBidQ] = useState("");
   const [bidFilter, setBidFilter] = useState<"전체" | BidStatus>("전체");
-  const [bidExpanded, setBidExpanded] = useState(true);
+  const [expandedBidId, setExpandedBidId] = useState<string | null>(data.bidRows[0]?.id ?? null);
   const [bidDeleteTarget, setBidDeleteTarget] = useState<BidRow | null>(null);
   const [quoteEntry, setQuoteEntry] = useState<BidEntry | null>(null);
+  const [productPage, setProductPage] = useState(1);
+  const [bidPage, setBidPage] = useState(1);
 
   const products = data.productRows;
   const bids = data.bidRows;
@@ -48,6 +53,14 @@ export function ContentsView({ data }: { data: AdminContentsData }) {
     const k = bidQ.trim();
     return bids.filter((b) => (bidFilter === "전체" || b.status === bidFilter) && (!k || (b.name + b.org).includes(k)));
   }, [bidQ, bidFilter, bids]);
+
+  const productTotalPages = Math.max(1, Math.ceil(filtered.length / PRODUCT_PAGE_SIZE));
+  const safeProductPage = Math.min(productPage, productTotalPages);
+  const productPaged = filtered.slice((safeProductPage - 1) * PRODUCT_PAGE_SIZE, safeProductPage * PRODUCT_PAGE_SIZE);
+
+  const bidTotalPages = Math.max(1, Math.ceil(bidFiltered.length / BID_PAGE_SIZE));
+  const safeBidPage = Math.min(bidPage, bidTotalPages);
+  const bidPaged = bidFiltered.slice((safeBidPage - 1) * BID_PAGE_SIZE, safeBidPage * BID_PAGE_SIZE);
 
   return (
     <div style={{ width: "100%" }}>
@@ -94,7 +107,10 @@ export function ContentsView({ data }: { data: AdminContentsData }) {
               </span>
               <input
                 value={q}
-                onChange={(e) => setQ(e.target.value)}
+                onChange={(e) => {
+                  setQ(e.target.value);
+                  setProductPage(1);
+                }}
                 placeholder="업체명, 품명, 물품번호로 검색"
                 className="min-w-0 flex-1"
                 style={{
@@ -121,7 +137,7 @@ export function ContentsView({ data }: { data: AdminContentsData }) {
               ))}
             </div>
 
-            {filtered.map((p) => (
+            {productPaged.map((p) => (
               <div key={p.id} className="grid" style={{ gridTemplateColumns: GRID, borderTop: "1px solid rgba(210,210,215,0.1)" }}>
                 <div className="flex items-center" style={{ padding: "17.13px 24.4px" }}>
                   <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>{p.itemNo}</span>
@@ -160,12 +176,16 @@ export function ContentsView({ data }: { data: AdminContentsData }) {
             ))}
 
             <div className="flex items-center justify-center" style={{ gap: "4.88px", padding: "19.52px 0", borderTop: "1px solid rgba(210,210,215,0.1)" }}>
-              <button type="button" disabled className="flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "7.32px", background: "transparent", border: "none", cursor: "default" }} aria-label="이전">
+              <button type="button" disabled={safeProductPage <= 1} onClick={() => setProductPage((p) => Math.max(1, p - 1))} className="flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "7.32px", background: "transparent", border: "none", cursor: safeProductPage <= 1 ? "default" : "pointer" }} aria-label="이전">
                 <PrevChevron />
               </button>
-              <button type="button" className="flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "7.32px", background: "#1F2937", border: "none", cursor: "pointer", fontSize: "17.08px", fontWeight: 500, letterSpacing: "-0.2928px", color: "#FFFFFF" }}>1</button>
-              <button type="button" className="flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "7.32px", background: "transparent", border: "none", cursor: "pointer", fontSize: "17.08px", fontWeight: 500, letterSpacing: "-0.2928px", color: "#4B5563" }}>2</button>
-              <button type="button" className="flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "7.32px", background: "transparent", border: "none", cursor: "pointer" }} aria-label="다음">
+              {Array.from({ length: productTotalPages }, (_, idx) => idx + 1).map((n) => {
+                const active = n === safeProductPage;
+                return (
+                  <button key={n} type="button" onClick={() => setProductPage(n)} className="flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "7.32px", background: active ? "#1F2937" : "transparent", border: "none", cursor: "pointer", fontSize: "17.08px", fontWeight: 500, letterSpacing: "-0.2928px", color: active ? "#FFFFFF" : "#4B5563" }}>{n}</button>
+                );
+              })}
+              <button type="button" disabled={safeProductPage >= productTotalPages} onClick={() => setProductPage((p) => Math.min(productTotalPages, p + 1))} className="flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "7.32px", background: "transparent", border: "none", cursor: safeProductPage >= productTotalPages ? "default" : "pointer" }} aria-label="다음">
                 <NextChevron />
               </button>
             </div>
@@ -180,7 +200,10 @@ export function ContentsView({ data }: { data: AdminContentsData }) {
                 <button
                   key={label}
                   type="button"
-                  onClick={() => setBidFilter(label)}
+                  onClick={() => {
+                    setBidFilter(label);
+                    setBidPage(1);
+                  }}
                   className="flex items-center"
                   style={{
                     height: "41.5px",
@@ -206,7 +229,10 @@ export function ContentsView({ data }: { data: AdminContentsData }) {
               </span>
               <input
                 value={bidQ}
-                onChange={(e) => setBidQ(e.target.value)}
+                onChange={(e) => {
+                  setBidQ(e.target.value);
+                  setBidPage(1);
+                }}
                 placeholder="공고명 또는 요청 기관으로 검색"
                 className="w-full placeholder:font-medium placeholder:text-[#9CA3AF]"
                 style={{
@@ -239,8 +265,9 @@ export function ContentsView({ data }: { data: AdminContentsData }) {
               ))}
             </div>
 
-            {bidFiltered.map((b, i) => {
-              const isFirst = b === bids[0];
+            {bidPaged.map((b, i) => {
+              const expanded = expandedBidId === b.id;
+              const entries = data.bidEntries[b.id] ?? [];
               return (
                 <Fragment key={b.id}>
                   <div
@@ -249,7 +276,7 @@ export function ContentsView({ data }: { data: AdminContentsData }) {
                       gridTemplateColumns: BID_GRID,
                       minHeight: "60.63px",
                       ...(i > 0 ? { borderTop: "1px solid #F3F4F6" } : {}),
-                      ...(isFirst ? { background: "rgba(249,250,251,0.5)" } : {}),
+                      ...(expanded ? { background: "rgba(249,250,251,0.5)" } : {}),
                     }}
                   >
                     <div className="flex items-center" style={{ padding: "14.64px 19.52px" }}>
@@ -277,21 +304,21 @@ export function ContentsView({ data }: { data: AdminContentsData }) {
                       <button type="button" onClick={() => setBidDeleteTarget(b)} style={{ borderRadius: "4.88px", border: "none", background: "transparent", padding: "4.88px 9.76px", fontSize: "10px", fontWeight: 400, letterSpacing: "-0.2401px", lineHeight: "18px", color: "#9CA3AF", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>삭제</button>
                       <button
                         type="button"
-                        onClick={isFirst ? () => setBidExpanded((v) => !v) : undefined}
+                        onClick={() => setExpandedBidId((prev) => (prev === b.id ? null : b.id))}
                         className="flex items-center justify-center"
                         style={{ width: "24.39px", height: "24.39px", border: "none", background: "transparent", cursor: "pointer", flexShrink: 0 }}
-                        aria-label={isFirst && bidExpanded ? "접기" : "펼치기"}
+                        aria-label={expanded ? "접기" : "펼치기"}
                       >
-                        {isFirst && bidExpanded ? <ChevUpIcon /> : <ChevDownIcon />}
+                        {expanded ? <ChevUpIcon /> : <ChevDownIcon />}
                       </button>
                     </div>
                   </div>
 
-                  {isFirst && bidExpanded && (
+                  {expanded && (
                     <div style={{ borderTop: "1px solid #F3F4F6", background: "#F9FAFB", padding: "20.52px 29.28px 19.52px" }}>
                       <div className="flex items-center justify-between" style={{ marginBottom: "14.64px" }}>
                         <span style={{ fontSize: "14.64px", fontWeight: 700, letterSpacing: "-0.4099px", lineHeight: "19.52px", color: "#111827" }}>참여 업체 정보</span>
-                        <span style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#9CA3AF" }}>{`총 ${data.bidEntries.length}건 참여`}</span>
+                        <span style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#9CA3AF" }}>{`총 ${entries.length}건 참여`}</span>
                       </div>
                       <div style={{ background: "#fff", borderRadius: "9.76px", border: "1px solid #E5E7EB", overflow: "hidden" }}>
                         <div className="grid" style={{ gridTemplateColumns: ENTRY_GRID, background: "#F9FAFB" }}>
@@ -301,8 +328,8 @@ export function ContentsView({ data }: { data: AdminContentsData }) {
                             </div>
                           ))}
                         </div>
-                        {data.bidEntries.map((en, ei) => (
-                          <div key={en.company} className="grid" style={{ gridTemplateColumns: ENTRY_GRID, ...(ei > 0 ? { borderTop: "1px solid #F3F4F6" } : {}) }}>
+                        {entries.map((en, ei) => (
+                          <div key={en.responseId} className="grid" style={{ gridTemplateColumns: ENTRY_GRID, ...(ei > 0 ? { borderTop: "1px solid #F3F4F6" } : {}) }}>
                             <div className="flex items-center" style={{ padding: "12.2px 14.64px" }}>
                               <span style={{ fontSize: "14.64px", fontWeight: 500, letterSpacing: "-0.2196px", lineHeight: "19.52px", color: "#111827", whiteSpace: "nowrap" }}>{en.company}</span>
                             </div>
@@ -336,19 +363,21 @@ export function ContentsView({ data }: { data: AdminContentsData }) {
 
           <div style={{ paddingTop: "19.52px" }}>
             <div className="flex items-center justify-center" style={{ gap: "4.88px", padding: "19.52px 0" }}>
-              <button type="button" disabled className="flex items-center justify-center" style={{ width: "39.03px", height: "39.03px", borderRadius: "7.32px", background: "transparent", border: "none", cursor: "default" }} aria-label="이전">
+              <button type="button" disabled={safeBidPage <= 1} onClick={() => setBidPage((p) => Math.max(1, p - 1))} className="flex items-center justify-center" style={{ width: "39.03px", height: "39.03px", borderRadius: "7.32px", background: "transparent", border: "none", cursor: safeBidPage <= 1 ? "default" : "pointer" }} aria-label="이전">
                 <PrevChevron />
               </button>
-              <button type="button" className="flex items-center justify-center" style={{ width: "39.03px", height: "39.03px", borderRadius: "7.32px", background: "#1F2937", border: "none", cursor: "pointer", fontSize: "17.08px", fontWeight: 500, letterSpacing: "-0.2928px", color: "#FFFFFF" }}>1</button>
-              <button type="button" className="flex items-center justify-center" style={{ width: "39.03px", height: "39.03px", borderRadius: "7.32px", background: "transparent", border: "none", cursor: "pointer", fontSize: "17.08px", fontWeight: 500, letterSpacing: "-0.2928px", color: "#4B5563" }}>2</button>
-              <button type="button" className="flex items-center justify-center" style={{ width: "39.03px", height: "39.03px", borderRadius: "7.32px", background: "transparent", border: "none", cursor: "pointer", fontSize: "17.08px", fontWeight: 500, letterSpacing: "-0.2928px", color: "#4B5563" }}>3</button>
-              <button type="button" className="flex items-center justify-center" style={{ width: "39.03px", height: "39.03px", borderRadius: "7.32px", background: "transparent", border: "none", cursor: "pointer", fontSize: "17.08px", fontWeight: 500, letterSpacing: "-0.2928px", color: "#4B5563" }}>4</button>
-              <button type="button" className="flex items-center justify-center" style={{ width: "39.03px", height: "39.03px", borderRadius: "7.32px", background: "transparent", border: "none", cursor: "pointer" }} aria-label="다음">
+              {Array.from({ length: bidTotalPages }, (_, idx) => idx + 1).map((n) => {
+                const active = n === safeBidPage;
+                return (
+                  <button key={n} type="button" onClick={() => setBidPage(n)} className="flex items-center justify-center" style={{ width: "39.03px", height: "39.03px", borderRadius: "7.32px", background: active ? "#1F2937" : "transparent", border: "none", cursor: "pointer", fontSize: "17.08px", fontWeight: 500, letterSpacing: "-0.2928px", color: active ? "#FFFFFF" : "#4B5563" }}>{n}</button>
+                );
+              })}
+              <button type="button" disabled={safeBidPage >= bidTotalPages} onClick={() => setBidPage((p) => Math.min(bidTotalPages, p + 1))} className="flex items-center justify-center" style={{ width: "39.03px", height: "39.03px", borderRadius: "7.32px", background: "transparent", border: "none", cursor: safeBidPage >= bidTotalPages ? "default" : "pointer" }} aria-label="다음">
                 <NextChevron />
               </button>
             </div>
             <div className="flex items-center justify-between" style={{ paddingTop: "19.52px" }}>
-              <span style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#9CA3AF" }}>{`1 / 1 페이지`}</span>
+              <span style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#9CA3AF" }}>{`${safeBidPage} / ${bidTotalPages} 페이지`}</span>
               <span style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#9CA3AF" }}>{`총 ${bidFiltered.length}건`}</span>
             </div>
           </div>
@@ -379,7 +408,11 @@ export function ContentsView({ data }: { data: AdminContentsData }) {
         />
       )}
 
-      {quoteEntry && bids[0] && <QuoteDetailModal bid={bids[0]} entry={quoteEntry} onClose={() => setQuoteEntry(null)} />}
+      {quoteEntry &&
+        (() => {
+          const bid = bids.find((b) => b.id === quoteEntry.quoteId);
+          return bid ? <QuoteDetailModal bid={bid} entry={quoteEntry} onClose={() => setQuoteEntry(null)} /> : null;
+        })()}
     </div>
   );
 }
@@ -512,7 +545,7 @@ function QuoteDetailModal({ bid, entry, onClose }: { bid: BidRow; entry: BidEntr
 
           <div style={{ paddingTop: "24.4px" }}>
             <div className="flex" style={{ paddingTop: "9.76px", gap: "14.64px" }}>
-              <button type="button" className="flex flex-1 items-center justify-center" style={{ height: "54px", borderRadius: "14.64px", border: "none", background: "#1E3A5F", cursor: "pointer", gap: "7.32px" }}>
+              <button type="button" onClick={() => window.open(`/api/quotes/${entry.quoteId}/responses/${entry.responseId}/pdf`)} className="flex flex-1 items-center justify-center" style={{ height: "54px", borderRadius: "14.64px", border: "none", background: "#1E3A5F", cursor: "pointer", gap: "7.32px" }}>
                 <DownloadIcon />
                 <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#FFFFFF", whiteSpace: "nowrap" }}>견적서 다운로드</span>
               </button>

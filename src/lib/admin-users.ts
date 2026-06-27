@@ -30,6 +30,7 @@ export type SupplierDetail = {
   taxEmail: string;
   taxAddress: string;
   licenseFileName: string;
+  licenseFileUrl: string;
   certifications: string[];
   bankVerified: boolean;
   bankName: string;
@@ -93,6 +94,7 @@ export async function loadAdminUsers(): Promise<AdminUserRow[]> {
         taxEmail: dash(c.taxEmail),
         taxAddress: dash(decrypt(c.address)),
         licenseFileName: dash(c.businessLicenseFileUrl),
+        licenseFileUrl: c.businessLicenseFileUrl ?? "",
         certifications: c.certifications ?? [],
         bankVerified: c.bankVerifiedAt != null,
         bankName: dash(c.bankName),

@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { getSessionClaims } from "@/lib/auth/session";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -6,14 +5,34 @@ import { KakaoChat } from "@/components/kakao-chat";
 import { QuotesView } from "./quotes-view";
 import { QuoteRegisterButton } from "./quote-register-modal";
 import { loadQuotes } from "@/lib/quotes";
+import { prisma } from "@/lib/db";
+import { decrypt } from "@/lib/crypto/pii";
 
 export const dynamic = "force-dynamic";
 
 export default async function QuotesPage() {
   const claims = await getSessionClaims();
-  if (claims?.role === "SUPPLIER") redirect("/partner/quotes");
+  const isSupplier = claims?.role === "SUPPLIER";
   const isGuest = !claims;
   const { rows } = await loadQuotes(claims?.sub);
+
+  const official = claims?.sub
+    ? await prisma.user.findUnique({
+        where: { id: claims.sub },
+        select: {
+          phone: true,
+          departmentName: true,
+          position: true,
+          organization: { select: { name: true } },
+        },
+      })
+    : null;
+  const officialInfo = {
+    organizationName: official?.organization?.name ?? null,
+    departmentName: official?.departmentName ?? null,
+    position: decrypt(official?.position) ?? null,
+    contactPhone: decrypt(official?.phone) ?? null,
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">
@@ -30,10 +49,10 @@ export default async function QuotesPage() {
                 공고 등록부터 선정까지 전체 프로세스를 관리합니다
               </p>
             </div>
-            <QuoteRegisterButton disabled={isGuest} />
+            {!isSupplier && <QuoteRegisterButton disabled={isGuest} official={officialInfo} />}
           </div>
           <div style={{ marginTop: "48.8px", borderTop: "1px solid rgba(210,210,215,0.2)" }} />
-          <QuotesView quotes={rows} isGuest={isGuest} />
+          <QuotesView quotes={rows} isGuest={isGuest} browseOnly={isSupplier} />
         </div>
       </main>
       <SiteFooter />

@@ -53,7 +53,11 @@ export function ProposalDetailModal({ proposal, onClose, onChat }: { proposal: P
             <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "#1D1D1F" }}>{proposal.submittedAt}</span>
           </Row>
           <Row label="첨부 견적서" divider>
-            <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.3)" }}>{proposal.attachment}</span>
+            {proposal.attachmentUrl ? (
+              <a href={proposal.attachmentUrl} download target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", fontWeight: 500, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "#1E3A5F", textDecoration: "none" }}>{proposal.attachment}</a>
+            ) : (
+              <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.3)" }}>{proposal.attachment}</span>
+            )}
           </Row>
 
           <button type="button" onClick={onChat} className="inline-flex items-center justify-center w-full" style={{ gap: "7.32px", marginTop: "29.28px", borderRadius: "14.64px", background: NAVY, border: "none", padding: "12.2px 0", cursor: "pointer" }}>

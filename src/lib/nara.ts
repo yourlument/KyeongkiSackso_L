@@ -36,7 +36,7 @@ export async function searchNaraLive(q: string): Promise<NaraResult[] | null> {
     url.searchParams.set("pageNo", "1");
     if (q) {
       const t = q.trim();
-      const param = /^\d+$/.test(t) ? "prdctIdntNo" : process.env.NARA_QUERY_PARAM || "prdctClsfcNoNm";
+      const param = /^\d+$/.test(t) ? "prdctIdntNo" : "krnPrdctNm";
       url.searchParams.set(param, t);
     }
 

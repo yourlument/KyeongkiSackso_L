@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   type ProductRequest,
@@ -237,9 +237,16 @@ function ProductRequestDetail({ row }: { row: ProductRequest }) {
       ))}
       <div style={{ paddingTop: "9.76px" }}>
         <p style={{ width: "98px", fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#9CA3AF", margin: "2.44px 0 9.76px" }}>첨부파일</p>
-        <div className="flex items-center" style={{ gap: "9.76px", borderRadius: "9.76px", border: "1px solid #E5E7EB", background: "#fff", padding: "10.76px 15.64px" }}>
-          <span style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "#374151" }}>{row.detail.attachment}</span>
-        </div>
+        {row.detail.attachmentUrl ? (
+          <a href={row.detail.attachmentUrl} download target="_blank" rel="noopener noreferrer" className="flex items-center justify-between" style={{ gap: "9.76px", borderRadius: "9.76px", border: "1px solid #E5E7EB", background: "#fff", padding: "10.76px 15.64px", textDecoration: "none", cursor: "pointer" }}>
+            <span style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "#374151" }}>{row.detail.attachment}</span>
+            <span style={{ fontSize: "11px", fontWeight: 500, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "#1E3A5F", whiteSpace: "nowrap" }}>다운로드</span>
+          </a>
+        ) : (
+          <div className="flex items-center" style={{ gap: "9.76px", borderRadius: "9.76px", border: "1px solid #E5E7EB", background: "#fff", padding: "10.76px 15.64px" }}>
+            <span style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "#374151" }}>{row.detail.attachment}</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -247,8 +254,6 @@ function ProductRequestDetail({ row }: { row: ProductRequest }) {
 
 function AnnouncementTab({ announcements, proposals, subTab, setSubTab, onSubmit }: { announcements: AnnouncementRow[]; proposals: Proposal[]; subTab: SubTab; setSubTab: (v: SubTab) => void; onSubmit: (r: AnnouncementRow) => void }) {
   const [page, setPage] = useState(1);
-  const visible = useMemo(() => announcements, [announcements]);
-  void page;
 
   return (
     <>
@@ -275,7 +280,7 @@ function AnnouncementTab({ announcements, proposals, subTab, setSubTab, onSubmit
       </div>
 
       {subTab === "list" ? (
-        <AnnouncementList rows={visible} page={page} setPage={setPage} onSubmit={onSubmit} />
+        <AnnouncementList rows={announcements} page={page} setPage={setPage} onSubmit={onSubmit} />
       ) : (
         <ProposalStatus proposals={proposals} />
       )}
@@ -285,7 +290,16 @@ function AnnouncementTab({ announcements, proposals, subTab, setSubTab, onSubmit
 
 const AN_GRID = "465px 185px 157px 105px 74px 141px";
 
+const PAGE_SIZE = 10;
+
 function AnnouncementList({ rows, page, setPage, onSubmit }: { rows: AnnouncementRow[]; page: number; setPage: (n: number) => void; onSubmit: (r: AnnouncementRow) => void }) {
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageRows = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const pageNumbers: number[] = [];
+  for (let i = 1; i <= totalPages; i++) pageNumbers.push(i);
+
   return (
     <div style={{ borderRadius: "19.52px", background: "#fff", border: "1px solid rgba(210,210,215,0.2)", overflow: "hidden" }}>
       <div style={{ padding: "14.64px 24.4px 15.64px", borderBottom: "1px solid #F3F4F6" }}>
@@ -298,7 +312,7 @@ function AnnouncementList({ rows, page, setPage, onSubmit }: { rows: Announcemen
           </div>
         ))}
       </div>
-      {rows.map((r, i) => (
+      {pageRows.map((r) => (
         <div key={r.id} className="grid items-center" style={{ gridTemplateColumns: AN_GRID, borderTop: "1px solid #F3F4F6" }}>
           <div style={{ padding: "14.64px 19.52px", minWidth: 0 }}>
             <p style={{ fontSize: "14.64px", fontWeight: 500, letterSpacing: "-0.2196px", lineHeight: "19.52px", color: "#111827", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.title}</p>
@@ -324,15 +338,15 @@ function AnnouncementList({ rows, page, setPage, onSubmit }: { rows: Announcemen
         </div>
       ))}
       <div className="flex items-center justify-center" style={{ gap: "4.88px", padding: "19.52px 0", borderTop: "1px solid #F3F4F6" }}>
-        <button type="button" aria-label="이전" onClick={() => setPage(Math.max(1, page - 1))} className="inline-flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "7.32px", border: "none", background: "none", cursor: "pointer" }}>
+        <button type="button" aria-label="이전" onClick={() => setPage(Math.max(1, safePage - 1))} className="inline-flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "7.32px", border: "none", background: "none", cursor: "pointer" }}>
           <PageArrowIcon dir="left" />
         </button>
-        {[1, 2, 3].map((n) => (
-          <button key={n} type="button" onClick={() => setPage(n)} className="inline-flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "7.32px", border: "none", cursor: "pointer", background: page === n ? "#1F2937" : "transparent", fontSize: "17.08px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "24.4px", color: page === n ? "#fff" : "#4B5563" }}>
+        {pageNumbers.map((n) => (
+          <button key={n} type="button" onClick={() => setPage(n)} className="inline-flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "7.32px", border: "none", cursor: "pointer", background: safePage === n ? "#1F2937" : "transparent", fontSize: "17.08px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "24.4px", color: safePage === n ? "#fff" : "#4B5563" }}>
             {n}
           </button>
         ))}
-        <button type="button" aria-label="다음" onClick={() => setPage(Math.min(3, page + 1))} className="inline-flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "7.32px", border: "none", background: "none", cursor: "pointer" }}>
+        <button type="button" aria-label="다음" onClick={() => setPage(Math.min(totalPages, safePage + 1))} className="inline-flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "7.32px", border: "none", background: "none", cursor: "pointer" }}>
           <PageArrowIcon dir="right" />
         </button>
       </div>
@@ -354,10 +368,10 @@ function ProposalStatus({ proposals }: { proposals: Proposal[] }) {
     <>
       <div className="flex flex-col" style={{ gap: "14.64px" }}>
         {proposals.map((p) => (
-          <ProposalCard key={p.id} p={p} onView={() => setDetailFor(p)} onChat={() => router.push("/partner/quotes/chat")} />
+          <ProposalCard key={p.id} p={p} onView={() => setDetailFor(p)} onChat={() => router.push(`/partner/quotes/chat?request=${p.quoteRequestId}`)} />
         ))}
       </div>
-      {detailFor && <ProposalDetailModal proposal={detailFor} onClose={() => setDetailFor(null)} onChat={() => router.push("/partner/quotes/chat")} />}
+      {detailFor && <ProposalDetailModal proposal={detailFor} onClose={() => setDetailFor(null)} onChat={() => router.push(`/partner/quotes/chat?request=${detailFor.quoteRequestId}`)} />}
     </>
   );
 }

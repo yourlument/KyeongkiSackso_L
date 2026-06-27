@@ -13,8 +13,6 @@ import {
   EyeIcon,
   LikeIcon,
   DislikeIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
 } from "./info-icons";
 
 const NAVY = "#1E3A5F";
@@ -114,40 +112,8 @@ export function InfoListView({ posts: allPosts, hotPosts }: { posts: InfoPost[];
           <PostCard key={p.id} post={p} />
         ))}
       </div>
-
-      <div className="flex items-center justify-center" style={{ gap: "4.88px", padding: "19.52px 0" }}>
-        <button type="button" aria-label="이전" style={pageBtn(false)}>
-          <span style={{ color: "#D1D5DB" }}><ChevronLeftIcon /></span>
-        </button>
-        {[1, 2, 3].map((n) => (
-          <button
-            key={n}
-            type="button"
-            style={{ ...pageBtn(n === 1), color: n === 1 ? "#fff" : "#4B5563", fontSize: "17.08px", fontWeight: 500, letterSpacing: "-0.293px" }}
-          >
-            {n}
-          </button>
-        ))}
-        <button type="button" aria-label="다음" style={pageBtn(false)}>
-          <span style={{ color: "#4B5563" }}><ChevronRightIcon /></span>
-        </button>
-      </div>
     </div>
   );
-}
-
-function pageBtn(active: boolean): React.CSSProperties {
-  return {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "39px",
-    height: "39px",
-    borderRadius: "7.32px",
-    background: active ? "#1F2937" : "transparent",
-    border: "none",
-    cursor: "pointer",
-  };
 }
 
 function HotRow({ post, bg, first }: { post: InfoHotPost; bg: string; first: boolean }) {

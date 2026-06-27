@@ -9,20 +9,36 @@ type Quote = QuoteRow;
 
 const STATUS_FILTERS: Array<"전체" | Status> = ["전체", "견적공고중", "견적검토중", "선정완료", "마감"];
 const GRID = "minmax(0,1fr) 214px 127px 130px 64px 110px 24px";
+const SORTS = [
+  { key: "latest", label: "최신순" },
+  { key: "deadline", label: "마감임박순" },
+] as const;
+type SortKey = (typeof SORTS)[number]["key"];
+const PER_PAGE = 10;
 
-export function QuotesView({ quotes, isGuest = false }: { quotes: QuoteRow[]; isGuest?: boolean }) {
+export function QuotesView({ quotes, isGuest = false, browseOnly = false }: { quotes: QuoteRow[]; isGuest?: boolean; browseOnly?: boolean }) {
   const router = useRouter();
-  const [mine, setMine] = useState(!isGuest);
+  const [mine, setMine] = useState(!isGuest && !browseOnly);
   const [statusF, setStatusF] = useState<"전체" | Status>("전체");
   const [q, setQ] = useState("");
+  const [sort, setSort] = useState<SortKey>("latest");
+  const [page, setPage] = useState(1);
   const [loginPrompt, setLoginPrompt] = useState(false);
 
   const rows = useMemo(() => {
-    return quotes
+    const filtered = quotes
       .filter((r) => (mine ? r.mine : true))
       .filter((r) => (statusF === "전체" ? true : r.status === statusF))
       .filter((r) => (q.trim() ? (r.title + r.org + r.items).includes(q.trim()) : true));
-  }, [quotes, mine, statusF, q]);
+    if (sort === "deadline") {
+      return [...filtered].sort((a, b) => a.deadline.localeCompare(b.deadline));
+    }
+    return filtered;
+  }, [quotes, mine, statusF, q, sort]);
+
+  const pageCount = Math.max(1, Math.ceil(rows.length / PER_PAGE));
+  const cur = Math.min(page, pageCount);
+  const paged = rows.slice((cur - 1) * PER_PAGE, cur * PER_PAGE);
 
   function openRow(id: string) {
     if (isGuest) { setLoginPrompt(true); return; }
@@ -32,8 +48,8 @@ export function QuotesView({ quotes, isGuest = false }: { quotes: QuoteRow[]; is
   return (
     <div style={{ marginTop: "39.04px" }}>
       <div className="flex items-center" style={{ gap: "9.76px", marginBottom: "16px" }}>
-        <Toggle active={isGuest ? true : !mine} onClick={() => setMine(false)}>전체</Toggle>
-        {!isGuest && <Toggle active={mine} onClick={() => setMine(true)}>내가 쓴 글</Toggle>}
+        <Toggle active={isGuest || browseOnly ? true : !mine} onClick={() => { setMine(false); setPage(1); }}>전체</Toggle>
+        {!isGuest && !browseOnly && <Toggle active={mine} onClick={() => { setMine(true); setPage(1); }}>내가 쓴 글</Toggle>}
       </div>
 
       <div className="flex items-center" style={{ gap: "9.76px", marginBottom: "16px" }}>
@@ -41,14 +57,23 @@ export function QuotesView({ quotes, isGuest = false }: { quotes: QuoteRow[]; is
           <SearchIcon />
           <input
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => { setQ(e.target.value); setPage(1); }}
             placeholder="공고명, 요청기관, 품목으로 검색"
             className="flex-1 placeholder:text-[#1d1d1f]/30 placeholder:font-medium"
             style={{ border: "none", outline: "none", background: "transparent", fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", color: "#1D1D1F" }}
           />
         </div>
-        <div className="flex items-center justify-center" style={{ height: "49px", padding: "0 16px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.3)", background: "#fff", fontSize: "13px", color: "#1D1D1F" }}>
-          최신순 <span style={{ marginLeft: "6px", color: "#000000" }}>▾</span>
+        <div className="relative flex items-center" style={{ height: "49px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.3)", background: "#fff" }}>
+          <select
+            value={sort}
+            onChange={(e) => { setSort(e.target.value as SortKey); setPage(1); }}
+            aria-label="정렬"
+            className="h-full cursor-pointer appearance-none outline-none"
+            style={{ background: "transparent", border: "none", padding: "0 32px 0 16px", fontSize: "13px", color: "#1D1D1F" }}
+          >
+            {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+          </select>
+          <span style={{ position: "absolute", right: "13px", color: "#000000", pointerEvents: "none" }}>▾</span>
         </div>
       </div>
 
@@ -56,7 +81,7 @@ export function QuotesView({ quotes, isGuest = false }: { quotes: QuoteRow[]; is
         {STATUS_FILTERS.map((s) => {
           const active = statusF === s;
           return (
-            <button key={s} type="button" onClick={() => setStatusF(s)} style={{ borderRadius: "9999px", padding: "7px 14px", fontSize: "12px", fontWeight: 500, letterSpacing: "-0.2928px", border: "none", cursor: "pointer", background: active ? "#1D1D1F" : "transparent", color: active ? "#fff" : "rgba(29,29,31,0.5)" }}>
+            <button key={s} type="button" onClick={() => { setStatusF(s); setPage(1); }} style={{ borderRadius: "9999px", padding: "7px 14px", fontSize: "12px", fontWeight: 500, letterSpacing: "-0.2928px", border: "none", cursor: "pointer", background: active ? "#1D1D1F" : "transparent", color: active ? "#fff" : "rgba(29,29,31,0.5)" }}>
               {s}
             </button>
           );
@@ -71,7 +96,7 @@ export function QuotesView({ quotes, isGuest = false }: { quotes: QuoteRow[]; is
         </div>
         {rows.length === 0 ? (
           <div style={{ padding: "60px 0", textAlign: "center", color: "rgba(29,29,31,0.4)", fontSize: "14px" }}>해당 조건의 견적 공고가 없습니다.</div>
-        ) : rows.map((r, i) => (
+        ) : paged.map((r, i) => (
           <button
             key={r.id}
             type="button"
@@ -93,13 +118,15 @@ export function QuotesView({ quotes, isGuest = false }: { quotes: QuoteRow[]; is
         ))}
       </div>
 
-      <div className="flex items-center justify-center" style={{ gap: "4.88px", marginTop: "29.28px" }}>
-        <span style={{ color: "rgba(29,29,31,0.3)", fontSize: "13px" }}>‹</span>
-        {[1, 2, 3, 4].map((n) => (
-          <span key={n} className="flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "7.32px", fontSize: "17.08px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "24.4px", background: n === 1 ? "#1F2937" : "transparent", color: n === 1 ? "#fff" : "#4B5563" }}>{n}</span>
-        ))}
-        <span style={{ color: "rgba(29,29,31,0.3)", fontSize: "13px" }}>›</span>
-      </div>
+      {pageCount > 1 && (
+        <div className="flex items-center justify-center" style={{ gap: "4.88px", marginTop: "29.28px" }}>
+          <button type="button" aria-label="이전" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={cur <= 1} style={{ background: "none", border: "none", color: "rgba(29,29,31,0.3)", fontSize: "13px", cursor: cur <= 1 ? "default" : "pointer", opacity: cur <= 1 ? 0.4 : 1 }}>‹</button>
+          {Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
+            <button key={n} type="button" onClick={() => setPage(n)} className="flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "7.32px", border: "none", cursor: "pointer", fontSize: "17.08px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "24.4px", background: n === cur ? "#1F2937" : "transparent", color: n === cur ? "#fff" : "#4B5563" }}>{n}</button>
+          ))}
+          <button type="button" aria-label="다음" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={cur >= pageCount} style={{ background: "none", border: "none", color: "rgba(29,29,31,0.3)", fontSize: "13px", cursor: cur >= pageCount ? "default" : "pointer", opacity: cur >= pageCount ? 0.4 : 1 }}>›</button>
+        </div>
+      )}
 
       {loginPrompt && (
         <div onClick={() => setLoginPrompt(false)} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>

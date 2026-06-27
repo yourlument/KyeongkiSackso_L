@@ -827,6 +827,7 @@ enum NotificationType {
   INFO_COMMENT
   QUOTE_AWARDED
   ORDER_STATUS
+  CHAT
   SYSTEM
 }
 

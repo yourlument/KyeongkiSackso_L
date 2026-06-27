@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { BellIcon, BagIcon } from "@/components/icons";
-import { NotificationPopup } from "@/components/notification-popup";
+import { NotificationPopup, type NotiItem } from "@/components/notification-popup";
 
 const NAV_BASE = [
   { label: "검색", href: "/search" },
@@ -14,18 +15,59 @@ const NAV_INFO = { label: "정보공유", href: "/info" };
 const NAV_NEWS = { label: "소식", href: "/news" };
 
 type Auth = { authenticated: boolean; role: string | null };
+type NotiResponse = { items: NotiItem[]; unreadCount: number };
 
 const NAV_SUPPLIER = [
   { label: "검색", href: "/search" },
-  { label: "견적요청", href: "/partner/quotes" },
+  { label: "견적요청", href: "/quotes" },
   { label: "수요게시판", href: "/community" },
   NAV_NEWS,
 ];
 
 export function SiteHeader({ variant = "official" }: { variant?: "official" | "supplier" } = {}) {
+  const router = useRouter();
   const [notiOpen, setNotiOpen] = useState(false);
   const [auth, setAuth] = useState<Auth | null>(null);
+  const [notis, setNotis] = useState<NotiItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [cartCount, setCartCount] = useState(0);
   const notiRef = useRef<HTMLDivElement>(null);
+
+  const loadCart = useCallback(() => {
+    fetch("/api/cart", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((d) => setCartCount(Array.isArray(d?.items) ? d.items.length : 0))
+      .catch(() => {});
+  }, []);
+  const lastNotiIdRef = useRef<string | null>(null);
+  const notiInitRef = useRef(false);
+
+  function maybeNotifyBrowser(items: NotiItem[]) {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission !== "granted") return;
+    if (items.length === 0) return;
+    if (!notiInitRef.current) {
+      lastNotiIdRef.current = items[0].id;
+      notiInitRef.current = true;
+      return;
+    }
+    const lastId = lastNotiIdRef.current;
+    const fresh: NotiItem[] = [];
+    for (const it of items) {
+      if (it.id === lastId) break;
+      if (it.unread) fresh.push(it);
+    }
+    lastNotiIdRef.current = items[0].id;
+    for (const it of fresh.slice(0, 3).reverse()) {
+      try {
+        const n = new Notification(it.title, { body: it.body, icon: "/korlink-logo.svg" });
+        const target = it.link;
+        if (target) {
+          n.onclick = () => { window.focus(); window.location.href = target; };
+        }
+      } catch {}
+    }
+  }
 
   useEffect(() => {
     let alive = true;
@@ -33,8 +75,44 @@ export function SiteHeader({ variant = "official" }: { variant?: "official" | "s
       .then((r) => r.json())
       .then((d: Auth) => { if (alive) setAuth(d); })
       .catch(() => { if (alive) setAuth({ authenticated: false, role: null }); });
+    fetch("/api/notifications", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: NotiResponse) => {
+        if (alive) { setNotis(d.items ?? []); setUnreadCount(d.unreadCount ?? 0); maybeNotifyBrowser(d.items ?? []); }
+      })
+      .catch(() => {});
     return () => { alive = false; };
   }, []);
+
+  useEffect(() => {
+    loadCart();
+    window.addEventListener("cart:changed", loadCart);
+    return () => window.removeEventListener("cart:changed", loadCart);
+  }, [loadCart, auth?.authenticated]);
+
+  useEffect(() => {
+    if (!notiOpen) return;
+    let alive = true;
+    fetch("/api/notifications", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: NotiResponse) => { if (alive) { setNotis(d.items ?? []); setUnreadCount(d.unreadCount ?? 0); } })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [notiOpen]);
+
+  useEffect(() => {
+    if (!auth?.authenticated) return;
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+    const t = setInterval(() => {
+      fetch("/api/notifications", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((d: NotiResponse) => { setUnreadCount(d.unreadCount ?? 0); setNotis(d.items ?? []); maybeNotifyBrowser(d.items ?? []); })
+        .catch(() => {});
+    }, 20000);
+    return () => clearInterval(t);
+  }, [auth?.authenticated]);
 
   useEffect(() => {
     if (!notiOpen) return;
@@ -50,9 +128,40 @@ export function SiteHeader({ variant = "official" }: { variant?: "official" | "s
     };
   }, [notiOpen]);
 
+  function handleOpenSettings() {
+    setNotiOpen(false);
+    router.push("/mypage");
+  }
+
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
     window.location.href = "/";
+  }
+
+  async function handleReadAll() {
+    setNotis((prev) => prev.map((n) => ({ ...n, unread: false })));
+    setUnreadCount(0);
+    await fetch("/api/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    }).catch(() => {});
+  }
+
+  async function handleNotiClick(item: NotiItem) {
+    if (item.unread) {
+      setNotis((prev) => prev.map((n) => (n.id === item.id ? { ...n, unread: false } : n)));
+      setUnreadCount((c) => Math.max(0, c - 1));
+      await fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id }),
+      }).catch(() => {});
+    }
+    if (item.link) {
+      setNotiOpen(false);
+      window.location.href = item.link;
+    }
   }
 
   const supplier = variant === "supplier";
@@ -65,17 +174,17 @@ export function SiteHeader({ variant = "official" }: { variant?: "official" | "s
 
   return (
     <header className="sticky top-0 z-40 h-[61px] border-b border-line bg-surface">
-      <div className="flex h-[60px] items-center justify-between px-[48.8px]">
+      <div className="flex h-[60px] items-center justify-between px-[24px] md:px-[48.8px]">
         <Link href="/" aria-label="KORLINK 홈" className="flex items-center">
           <img src="/korlink-logo.svg" alt="KORLINK" className="h-[36px] w-auto" />
         </Link>
 
-        <nav className="hidden items-center gap-[4.88px] md:flex">
+        <nav className="hidden items-center gap-[4.88px] lg:flex">
           {nav.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="rounded-full px-[14.64px] py-[7.32px] text-[14px] font-medium tracking-[-0.21px] text-ink/70 transition-colors hover:bg-field"
+              className="whitespace-nowrap rounded-full px-[14.64px] py-[7.32px] text-[14px] font-medium tracking-[-0.21px] text-ink/70 transition-colors hover:bg-field"
             >
               {item.label}
             </Link>
@@ -85,13 +194,25 @@ export function SiteHeader({ variant = "official" }: { variant?: "official" | "s
         <div className="flex items-center gap-[9.76px]">
           {supplier ? (
             <span className="text-[14px] font-normal tracking-[-0.21px] text-ink/60">공급업체</span>
+          ) : auth?.role === "SUPPLIER" ? (
+            <Link
+              href="/partner"
+              className="whitespace-nowrap rounded-full bg-navy px-[19.52px] py-[7.32px] text-[14px] font-medium tracking-[-0.21px] text-white transition-colors hover:bg-navy-hover"
+            >
+              관리 화면으로 이동
+            </Link>
           ) : (
             <Link
               href="/cart"
               aria-label="장바구니"
-              className="flex h-[39px] w-[39px] items-center justify-center rounded-full text-ink/60 hover:bg-field"
+              className="relative flex h-[39px] w-[39px] items-center justify-center rounded-full text-ink/60 hover:bg-field"
             >
               <BagIcon width={23} height={23} />
+              {cartCount > 0 && (
+                <span className="absolute right-0 top-0 flex h-[19.52px] min-w-[19.52px] items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold leading-none text-white">
+                  {cartCount > 99 ? "99+" : cartCount}
+                </span>
+              )}
             </Link>
           )}
           <div ref={notiRef} className="relative">
@@ -104,11 +225,15 @@ export function SiteHeader({ variant = "official" }: { variant?: "official" | "s
               className="relative flex h-[39px] w-[39px] items-center justify-center rounded-full text-[#6B7280] hover:bg-field"
             >
               <BellIcon width={23} height={23} />
-              <span className="absolute right-0 top-0 flex h-[19.52px] min-w-[19.52px] items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold leading-none text-white">
-                3
-              </span>
+              {unreadCount > 0 && (
+                <span className="absolute right-0 top-0 flex h-[19.52px] min-w-[19.52px] items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold leading-none text-white">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
             </button>
-            {notiOpen && <NotificationPopup />}
+            {notiOpen && (
+              <NotificationPopup items={notis} onReadAll={handleReadAll} onItemClick={handleNotiClick} onOpenSettings={handleOpenSettings} />
+            )}
           </div>
 
           {supplier || loggedIn ? (
@@ -132,7 +257,7 @@ export function SiteHeader({ variant = "official" }: { variant?: "official" | "s
           ) : (
             <Link
               href="/login"
-              className="rounded-full bg-navy px-[19.52px] py-[7.32px] text-[14px] font-medium tracking-[-0.21px] text-white transition-colors hover:bg-navy-hover"
+              className="shrink-0 whitespace-nowrap rounded-full bg-navy px-[19.52px] py-[7.32px] text-[14px] font-medium tracking-[-0.21px] text-white transition-colors hover:bg-navy-hover"
             >
               로그인
             </Link>

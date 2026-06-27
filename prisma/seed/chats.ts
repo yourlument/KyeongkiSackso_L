@@ -191,6 +191,24 @@ export async function seedChats(prisma: PrismaClient, ctx: SeedCtx): Promise<str
     },
   ];
 
+  const roadResponder = await prisma.quoteResponse.findFirst({
+    where: { quoteRequestId: qRoad.id, supplierCompany: { name: "경기건설(주)" } },
+    select: { supplierCompanyId: true },
+  });
+  if (roadResponder) {
+    THREADS.push({
+      id: "chat-5",
+      quote: qRoad,
+      supplierCompanyId: roadResponder.supplierCompanyId,
+      messages: [
+        { id: "msg-5-0", from: "SYSTEM", body: CHAT_SYSTEM_NOTE, at: "2026-05-09T09:30:00", isRead: true },
+        { id: "msg-5-1", from: "SUPPLIER", body: "안녕하세요. 도로보수 자재 견적 제출했습니다. 아스콘·경계석 모두 당일 납품 가능합니다.", at: "2026-05-09T09:31:00", isRead: true },
+        { id: "msg-5-2", from: "OFFICIAL", body: "견적 확인했습니다. 아스콘 KS 인증 규격 맞는지 확인 부탁드립니다.", at: "2026-05-09T10:05:00", isRead: false },
+        { id: "msg-5-3", from: "SUPPLIER", body: "네, KS F 2349 인증 자재입니다. 시험성적서 함께 제출하겠습니다.", at: "2026-05-09T10:20:00", isRead: true },
+      ],
+    });
+  }
+
   let threadCount = 0;
   let messageCount = 0;
   for (const t of THREADS) {

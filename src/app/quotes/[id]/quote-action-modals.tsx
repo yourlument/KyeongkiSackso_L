@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { embedPostcode, type DaumPostcodeResult } from "@/lib/daum-postcode";
+import type { QuoteDetailData, QuoteDetailProposal } from "@/lib/quotes";
 
 const NAVY = "#1E3A5F";
 const TEXT = "#1D1D1F";
@@ -42,11 +44,38 @@ const editInput: React.CSSProperties = {
   padding: "13.19px 20.52px", fontSize: "14px", fontWeight: 400, letterSpacing: "-0.293px", color: TEXT, outline: "none",
 };
 
-export function EditNoticeModal({ onClose }: { onClose: () => void }) {
-  const [title, setTitle] = useState("수지 보강 프로젝트 발전기 및 베어링 구매");
-  const [budget, setBudget] = useState("15000000");
-  const [dueDate, setDueDate] = useState("");
-  const [delivery, setDelivery] = useState("상차도");
+function toDateInput(value: string): string {
+  const m = value.match(/(\d{4})[.\-/\s]+(\d{1,2})[.\-/\s]+(\d{1,2})/);
+  if (!m) return "";
+  return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+}
+
+export function EditNoticeModal({ onClose, quoteId, title: initialTitle, budget: initialBudget, dueDate: initialDueDate, deliveryCondition }: { onClose: () => void; quoteId: string; title: string; budget: number | null; dueDate: string; deliveryCondition: string }) {
+  const router = useRouter();
+  const [title, setTitle] = useState(initialTitle);
+  const [budget, setBudget] = useState(initialBudget != null ? String(initialBudget) : "");
+  const [dueDate, setDueDate] = useState(toDateInput(initialDueDate));
+  const [delivery, setDelivery] = useState(deliveryCondition && deliveryCondition !== "-" ? deliveryCondition : "");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/quotes/${quoteId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          budget: budget === "" ? null : Number(budget),
+          dueDate,
+          deliveryCondition: delivery,
+        }),
+      });
+      if (!res.ok) { const d = await res.json() as { error?: string }; alert(d.error ?? "저장 중 오류"); return; }
+      onClose();
+      router.refresh();
+    } finally { setSaving(false); }
+  }
 
   return (
     <Overlay onClose={onClose} width="625px">
@@ -70,55 +99,39 @@ export function EditNoticeModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="flex items-center" style={{ gap: "14.64px", marginTop: "9.76px" }}>
           <button type="button" onClick={onClose} style={outlineBtn()}>취소</button>
-          <button type="button" onClick={onClose} style={primaryBtn()}>저장</button>
+          <button type="button" onClick={handleSave} disabled={saving || title.trim() === ""}
+            style={{ ...primaryBtn(), background: saving || title.trim() === "" ? "rgba(30,58,95,0.4)" : NAVY, cursor: saving || title.trim() === "" ? "default" : "pointer" }}>
+            {saving ? "저장 중..." : "저장"}
+          </button>
         </div>
       </div>
     </Overlay>
   );
 }
 
-const PREVIEW_ROWS: Array<[string, React.ReactNode]> = [
-  ["업체명", <span key="v" style={{ fontSize: "14px", fontWeight: 600, letterSpacing: "-0.21px", lineHeight: "25.2px", color: TEXT }}>기계공업(주)</span>],
-  ["연락처", <span key="v" style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.7)" }}>031-123-4567</span>],
-  ["제안 금액", <span key="v" style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "-0.24px", lineHeight: "28.8px", color: TEXT }}>14,800,000원</span>],
-  ["규격 요약", <span key="v" style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.7)", textAlign: "right" }}>발전기 100kW 2대, 베어링 500개, 설치 포함</span>],
-  ["상태", <span key="v" style={{ display: "inline-flex", alignItems: "center", borderRadius: "9999px", background: "rgba(29,29,31,0.05)", border: "1px solid rgba(210,210,215,0.2)", padding: "3.44px 10.76px", fontSize: "11px", fontWeight: 500, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.6)" }}>접수</span>],
-  ["제출일", <span key="v" style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.7)" }}>2026-05-09</span>],
-];
-
-function downloadQuote() {
-  const content = [
-    "견적서",
-    "업체명: 기계공업(주)",
-    "연락처: 031-123-4567",
-    "제안 금액: 14,800,000원",
-    "규격 요약: 발전기 100kW 2대, 베어링 500개, 설치 포함",
-    "상태: 접수",
-    "제출일: 2026-05-09",
-    "",
-    "공고 정보",
-    "수지 보강 프로젝트 발전기 및 베어링 구매",
-    "요청 기관: 경기도 화성시 화폐과",
-    "예산 15,000,000원 · 마감 2026. 06. 20",
-  ].join("\n");
-  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "견적서_기계공업.txt";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+function buildPreviewRows(proposal: QuoteDetailProposal): Array<[string, React.ReactNode]> {
+  return [
+    ["업체명", <span key="v" style={{ fontSize: "14px", fontWeight: 600, letterSpacing: "-0.21px", lineHeight: "25.2px", color: TEXT }}>{proposal.company}</span>],
+    ["연락처", <span key="v" style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.7)" }}>{proposal.phone}</span>],
+    ["제안 금액", <span key="v" style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "-0.24px", lineHeight: "28.8px", color: TEXT }}>{proposal.totalAmount}</span>],
+    ["규격 요약", <span key="v" style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.7)", textAlign: "right" }}>{proposal.specSummary}</span>],
+    ["상태", <span key="v" style={{ display: "inline-flex", alignItems: "center", borderRadius: "9999px", background: "rgba(29,29,31,0.05)", border: "1px solid rgba(210,210,215,0.2)", padding: "3.44px 10.76px", fontSize: "11px", fontWeight: 500, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.6)" }}>{proposal.statusLabel}</span>],
+    ["제출일", <span key="v" style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.7)" }}>{proposal.submittedAt}</span>],
+  ];
 }
 
-export function QuotePreviewModal({ onClose }: { onClose: () => void }) {
+function downloadQuote(quoteId: string, proposal: QuoteDetailProposal) {
+  window.open(`/api/quotes/${quoteId}/responses/${proposal.id}/pdf`, "_blank", "noopener");
+}
+
+export function QuotePreviewModal({ onClose, proposal, quote }: { onClose: () => void; proposal: QuoteDetailProposal; quote: QuoteDetailData }) {
+  const rows = buildPreviewRows(proposal);
   return (
     <Overlay onClose={onClose} width="547px">
       <ModalHeader title="견적서 미리보기" onClose={onClose} />
       <div style={{ overflowY: "auto" }}>
         <div style={{ borderRadius: "19.52px", border: "1px solid rgba(210,210,215,0.2)", padding: "20.52px" }}>
-          {PREVIEW_ROWS.map(([label, value], i) => (
+          {rows.map(([label, value], i) => (
             <div key={label} className="flex items-start justify-between" style={{ gap: "16px", padding: i === 0 ? "0" : "12.2px 0 0" }}>
               <span style={{ flexShrink: 0, fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.5)" }}>{label}</span>
               <span style={{ textAlign: "right" }}>{value}</span>
@@ -126,14 +139,14 @@ export function QuotePreviewModal({ onClose }: { onClose: () => void }) {
           ))}
           <div style={{ borderTop: "1px solid rgba(210,210,215,0.15)", marginTop: "12.2px", paddingTop: "15.64px" }}>
             <p style={{ fontSize: "12px", fontWeight: 600, letterSpacing: "-0.18px", color: "rgba(29,29,31,0.4)", margin: "0 0 9.76px" }}>공고 정보</p>
-            <p style={{ fontSize: "14px", fontWeight: 600, letterSpacing: "-0.21px", color: TEXT, margin: "0 0 7.32px" }}>수지 보강 프로젝트 발전기 및 베어링 구매</p>
-            <p style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", color: "rgba(29,29,31,0.6)", margin: "0 0 7.32px" }}>요청 기관: 경기도 화성시 화폐과</p>
-            <p style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", color: "rgba(29,29,31,0.6)", margin: 0 }}>예산 15,000,000원 · 마감 2026. 06. 20</p>
+            <p style={{ fontSize: "14px", fontWeight: 600, letterSpacing: "-0.21px", color: TEXT, margin: "0 0 7.32px" }}>{quote.title}</p>
+            <p style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", color: "rgba(29,29,31,0.6)", margin: "0 0 7.32px" }}>요청 기관: {quote.org}</p>
+            <p style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", color: "rgba(29,29,31,0.6)", margin: 0 }}>예산 {quote.budget} · 마감 {quote.deadline}</p>
           </div>
         </div>
         <div className="flex items-center" style={{ gap: "14.64px", marginTop: "24.4px" }}>
           <button type="button" onClick={onClose} style={outlineBtn()}>닫기</button>
-          <button type="button" onClick={downloadQuote} style={{ ...primaryBtn(), display: "flex", alignItems: "center", justifyContent: "center", gap: "7.32px" }}>
+          <button type="button" onClick={() => downloadQuote(quote.id, proposal)} style={{ ...primaryBtn(), display: "flex", alignItems: "center", justifyContent: "center", gap: "7.32px" }}>
             <DownloadIcon /><span>견적서 다운로드</span>
           </button>
         </div>
@@ -259,6 +272,162 @@ export function DeleteNoticeModal({ onClose, quoteId, quoteTitle }: { onClose: (
       </div>
     </Overlay>
   );
+}
+
+const NOTICE_STATUS_OPTIONS = [
+  { key: "REVIEWING", label: "검토중", desc: "내부 검토 진행" },
+  { key: "CLOSED", label: "마감", desc: "공고 마감" },
+];
+
+export function NoticeStatusModal({ onClose, quoteId, current }: { onClose: () => void; quoteId: string; current: string }) {
+  const router = useRouter();
+  const [selected, setSelected] = useState(current);
+  const [saving, setSaving] = useState(false);
+  const changed = selected !== current;
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/quotes/${quoteId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: selected }),
+      });
+      if (!res.ok) { const d = await res.json() as { error?: string }; alert(d.error ?? "오류"); return; }
+      onClose();
+      router.refresh();
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <Overlay onClose={onClose} width="547px">
+      <ModalHeader title="공고 상태 변경" onClose={onClose} />
+      <div style={{ overflowY: "auto" }}>
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "9.76px" }}>
+          {NOTICE_STATUS_OPTIONS.map((o) => {
+            const on = selected === o.key;
+            return (
+              <button key={o.key} type="button" onClick={() => setSelected(o.key)}
+                style={{ textAlign: "left", borderRadius: "14.64px", border: on ? `2px solid ${NAVY}` : "1px solid rgba(210,210,215,0.2)", background: on ? "rgba(30,58,95,0.05)" : "#fff", cursor: "pointer", padding: on ? "16.64px 21.52px" : "15.64px 20.52px" }}>
+                <span style={{ display: "block", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.195px", color: on ? NAVY : TEXT }}>{o.label}</span>
+                <span style={{ display: "block", fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", color: TEXT, opacity: 0.36, marginTop: "2.44px" }}>{o.desc}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center" style={{ gap: "14.64px", marginTop: "24.4px" }}>
+          <button type="button" onClick={onClose} style={outlineBtn()}>취소</button>
+          <button type="button" onClick={handleSave} disabled={!changed || saving}
+            style={{ ...primaryBtn(), background: changed && !saving ? NAVY : "rgba(30,58,95,0.4)", color: changed && !saving ? "#fff" : "rgba(255,255,255,0.16)", cursor: changed && !saving ? "pointer" : "default" }}>
+            {saving ? "저장 중..." : "상태 저장"}
+          </button>
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
+export function QuoteOrderModal({ onClose, responseId, company, totalAmount }: { onClose: () => void; responseId: string; company: string; totalAmount: string }) {
+  const router = useRouter();
+  const [f, setF] = useState({ name: "", phone: "", org: "", dept: "", addr: "", memo: "" });
+  const [pay, setPay] = useState<"card" | "virtual">("card");
+  const [submitting, setSubmitting] = useState(false);
+  const [addrOpen, setAddrOpen] = useState(false);
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
+  const canPay = f.name.trim() && f.phone.trim() && f.org.trim() && f.dept.trim() && f.addr.trim() && !submitting;
+
+  function onAddrSelect(data: DaumPostcodeResult) {
+    setF((p) => ({ ...p, addr: data.roadAddress + (data.buildingName ? ` (${data.buildingName})` : "") }));
+    setAddrOpen(false);
+  }
+
+  async function submit() {
+    if (!canPay) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/orders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pay, quoteResponseId: responseId, recipient: { name: f.name, phone: f.phone, org: f.org, dept: f.dept, address: f.addr, memo: f.memo } }),
+      });
+      if (!res.ok) { const d = await res.json().catch(() => ({})) as { message?: string }; alert(d.message ?? "결제 처리 중 오류가 발생했습니다"); setSubmitting(false); return; }
+      onClose();
+      router.push("/mypage");
+    } catch {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Overlay onClose={onClose} width="625px">
+      <ModalHeader title="발주" onClose={onClose} />
+      <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: "19.52px" }}>
+        <div style={{ borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.2)", padding: "15.64px" }}>
+          <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", color: "rgba(29,29,31,0.4)", margin: 0 }}>{company}</p>
+          <p style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "-0.24px", color: TEXT, margin: "2.44px 0 0" }}>{totalAmount}</p>
+        </div>
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "14.64px" }}>
+          <div><label style={editLabel}>수령인/담당자</label><input className="placeholder:text-[#9CA3AF] placeholder:font-medium" style={editInput} value={f.name} onChange={set("name")} placeholder="실명 입력" /></div>
+          <div><label style={editLabel}>연락처</label><input className="placeholder:text-[#9CA3AF] placeholder:font-medium" style={editInput} value={f.phone} onChange={set("phone")} placeholder="010-0000-0000" /></div>
+        </div>
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "14.64px" }}>
+          <div><label style={editLabel}>소속 기관</label><input className="placeholder:text-[#9CA3AF] placeholder:font-medium" style={editInput} value={f.org} onChange={set("org")} placeholder="예: 화성시청" /></div>
+          <div><label style={editLabel}>소속 부서</label><input className="placeholder:text-[#9CA3AF] placeholder:font-medium" style={editInput} value={f.dept} onChange={set("dept")} placeholder="예: 도로관리과" /></div>
+        </div>
+        <div>
+          <label style={editLabel}>배송지 주소</label>
+          <div className="flex" style={{ gap: "9.76px" }}>
+            <input className="placeholder:text-[#9CA3AF] placeholder:font-medium" style={{ ...editInput, flex: 1, minWidth: 0 }} value={f.addr} onChange={set("addr")} placeholder="주소 검색 버튼을 눌러 주소를 검색하세요" />
+            <button type="button" onClick={() => setAddrOpen(true)} className="flex items-center justify-center" style={{ flexShrink: 0, padding: "0 20.52px", borderRadius: "14.64px", background: NAVY, border: "none", color: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>주소 검색</button>
+          </div>
+        </div>
+        <div>
+          <label style={editLabel}>배송 메모</label>
+          <input className="placeholder:text-[#9CA3AF] placeholder:font-medium" style={editInput} value={f.memo} onChange={set("memo")} placeholder="배송 시 요청사항" />
+        </div>
+        <div>
+          <label style={editLabel}>결제 수단</label>
+          <div className="flex" style={{ gap: "9.76px" }}>
+            <button type="button" onClick={() => setPay("card")} style={payOpt(pay === "card")}>법인/신용카드</button>
+            <button type="button" onClick={() => setPay("virtual")} style={payOpt(pay === "virtual")}>가상계좌</button>
+          </div>
+        </div>
+        <div className="flex items-center" style={{ gap: "14.64px", marginTop: "9.76px" }}>
+          <button type="button" onClick={onClose} style={outlineBtn()}>취소</button>
+          <button type="button" onClick={submit} disabled={!canPay}
+            style={{ ...primaryBtn(), background: canPay ? NAVY : "rgba(30,58,95,0.4)", cursor: canPay ? "pointer" : "default" }}>
+            {submitting ? "결제 중…" : "결제하기"}
+          </button>
+        </div>
+      </div>
+      {addrOpen && <QuoteAddressModal onClose={() => setAddrOpen(false)} onSelect={onAddrSelect} />}
+    </Overlay>
+  );
+}
+
+function QuoteAddressModal({ onClose, onSelect }: { onClose: () => void; onSelect: (d: DaumPostcodeResult) => void }) {
+  const [el, setEl] = useState<HTMLDivElement | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  function attach(node: HTMLDivElement | null) {
+    setEl(node);
+    if (node && !mounted) {
+      setMounted(true);
+      embedPostcode(node, onSelect).catch(() => {});
+    }
+  }
+
+  return (
+    <Overlay onClose={onClose} width="500px">
+      <ModalHeader title="주소 검색" onClose={onClose} />
+      <div ref={attach} style={{ width: "100%", height: "420px" }} />
+      {!el && <p style={{ textAlign: "center", fontSize: "13px", color: "rgba(29,29,31,0.4)" }}>불러오는 중…</p>}
+    </Overlay>
+  );
+}
+
+function payOpt(on: boolean): React.CSSProperties {
+  return { flex: 1, borderRadius: "14.64px", border: on ? `2px solid ${NAVY}` : "1px solid rgba(210,210,215,0.3)", background: on ? "rgba(30,58,95,0.05)" : "#fff", cursor: "pointer", padding: "13.2px 0", fontSize: "13px", fontWeight: on ? 500 : 400, letterSpacing: "-0.293px", color: on ? NAVY : "rgba(29,29,31,0.6)" };
 }
 
 function outlineBtn(): React.CSSProperties {

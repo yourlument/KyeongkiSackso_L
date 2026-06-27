@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getSessionClaims } from "@/lib/auth/session";
 import { QuoteChatView } from "./quote-chat-view";
@@ -7,5 +8,9 @@ export default async function PartnerQuoteChatPage() {
   if (!claims) redirect("/login");
   if (claims.role !== "SUPPLIER") redirect("/");
 
-  return <QuoteChatView />;
+  return (
+    <Suspense>
+      <QuoteChatView />
+    </Suspense>
+  );
 }

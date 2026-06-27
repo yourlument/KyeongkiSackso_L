@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { uploadFile } from "@/lib/upload-client";
 
 const TABS = ["제품 상세", "상세 스펙", "업체 정보", "평점 등록"] as const;
 type Tab = (typeof TABS)[number];
@@ -87,6 +88,7 @@ export function ProductPurchasePanel({
       });
       if (res.status === 401) { setShowLogin(true); return; }
       if (!res.ok) return;
+      if (typeof window !== "undefined") window.dispatchEvent(new Event("cart:changed"));
       if (goCart) { router.push("/cart"); return; }
       setAdded(true);
       setTimeout(() => setAdded(false), 1600);
@@ -668,8 +670,28 @@ function QuoteModal({
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [attachments, setAttachments] = useState<{ url: string; name: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const canSubmit = organ.trim() && dept.trim() && email.trim() && phone.trim() && qty.trim() && date.trim() && addr.trim() && !submitting && !done;
+  async function handleAttachFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    setUploading(true);
+    try {
+      const results = await Promise.all(files.map((f) => uploadFile(f)));
+      setAttachments((prev) => [...prev, ...results.map((r) => ({ url: r.url, name: r.name }))]);
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  function removeAttachment(i: number) {
+    setAttachments((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  const canSubmit = organ.trim() && dept.trim() && email.trim() && phone.trim() && qty.trim() && date.trim() && addr.trim() && !submitting && !done && !uploading;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -693,6 +715,7 @@ function QuoteModal({
           contactPhone: phone,
           description: note || undefined,
           items: [{ name: productName, qty, unit, spec: "" }],
+          attachments,
         }),
       });
       if (!res.ok) {
@@ -797,10 +820,29 @@ function QuoteModal({
 
           <div>
             <label style={labelStyle}>첨부 파일 <span style={optStyle}>(선택)</span></label>
-            <div style={{ borderRadius: "14.64px", border: "2px dashed rgba(210,210,215,0.3)", padding: "21.52px", display: "flex", alignItems: "center", justifyContent: "center", gap: "4.88px" }}>
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => fileRef.current?.click()}
+              onKeyDown={(e) => e.key === "Enter" && fileRef.current?.click()}
+              style={{ borderRadius: "14.64px", border: "2px dashed rgba(210,210,215,0.3)", padding: "21.52px", display: "flex", alignItems: "center", justifyContent: "center", gap: "4.88px", cursor: "pointer" }}
+            >
               <UploadIcon color="rgba(29,29,31,0.4)" />
-              <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", color: "rgba(29,29,31,0.4)" }}>시성서, 규격서 등 첨부 파일 등록</span>
+              <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", color: "rgba(29,29,31,0.4)" }}>{uploading ? "업로드 중…" : "시성서, 규격서 등 첨부 파일 등록"}</span>
             </div>
+            <input ref={fileRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,image/*" onChange={handleAttachFiles} style={{ display: "none" }} />
+            {attachments.length > 0 && (
+              <div style={{ marginTop: "9.76px", display: "flex", flexDirection: "column", gap: "4.88px" }}>
+                {attachments.map((a, i) => (
+                  <div key={i} className="flex items-center justify-between" style={{ borderRadius: "9.76px", background: "#F5F5F7", padding: "7.32px 12.2px" }}>
+                    <span style={{ fontSize: "12px", fontWeight: 400, lineHeight: "21.6px", letterSpacing: "-0.18px", color: "rgba(29,29,31,0.7)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{a.name}</span>
+                    <button type="button" onClick={() => removeAttachment(i)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0 0 0 7.32px", flexShrink: 0 }} aria-label="삭제">
+                      <XIcon color="rgba(29,29,31,0.4)" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>

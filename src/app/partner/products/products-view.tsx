@@ -10,6 +10,7 @@ import {
   SPEC_FIELDS,
 } from "./products-data";
 import type { NaraResult } from "@/lib/nara";
+import { uploadFile } from "@/lib/upload-client";
 import {
   PlusIcon,
   CloseIcon,
@@ -394,7 +395,15 @@ function RegisterModal({
         </div>
       </div>
 
-      {aiOpen && <AiModal onClose={() => setAiOpen(false)} />}
+      {aiOpen && (
+        <AiModal
+          onClose={() => setAiOpen(false)}
+          onApply={(url) => {
+            setDetailImages((prev) => (prev.includes(url) ? prev : [...prev, url]));
+            setDetailMode("직접 등록");
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -771,11 +780,11 @@ function StepThree({
     try {
       const urls: string[] = [];
       for (const file of picked) {
-        const fd = new FormData();
-        fd.append("file", file);
-        const res = await fetch("/api/uploads", { method: "POST", body: fd });
-        const data = await res.json();
-        if (res.ok && data.url) urls.push(data.url);
+        try {
+          const saved = await uploadFile(file);
+          urls.push(saved.url);
+        } catch {
+        }
       }
       if (urls.length) setDetailImages([...detailImages, ...urls]);
     } finally {
@@ -804,11 +813,9 @@ function StepThree({
     if (!file) return;
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/uploads", { method: "POST", body: fd });
-      const data = await res.json();
-      if (res.ok && data.url) onImage(data.url, file.name);
+      const saved = await uploadFile(file);
+      onImage(saved.url, file.name);
+    } catch {
     } finally {
       setUploading(false);
     }
@@ -974,11 +981,73 @@ function StepThree({
   );
 }
 
-function AiModal({ onClose }: { onClose: () => void }) {
+function AiModal({ onClose, onApply }: { onClose: () => void; onApply: (url: string) => void }) {
   const [prompt, setPrompt] = useState("");
-  const [generated, setGenerated] = useState(false);
+  const [sampleUrls, setSampleUrls] = useState<string[]>([]);
+  const [sampleUploading, setSampleUploading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const sampleRef = useRef<HTMLInputElement>(null);
   const hasPrompt = prompt.trim().length > 0;
+  const busy = generating || sampleUploading;
+
+  async function onSampleFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    const room = 10 - sampleUrls.length;
+    const picked = files.slice(0, Math.max(0, room));
+    setSampleUploading(true);
+    try {
+      const urls: string[] = [];
+      for (const file of picked) {
+        try {
+          const saved = await uploadFile(file);
+          urls.push(saved.url);
+        } catch {
+        }
+      }
+      if (urls.length) setSampleUrls([...sampleUrls, ...urls]);
+    } finally {
+      setSampleUploading(false);
+      if (sampleRef.current) sampleRef.current.value = "";
+    }
+  }
+  function removeSample(i: number) {
+    setSampleUrls(sampleUrls.filter((_, idx) => idx !== i));
+  }
+
+  async function generate() {
+    if (!hasPrompt || busy) return;
+    setGenerating(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/partner/products/ai-detail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: prompt.trim(), sampleUrls }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        setError(d?.message ?? "이미지 생성에 실패했어요. 잠시 후 다시 시도해 주세요");
+        return;
+      }
+      const d = (await res.json()) as { url?: string };
+      if (d?.url) setGeneratedUrl(d.url);
+      else setError("이미지 생성에 실패했어요. 잠시 후 다시 시도해 주세요");
+    } catch {
+      setError("이미지 생성에 실패했어요. 잠시 후 다시 시도해 주세요");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function apply() {
+    if (!generatedUrl) return;
+    onApply(generatedUrl);
+    onClose();
+  }
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ padding: "19.52px" }}>
@@ -1003,19 +1072,44 @@ function AiModal({ onClose }: { onClose: () => void }) {
           <div className="flex items-baseline" style={{ marginBottom: "9.76px" }}>
             <span style={{ fontSize: "14.64px", fontWeight: 600, letterSpacing: "-0.2196px", lineHeight: "19.52px", color: "rgba(29,29,31,0.7)" }}>{"샘플 이미지 ​"}</span>
             <span style={{ fontSize: "14.64px", fontWeight: 400, letterSpacing: "-0.2196px", lineHeight: "26.35px", color: "rgba(29,29,31,0.3)" }}>(선택, 최대 10장)</span>
-            <span className="ml-auto" style={{ fontSize: "10px", fontWeight: 500, letterSpacing: "-0.15px", lineHeight: "18px", color: "rgba(29,29,31,0.3)" }}>0/10장</span>
+            <span className="ml-auto" style={{ fontSize: "10px", fontWeight: 500, letterSpacing: "-0.15px", lineHeight: "18px", color: "rgba(29,29,31,0.3)" }}>{sampleUrls.length}/10장</span>
           </div>
-          <div className="flex items-center justify-center" style={{ padding: "16.64px 2px", borderRadius: "14.64px", border: "2px dashed rgba(210,210,215,0.3)", gap: "9.76px" }}>
+          <button
+            type="button"
+            onClick={() => sampleRef.current?.click()}
+            disabled={sampleUrls.length >= 10}
+            className="flex w-full items-center justify-center"
+            style={{ padding: "16.64px 2px", borderRadius: "14.64px", border: "2px dashed rgba(210,210,215,0.3)", gap: "9.76px", background: "transparent", cursor: sampleUrls.length >= 10 ? "default" : "pointer" }}
+          >
             <UploadImageIcon color={NAVY} opacity={0.4} />
-            <span style={{ fontSize: "14.64px", fontWeight: 400, letterSpacing: "-0.2196px", lineHeight: "26.35px", color: "rgba(29,29,31,0.4)" }}>샘플 이미지 업로드</span>
-          </div>
+            <span style={{ fontSize: "14.64px", fontWeight: 400, letterSpacing: "-0.2196px", lineHeight: "26.35px", color: "rgba(29,29,31,0.4)" }}>{sampleUploading ? "업로드 중…" : "샘플 이미지 업로드"}</span>
+          </button>
+          <input ref={sampleRef} type="file" accept="image/*" multiple onChange={onSampleFiles} style={{ display: "none" }} />
+          {sampleUrls.length > 0 && (
+            <div className="flex flex-wrap" style={{ gap: "9.76px", marginTop: "14.64px" }}>
+              {sampleUrls.map((url, i) => (
+                <div key={i} className="relative" style={{ width: "78px", height: "78px", borderRadius: "9.76px", overflow: "hidden", border: "1px solid #E5E7EB" }}>
+                  <img src={url} alt={`샘플 이미지 ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <button
+                    type="button"
+                    aria-label="삭제"
+                    onClick={() => removeSample(i)}
+                    className="absolute flex items-center justify-center"
+                    style={{ top: "3.66px", right: "3.66px", width: "19.52px", height: "19.52px", borderRadius: "9999px", background: "rgba(0,0,0,0.55)", border: "none", cursor: "pointer" }}
+                  >
+                    <CloseIcon size={8} opacity={1} color="#fff" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="flex flex-col" style={{ marginTop: "24.4px" }}>
             <span style={{ fontSize: "14.64px", fontWeight: 600, letterSpacing: "-0.2196px", lineHeight: "19.52px", color: "rgba(29,29,31,0.7)", marginBottom: "7.32px" }}>프롬프트 입력</span>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value.slice(0, 500))}
-              placeholder="예: 프리미엄 사무용 책상, 화이트 톤, 미니멀 디자인, 깔끔한 배경"
+              placeholder="예: 고성능 데스크탑 PC 상세페이지. 상단에 제품 정면 이미지를 크게 배치하고, 하단에 CPU·그래픽카드·메모리·SSD 핵심 사양을 아이콘과 함께 정리. 화이트 배경에 네이비 포인트 컬러, 깔끔하고 신뢰감 있는 B2B 공공조달 톤, 한글 설명 텍스트 포함"
               rows={3}
               style={{ height: "100px", resize: "none", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.3)", background: "#fff", padding: "13.2px 15.64px", fontSize: "17.08px", fontWeight: prompt ? 400 : 500, letterSpacing: "-0.2928px", lineHeight: "24.4px", color: prompt ? INK : "#9CA3AF", outline: "none" }}
             />
@@ -1024,26 +1118,30 @@ function AiModal({ onClose }: { onClose: () => void }) {
 
           <button
             type="button"
-            disabled={!hasPrompt}
-            onClick={() => setGenerated(true)}
+            disabled={!hasPrompt || busy}
+            onClick={generate}
             className="flex w-full items-center justify-center"
-            style={{ gap: "9.76px", marginTop: "24.4px", height: "60px", borderRadius: "14.64px", border: "none", background: hasPrompt ? NAVY : "rgba(30,58,95,0.4)", cursor: hasPrompt ? "pointer" : "default" }}
+            style={{ gap: "9.76px", marginTop: "24.4px", height: "60px", borderRadius: "14.64px", border: "none", background: hasPrompt && !busy ? NAVY : "rgba(30,58,95,0.4)", cursor: hasPrompt && !busy ? "pointer" : "default" }}
           >
-            <SparkleIcon color="#fff" opacity={hasPrompt ? 1 : 0.4} size={14} />
-            <span style={{ fontSize: "17.08px", fontWeight: 600, letterSpacing: "-0.2562px", lineHeight: "30.74px", color: hasPrompt ? "#fff" : "rgba(255,255,255,0.4)" }}>AI 상세 페이지 제작</span>
+            <SparkleIcon color="#fff" opacity={hasPrompt && !busy ? 1 : 0.4} size={14} />
+            <span style={{ fontSize: "17.08px", fontWeight: 600, letterSpacing: "-0.2562px", lineHeight: "30.74px", color: hasPrompt && !busy ? "#fff" : "rgba(255,255,255,0.4)" }}>{generating ? "제작 중…" : "AI 상세 페이지 제작"}</span>
           </button>
 
-          {generated && (
+          {error && (
+            <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "19.8px", color: "#DC2626", margin: "9.76px 0 0", textAlign: "center" }}>{error}</p>
+          )}
+
+          {generatedUrl && (
             <div style={{ marginTop: "24.4px", paddingTop: "10.76px", borderTop: "1px solid rgba(210,210,215,0.1)" }}>
-              <div className="flex items-center justify-center" style={{ height: "275px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.2)" }}>
-                <span style={{ fontSize: "36px", fontWeight: 400, letterSpacing: "-0.15px", color: "#000" }}>제작된 상세 페이지</span>
+              <div className="flex items-center justify-center" style={{ height: "275px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.2)", overflow: "hidden", background: "rgba(29,29,31,0.02)" }}>
+                <img src={generatedUrl} alt="제작된 상세 페이지" style={{ maxHeight: "275px", maxWidth: "100%", objectFit: "contain" }} />
               </div>
               <div className="flex" style={{ gap: "12.2px", marginTop: "14.64px" }}>
                 <button type="button" onClick={() => setPreviewOpen(true)} className="flex flex-1 items-center justify-center" style={{ gap: "7.32px", height: "46px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.3)", background: "transparent", cursor: "pointer" }}>
                   <EyeIcon color="#1D1D1F" opacity={0.7} width={13} height={11} />
                   <span style={{ fontSize: "14.64px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "19.52px", color: "rgba(29,29,31,0.7)" }}>미리보기</span>
                 </button>
-                <button type="button" onClick={onClose} className="flex flex-1 items-center justify-center" style={{ gap: "7.32px", height: "46px", borderRadius: "14.64px", border: "none", background: NAVY, cursor: "pointer" }}>
+                <button type="button" onClick={apply} className="flex flex-1 items-center justify-center" style={{ gap: "7.32px", height: "46px", borderRadius: "14.64px", border: "none", background: NAVY, cursor: "pointer" }}>
                   <CheckIcon color="#fff" width={11} height={8} />
                   <span style={{ fontSize: "14.64px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "19.52px", color: "#fff" }}>이미지 적용</span>
                 </button>
@@ -1053,12 +1151,12 @@ function AiModal({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
-      {previewOpen && <PreviewModal onClose={() => setPreviewOpen(false)} />}
+      {previewOpen && generatedUrl && <PreviewModal url={generatedUrl} onClose={() => setPreviewOpen(false)} />}
     </div>
   );
 }
 
-function PreviewModal({ onClose }: { onClose: () => void }) {
+function PreviewModal({ url, onClose }: { url: string; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center" style={{ padding: "19.52px" }}>
       <button type="button" aria-label="닫기" onClick={onClose} className="absolute inset-0" style={{ background: "rgba(0,0,0,0.6)", border: "none", cursor: "default" }} />
@@ -1075,8 +1173,8 @@ function PreviewModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         <div style={{ padding: "29.28px", overflowY: "auto" }}>
-          <div className="flex items-center justify-center" style={{ height: "649px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.2)" }}>
-            <span style={{ fontSize: "36px", fontWeight: 400, letterSpacing: "-0.15px", color: "#000" }}>제작된 상세 페이지</span>
+          <div className="flex items-center justify-center" style={{ height: "649px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.2)", overflow: "hidden", background: "rgba(29,29,31,0.02)" }}>
+            <img src={url} alt="제작된 상세 페이지" style={{ maxHeight: "649px", maxWidth: "100%", objectFit: "contain" }} />
           </div>
           <p className="text-center" style={{ fontSize: "14.64px", fontWeight: 400, letterSpacing: "-0.2196px", lineHeight: "19.52px", color: "rgba(29,29,31,0.3)", margin: "14.64px 0 0" }}>AI가 생성한 상품 상세 페이지 이미지입니다.</p>
         </div>

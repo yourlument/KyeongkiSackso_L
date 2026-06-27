@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { AdminClaimData, Claim, ClaimType, ClaimStatus, ClaimPriority as Priority } from "@/lib/admin-claim";
 
@@ -17,6 +17,8 @@ const PRIORITY_BADGE: Record<Priority, { bg: string; border: string; color: stri
   보통: { bg: "#F3F4F6", border: "#D1D5DB", color: "#374151" },
   낮음: { bg: "#F9FAFB", border: "#E5E7EB", color: "#6B7280" },
 };
+
+const PAGE_SIZE = 15;
 
 const TYPE_FILTERS = ["전체 유형", "신고", "문의"] as const;
 const STATUS_FILTERS = ["전체 상태", "접수", "처리중", "완료", "반려"] as const;
@@ -191,8 +193,26 @@ export function ClaimView({ data }: { data: AdminClaimData }) {
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("전체 상태");
   const [categoryFilter, setCategoryFilter] = useState<(typeof CATEGORY_FILTERS)[number]>("전체");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(data.claims[0]?.id ?? null);
   const [answerDraft, setAnswerDraft] = useState("");
+  const [statusMenuId, setStatusMenuId] = useState<string | null>(null);
+  const answerRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const STATUS_OPTIONS: ClaimStatus[] = ["접수", "처리중", "완료", "반려"];
+
+  async function changeStatus(claim: Claim, next: ClaimStatus) {
+    setStatusMenuId(null);
+    if (claim.status === next) return;
+    const res = await fetch("/api/admin/claim/status", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: claim.id, type: claim.type, status: next }),
+    });
+    if (res.ok) {
+      startTransition(() => router.refresh());
+    }
+  }
 
   const rows = useMemo(() => {
     return data.claims.filter((c) => {
@@ -208,6 +228,10 @@ export function ClaimView({ data }: { data: AdminClaimData }) {
       return true;
     });
   }, [data.claims, typeFilter, statusFilter, categoryFilter, query]);
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageRows = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const selected = useMemo(() => data.claims.find((c) => c.id === selectedId) ?? null, [data.claims, selectedId]);
 
@@ -331,7 +355,7 @@ export function ClaimView({ data }: { data: AdminClaimData }) {
             </span>
             <input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => { setQuery(e.target.value); setPage(1); }}
               placeholder="제목, 작성자, 소속, 내용 검색"
               style={{
                 width: "100%",
@@ -350,14 +374,14 @@ export function ClaimView({ data }: { data: AdminClaimData }) {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "9.76px" }}>
             {TYPE_FILTERS.map((t) => (
-              <Chip key={t} label={t} active={typeFilter === t} size="lg" onClick={() => setTypeFilter(t)} />
+              <Chip key={t} label={t} active={typeFilter === t} size="lg" onClick={() => { setTypeFilter(t); setPage(1); }} />
             ))}
           </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "9.76px", marginTop: "14.64px" }}>
           {STATUS_FILTERS.map((s) => (
-            <Chip key={s} label={s} active={statusFilter === s} size="md" onClick={() => setStatusFilter(s)} />
+            <Chip key={s} label={s} active={statusFilter === s} size="md" onClick={() => { setStatusFilter(s); setPage(1); }} />
           ))}
         </div>
 
@@ -375,7 +399,7 @@ export function ClaimView({ data }: { data: AdminClaimData }) {
             카테고리:
           </span>
           {CATEGORY_FILTERS.map((c) => (
-            <Chip key={c} label={c} active={categoryFilter === c} size="sm" onClick={() => setCategoryFilter(c)} />
+            <Chip key={c} label={c} active={categoryFilter === c} size="sm" onClick={() => { setCategoryFilter(c); setPage(1); }} />
           ))}
         </div>
       </div>
@@ -418,7 +442,7 @@ export function ClaimView({ data }: { data: AdminClaimData }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((c) => {
+            {pageRows.map((c) => {
               const isSel = c.id === selectedId;
               const sb = STATUS_BADGE[c.status];
               const pb = PRIORITY_BADGE[c.priority];
@@ -513,12 +537,13 @@ export function ClaimView({ data }: { data: AdminClaimData }) {
                   <td style={{ padding: "14.64px 24.4px", verticalAlign: "middle" }}>
                     <Badge text={c.priority} bg={pb.bg} border={pb.border} color={pb.color} />
                   </td>
-                  <td style={{ padding: "14.64px 24.4px", verticalAlign: "middle" }}>
+                  <td style={{ padding: "14.64px 24.4px", verticalAlign: "middle", position: "relative" }}>
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedId(c.id);
+                        setStatusMenuId((prev) => (prev === c.id ? null : c.id));
                       }}
                       style={{
                         display: "inline-flex",
@@ -544,6 +569,51 @@ export function ClaimView({ data }: { data: AdminClaimData }) {
                       </span>
                       <ChevronDownIcon />
                     </button>
+                    {statusMenuId === c.id && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          position: "absolute",
+                          top: "calc(100% - 4px)",
+                          right: "24.4px",
+                          zIndex: 10,
+                          minWidth: "120px",
+                          background: "#FFFFFF",
+                          border: "1px solid rgba(210,210,215,0.3)",
+                          borderRadius: "9.76px",
+                          boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+                          padding: "4.88px",
+                        }}
+                      >
+                        {STATUS_OPTIONS.map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              changeStatus(c, s);
+                            }}
+                            style={{
+                              display: "block",
+                              width: "100%",
+                              textAlign: "left",
+                              background: c.status === s ? "rgba(30,58,95,0.06)" : "transparent",
+                              border: "none",
+                              borderRadius: "7.32px",
+                              padding: "8.32px 11.2px",
+                              fontSize: "12px",
+                              fontWeight: 500,
+                              letterSpacing: "-0.18px",
+                              lineHeight: "21.6px",
+                              color: "#1D1D1F",
+                              cursor: "pointer",
+                            }}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </td>
                 </tr>
               );
@@ -560,12 +630,13 @@ export function ClaimView({ data }: { data: AdminClaimData }) {
             padding: "19.52px 0",
           }}
         >
-          {["1", "2", "3"].map((p, i) => {
-            const active = i === 0;
+          {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((n) => {
+            const active = n === safePage;
             return (
               <button
-                key={p}
+                key={n}
                 type="button"
+                onClick={() => setPage(n)}
                 style={{
                   width: "39px",
                   height: "39px",
@@ -583,7 +654,7 @@ export function ClaimView({ data }: { data: AdminClaimData }) {
                   color: active ? "#FFFFFF" : "#4B5563",
                 }}
               >
-                {p}
+                {n}
               </button>
             );
           })}
@@ -756,6 +827,10 @@ export function ClaimView({ data }: { data: AdminClaimData }) {
                   </p>
                   <button
                     type="button"
+                    onClick={() => {
+                      answerRef.current?.focus();
+                      answerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }}
                     style={{
                       background: "#111827",
                       borderRadius: "9.76px",
@@ -789,6 +864,7 @@ export function ClaimView({ data }: { data: AdminClaimData }) {
                     답변 내용
                   </label>
                   <textarea
+                    ref={answerRef}
                     value={answerDraft}
                     onChange={(e) => setAnswerDraft(e.target.value)}
                     placeholder="답변 내용을 입력하세요..."

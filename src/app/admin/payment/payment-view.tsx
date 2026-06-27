@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { AdminPaymentData, Txn, Settle, SubRow, SubStatus, RefundReq, Kpi } from "@/lib/admin-payment";
 
 const TABS = ["전체 거래 모니터링", "이용권 수납 관리", "환불 요청 관리"] as const;
@@ -505,6 +506,26 @@ function RefundField({
 }
 
 function RefundModal({ txn, onClose }: { txn: Txn; onClose: () => void }) {
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+  const submit = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/payment/orders/${txn.orderId}/refund`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (res.ok) {
+        router.refresh();
+        onClose();
+      } else {
+        setSaving(false);
+      }
+    } catch {
+      setSaving(false);
+    }
+  };
   return (
     <ModalOverlay maxWidth="468px" onClose={onClose}>
       <div className="flex justify-center" style={{ paddingBottom: "19.52px" }}>
@@ -583,7 +604,7 @@ function RefundModal({ txn, onClose }: { txn: Txn; onClose: () => void }) {
           }}
         />
       </div>
-      <ModalActions onCancel={onClose} onConfirm={onClose} confirmLabel="환불 처리" confirmBg="#EF4444" confirmDim />
+      <ModalActions onCancel={onClose} onConfirm={submit} confirmLabel="환불 처리" confirmBg="#EF4444" confirmDim={saving} />
     </ModalOverlay>
   );
 }
@@ -591,12 +612,37 @@ function RefundModal({ txn, onClose }: { txn: Txn; onClose: () => void }) {
 function SubConfirmModal({
   title,
   message,
+  subId,
+  action,
   onClose,
 }: {
   title: string;
   message: string;
+  subId: string;
+  action: "confirm-payment" | "suspend" | "unsuspend";
   onClose: () => void;
 }) {
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+  const submit = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/payment/subscriptions/${subId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (res.ok) {
+        router.refresh();
+        onClose();
+      } else {
+        setSaving(false);
+      }
+    } catch {
+      setSaving(false);
+    }
+  };
   return (
     <ModalOverlay maxWidth="468.47px" onClose={onClose}>
       <p
@@ -625,7 +671,7 @@ function SubConfirmModal({
       >
         {message}
       </p>
-      <ModalActions onCancel={onClose} onConfirm={onClose} confirmLabel="확인" confirmBg="#1E3A5F" />
+      <ModalActions onCancel={onClose} onConfirm={submit} confirmLabel="확인" confirmBg="#1E3A5F" confirmDim={saving} />
     </ModalOverlay>
   );
 }
@@ -640,6 +686,27 @@ function RefundDecisionModal({
   onClose: () => void;
 }) {
   const approve = kind === "approve";
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+  const submit = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/payment/refunds/${req.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: approve ? "APPROVED" : "REJECTED" }),
+      });
+      if (res.ok) {
+        router.refresh();
+        onClose();
+      } else {
+        setSaving(false);
+      }
+    } catch {
+      setSaving(false);
+    }
+  };
   return (
     <ModalOverlay maxWidth="468px" onClose={onClose}>
       <div className="flex justify-center" style={{ paddingBottom: "19.52px" }}>
@@ -723,8 +790,8 @@ function RefundDecisionModal({
       </p>
       <ModalActions
         onCancel={onClose}
-        onConfirm={onClose}
-        confirmLabel={approve ? "승인 처리" : "거부 처리"}
+        onConfirm={submit}
+        confirmLabel={saving ? "처리 중…" : approve ? "승인 처리" : "거부 처리"}
         confirmBg={approve ? "#10B981" : "#EF4444"}
         confirmDim
       />
@@ -804,12 +871,22 @@ const SUB_COLS = [
 
 function SubscriptionTab({ subscriptions, subKpi }: { subscriptions: SubRow[]; subKpi: Kpi }) {
   const [chip, setChip] = useState<(typeof SUB_CHIPS)[number]>("전체");
-  const [confirm, setConfirm] = useState<{ title: string; message: string } | null>(null);
+  const [subSearch, setSubSearch] = useState("");
+  const [confirm, setConfirm] = useState<{
+    title: string;
+    message: string;
+    subId: string;
+    action: "confirm-payment" | "suspend" | "unsuspend";
+  } | null>(null);
 
-  const rows = useMemo(
-    () => subscriptions.filter((r) => chip === "전체" || r.status === chip),
-    [subscriptions, chip],
-  );
+  const rows = useMemo(() => {
+    const q = subSearch.trim().toLowerCase();
+    return subscriptions.filter((r) => {
+      if (chip !== "전체" && r.status !== chip) return false;
+      if (q && !r.name.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [subscriptions, chip, subSearch]);
 
   return (
     <div>
@@ -844,17 +921,23 @@ function SubscriptionTab({ subscriptions, subKpi }: { subscriptions: SubRow[]; s
             >
               <SearchIcon />
             </span>
-            <span
+            <input
+              type="text"
+              value={subSearch}
+              onChange={(e) => setSubSearch(e.target.value)}
+              placeholder="업체명 검색"
               style={{
+                flex: 1,
+                border: "none",
+                outline: "none",
+                background: "transparent",
                 fontSize: "13px",
                 fontWeight: 500,
                 letterSpacing: "-0.2928px",
                 lineHeight: "22.75px",
-                color: "#9CA3AF",
+                color: "#1D1D1F",
               }}
-            >
-              업체명 검색
-            </span>
+            />
           </div>
           <div className="flex items-center" style={{ gap: "9.76px" }}>
             {SUB_CHIPS.map((c) => {
@@ -1027,6 +1110,8 @@ function SubscriptionTab({ subscriptions, subKpi }: { subscriptions: SubRow[]; s
                             setConfirm({
                               title: "결제 확인",
                               message: `${r.name} 업체의 결제를 확인 처리하시겠습니까?`,
+                              subId: r.id,
+                              action: "confirm-payment",
                             })
                           }
                           className="inline-flex items-center justify-center"
@@ -1046,6 +1131,8 @@ function SubscriptionTab({ subscriptions, subKpi }: { subscriptions: SubRow[]; s
                             setConfirm({
                               title: "권한 제한 해제",
                               message: `${r.name} 업체의 권한 제한을 해제하시겠습니까?`,
+                              subId: r.id,
+                              action: "unsuspend",
                             })
                           }
                           className="inline-flex items-center justify-center"
@@ -1067,6 +1154,8 @@ function SubscriptionTab({ subscriptions, subKpi }: { subscriptions: SubRow[]; s
                           setConfirm({
                             title: "권한 제한",
                             message: `${r.name} 업체의 권한을 제한하시겠습니까?`,
+                            subId: r.id,
+                            action: "suspend",
                           })
                         }
                         className="inline-flex items-center justify-center"
@@ -1089,7 +1178,15 @@ function SubscriptionTab({ subscriptions, subKpi }: { subscriptions: SubRow[]; s
         </div>
       </div>
 
-      {confirm && <SubConfirmModal title={confirm.title} message={confirm.message} onClose={() => setConfirm(null)} />}
+      {confirm && (
+        <SubConfirmModal
+          title={confirm.title}
+          message={confirm.message}
+          subId={confirm.subId}
+          action={confirm.action}
+          onClose={() => setConfirm(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1105,6 +1202,12 @@ const REFUND_COLS = [
   { label: "상태", w: 117.56 },
   { label: "처리", w: 146.38 },
 ] as const;
+
+const REFUND_STATUS_CHIP: Record<RefundReq["status"], { bg: string; border: string; color: string; label: string }> = {
+  PENDING: { bg: "#FEF2F2", border: "#FECACA", color: "#DC2626", label: "처리 대기" },
+  APPROVED: { bg: "#ECFDF5", border: "#A7F3D0", color: "#047857", label: "승인 완료" },
+  REJECTED: { bg: "rgba(29,29,31,0.05)", border: "rgba(210,210,215,0.4)", color: "rgba(29,29,31,0.5)", label: "거부 완료" },
+};
 
 function RefundRequestTab({ refunds, refundKpis }: { refunds: RefundReq[]; refundKpis: Kpi[] }) {
   const [decision, setDecision] = useState<{ kind: "approve" | "reject"; req: RefundReq } | null>(null);
@@ -1280,50 +1383,65 @@ function RefundRequestTab({ refunds, refundKpis }: { refunds: RefundReq[]; refun
                     borderRadius: "9999px",
                     height: "24.75px",
                     padding: "0 13.2px",
-                    background: "#FEF2F2",
-                    border: "1px solid #FECACA",
+                    background: REFUND_STATUS_CHIP[r.status].bg,
+                    border: `1px solid ${REFUND_STATUS_CHIP[r.status].border}`,
                     fontSize: "11px",
                     fontWeight: 500,
                     letterSpacing: "-0.165px",
                     lineHeight: "19.8px",
-                    color: "#DC2626",
+                    color: REFUND_STATUS_CHIP[r.status].color,
                     whiteSpace: "nowrap",
                   }}
                 >
-                  처리 대기
+                  {REFUND_STATUS_CHIP[r.status].label}
                 </span>
               </div>
               <div style={{ flex: "146.38 1 0px", minWidth: 0, padding: CELL_PAD }}>
-                <div className="flex items-center" style={{ gap: "7.32px" }}>
-                  <button
-                    type="button"
-                    onClick={() => setDecision({ kind: "approve", req: r })}
-                    className="inline-flex items-center justify-center"
+                {r.status === "PENDING" ? (
+                  <div className="flex items-center" style={{ gap: "7.32px" }}>
+                    <button
+                      type="button"
+                      onClick={() => setDecision({ kind: "approve", req: r })}
+                      className="inline-flex items-center justify-center"
+                      style={{
+                        ...ROW_BTN_BASE,
+                        padding: "0 12.2px",
+                        border: "none",
+                        background: "#1E3A5F",
+                        color: "#FFFFFF",
+                      }}
+                    >
+                      승인
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDecision({ kind: "reject", req: r })}
+                      className="inline-flex items-center justify-center"
+                      style={{
+                        ...ROW_BTN_BASE,
+                        padding: "0 13.2px",
+                        border: "1px solid rgba(210,210,215,0.3)",
+                        background: "transparent",
+                        color: "rgba(29,29,31,0.5)",
+                      }}
+                    >
+                      거부
+                    </button>
+                  </div>
+                ) : (
+                  <span
                     style={{
-                      ...ROW_BTN_BASE,
-                      padding: "0 12.2px",
-                      border: "none",
-                      background: "#1E3A5F",
-                      color: "#FFFFFF",
+                      fontSize: "12px",
+                      fontWeight: 400,
+                      letterSpacing: "-0.18px",
+                      lineHeight: "21.6px",
+                      color: "rgba(29,29,31,0.4)",
+                      whiteSpace: "nowrap",
                     }}
                   >
-                    승인
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDecision({ kind: "reject", req: r })}
-                    className="inline-flex items-center justify-center"
-                    style={{
-                      ...ROW_BTN_BASE,
-                      padding: "0 13.2px",
-                      border: "1px solid rgba(210,210,215,0.3)",
-                      background: "transparent",
-                      color: "rgba(29,29,31,0.5)",
-                    }}
-                  >
-                    거부
-                  </button>
-                </div>
+                    처리 완료
+                  </span>
+                )}
               </div>
             </div>
           ))}
@@ -1338,17 +1456,25 @@ function RefundRequestTab({ refunds, refundKpis }: { refunds: RefundReq[]; refun
 export function PaymentView({ data }: { data: AdminPaymentData }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("전체 거래 모니터링");
   const [chip, setChip] = useState<(typeof CHIPS)[number]>("전체");
+  const [txnSearch, setTxnSearch] = useState("");
   const [detailTxn, setDetailTxn] = useState<Txn | null>(null);
   const [refundTxn, setRefundTxn] = useState<Txn | null>(null);
 
-  const rows = useMemo(
-    () =>
-      data.txns.filter((t) => {
-        if (chip === "전체") return true;
-        return t.settle === chip;
-      }),
-    [data.txns, chip],
-  );
+  const rows = useMemo(() => {
+    const q = txnSearch.trim().toLowerCase();
+    return data.txns.filter((t) => {
+      if (chip !== "전체" && t.settle !== chip) return false;
+      if (q) {
+        const hit =
+          t.buyer.toLowerCase().includes(q) ||
+          t.supplier.toLowerCase().includes(q) ||
+          t.pg.toLowerCase().includes(q) ||
+          t.method.toLowerCase().includes(q);
+        if (!hit) return false;
+      }
+      return true;
+    });
+  }, [data.txns, chip, txnSearch]);
 
   return (
     <div style={{ width: "100%" }}>
@@ -1497,17 +1623,23 @@ export function PaymentView({ data }: { data: AdminPaymentData }) {
           >
             <SearchIcon />
           </span>
-          <span
+          <input
+            type="text"
+            value={txnSearch}
+            onChange={(e) => setTxnSearch(e.target.value)}
+            placeholder="수요자, 공급자, PG번호, 결제수단 검색"
             style={{
+              flex: 1,
+              border: "none",
+              outline: "none",
+              background: "transparent",
               fontSize: "13px",
               fontWeight: 500,
               letterSpacing: "-0.2928px",
               lineHeight: "22.75px",
-              color: "#9CA3AF",
+              color: "#1D1D1F",
             }}
-          >
-            수요자, 공급자, PG번호, 결제수단 검색
-          </span>
+          />
         </div>
 
         <div className="flex items-center" style={{ gap: "9.76px" }}>
@@ -1537,6 +1669,27 @@ export function PaymentView({ data }: { data: AdminPaymentData }) {
               </button>
             );
           })}
+          <button
+            type="button"
+            onClick={() => window.open("/api/admin/payment/export", "_blank", "noopener,noreferrer")}
+            className="inline-flex items-center justify-center"
+            style={{
+              borderRadius: "9999px",
+              height: "49px",
+              padding: "0 17.08px",
+              cursor: "pointer",
+              fontSize: "12px",
+              fontWeight: 600,
+              letterSpacing: "-0.2928px",
+              lineHeight: "21px",
+              border: "1px solid #1E3A5F",
+              background: "#1E3A5F",
+              color: "#FFFFFF",
+              whiteSpace: "nowrap",
+            }}
+          >
+            엑셀 다운로드
+          </button>
         </div>
       </div>
 
@@ -1758,6 +1911,7 @@ export function PaymentView({ data }: { data: AdminPaymentData }) {
                     </button>
                     <button
                       type="button"
+                      onClick={() => window.open(`/api/orders/${r.orderId}/document?type=sales`, "_blank")}
                       className="inline-flex items-center justify-center"
                       style={{
                         gap: "4.88px",

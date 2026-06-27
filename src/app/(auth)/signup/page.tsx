@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Stepper, Field, TextInput, PasswordInput } from "@/components/signup/ui";
 import { openPostcode } from "@/lib/daum-postcode";
+import { uploadFile } from "@/lib/upload-client";
 import {
   CheckCircleIcon,
   AlertCircleIcon,
@@ -127,16 +128,11 @@ export default function SignupPage() {
     setUploading(true);
     setError(null);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/uploads", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.message ?? "업로드 실패");
-        return;
-      }
-      set("businessLicenseFileUrl", data.url);
+      const saved = await uploadFile(file);
+      set("businessLicenseFileUrl", saved.url);
       setFileName(file.name);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "업로드 실패");
     } finally {
       setUploading(false);
     }
@@ -405,6 +401,58 @@ function AccountStep({
   );
 }
 
+function useBizNoVerify(value: string) {
+  const [result, setResult] = useState<"ok" | "fail" | null>(null);
+  const [message, setMessage] = useState("");
+  const [checking, setChecking] = useState(false);
+  const ready = value.replace(/\D/g, "").length === 10;
+  const reset = () => { setResult(null); setMessage(""); };
+  async function check() {
+    if (!ready || checking) return;
+    setChecking(true);
+    try {
+      const res = await fetch("/api/auth/verify-business", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bizNo: value }),
+      });
+      const d = (await res.json()) as { valid?: boolean; message?: string };
+      setResult(d.valid ? "ok" : "fail");
+      setMessage(d.message ?? "");
+    } catch {
+      setResult("fail");
+      setMessage("진위확인 중 오류가 발생했습니다");
+    } finally {
+      setChecking(false);
+    }
+  }
+  return { result, message, checking, ready, reset, check };
+}
+
+function BizNoVerifyButton({ label, biz }: { label: string; biz: ReturnType<typeof useBizNoVerify> }) {
+  return (
+    <button
+      type="button"
+      disabled={!biz.ready || biz.checking}
+      onClick={biz.check}
+      className={`shrink-0 rounded-[14.64px] px-4 text-[13px] font-medium transition-colors disabled:cursor-not-allowed ${biz.ready ? "bg-navy text-white hover:bg-navy-hover" : "bg-navy/[0.04] text-navy/20"}`}
+    >
+      {biz.checking ? "확인 중…" : label}
+    </button>
+  );
+}
+
+function BizNoResult({ result, message }: { result: "ok" | "fail" | null; message: string }) {
+  if (!result) return null;
+  const ok = result === "ok";
+  return (
+    <p className={`mt-[4.88px] flex items-center gap-[4.88px] text-[11px] leading-[19.8px] tracking-[-0.165px] ${ok ? "text-success" : "text-danger"}`}>
+      {ok ? <CheckCircleIcon width={11} height={11} className="shrink-0" /> : <AlertCircleIcon width={11} height={11} className="shrink-0" />}
+      {message || (ok ? "확인되었습니다" : "사업자등록번호를 다시 확인해 주세요")}
+    </p>
+  );
+}
+
 function OfficialInfoStep({
   form,
   set,
@@ -414,6 +462,8 @@ function OfficialInfoStep({
   set: (k: keyof Form, v: string) => void;
   onSearch: () => void;
 }) {
+  const biz = useBizNoVerify(form.organizationBizNo);
+
   return (
     <>
       <h2 className="mb-5 text-[14px] font-bold tracking-[-0.392px] text-ink">기관 및 부서 정보</h2>
@@ -421,18 +471,15 @@ function OfficialInfoStep({
         <div className="flex gap-2">
           <TextInput
             value={form.organizationBizNo}
-            onChange={(e) => set("organizationBizNo", e.target.value)}
+            onChange={(e) => {
+              set("organizationBizNo", e.target.value);
+              biz.reset();
+            }}
             placeholder="고유번호증 또는 사업자등록번호"
           />
-          <button
-            type="button"
-            disabled
-            title="국세청 진위확인 연동 예정 (CTO 확인)"
-            className="shrink-0 rounded-[14.64px] bg-navy/[0.04] px-4 text-[13px] font-medium text-navy/15"
-          >
-            인증
-          </button>
+          <BizNoVerifyButton label="인증" biz={biz} />
         </div>
+        <BizNoResult result={biz.result} message={biz.message} />
       </Field>
       <Field label="소속 지자체/기관명" required>
         <TextInput
@@ -511,6 +558,8 @@ function SupplierInfoStep({
   uploading: boolean;
   fileName: string;
 }) {
+  const biz = useBizNoVerify(form.businessRegistrationNo);
+
   return (
     <>
       <h2 className="mb-5 text-[14px] font-bold tracking-[-0.392px] text-ink">기업 기본 정보</h2>
@@ -522,11 +571,17 @@ function SupplierInfoStep({
       </Field>
       <Field label="사업자 등록번호" required>
         <div className="flex gap-2">
-          <TextInput value={form.businessRegistrationNo} onChange={(e) => set("businessRegistrationNo", e.target.value)} placeholder="XXX-XX-XXXXX" />
-          <button type="button" disabled title="국세청 진위확인 연동 예정 (CTO 확인)" className="shrink-0 rounded-[14.64px] bg-navy/[0.04] px-4 text-[13px] font-medium text-navy/15">
-            진위 확인
-          </button>
+          <TextInput
+            value={form.businessRegistrationNo}
+            onChange={(e) => {
+              set("businessRegistrationNo", e.target.value);
+              biz.reset();
+            }}
+            placeholder="XXX-XX-XXXXX"
+          />
+          <BizNoVerifyButton label="진위 확인" biz={biz} />
         </div>
+        <BizNoResult result={biz.result} message={biz.message} />
       </Field>
       <Field label="사업자등록증 업로드">
         <label className="flex cursor-pointer flex-col items-center justify-center rounded-[14.64px] border-2 border-dashed border-line/50 py-8 text-center hover:bg-field">

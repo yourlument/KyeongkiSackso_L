@@ -1,5 +1,5 @@
 
-export type OrderStatus = "결제대기" | "결제완료" | "배송중" | "납품완료";
+export type OrderStatus = "결제대기" | "결제완료" | "배송중" | "납품완료" | "취소";
 
 export type OrderRow = {
   id: string;
@@ -16,13 +16,13 @@ export type OrderRow = {
 };
 
 export const ORDER_STATS = [
-  { key: "total", label: "전체 주문", value: "5", icon: "/icons/ord-stat-total.svg", tint: true },
-  { key: "paid", label: "결제완료", value: "2", icon: "/icons/ord-stat-paid.svg", tint: false },
-  { key: "shipping", label: "배송중", value: "1", icon: "/icons/ord-stat-shipping.svg", tint: false },
-  { key: "delivered", label: "납품완료", value: "2", icon: "/icons/ord-stat-delivered.svg", tint: false },
+  { key: "total", label: "전체 주문", icon: "/icons/ord-stat-total.svg", tint: true },
+  { key: "paid", label: "결제완료", icon: "/icons/ord-stat-paid.svg", tint: false },
+  { key: "shipping", label: "배송중", icon: "/icons/ord-stat-shipping.svg", tint: false },
+  { key: "delivered", label: "납품완료", icon: "/icons/ord-stat-delivered.svg", tint: false },
 ] as const;
 
-export const ORDER_FILTERS = ["전체", "결제대기", "결제완료", "배송중", "납품완료"] as const;
+export const ORDER_FILTERS = ["전체", "결제대기", "결제완료", "배송중", "납품완료", "취소"] as const;
 export type OrderFilter = (typeof ORDER_FILTERS)[number];
 
 export const STATUS_STYLE: Record<OrderStatus, { bg: string; border: string; color: string }> = {
@@ -30,6 +30,7 @@ export const STATUS_STYLE: Record<OrderStatus, { bg: string; border: string; col
   결제완료: { bg: "rgba(30,58,95,0.1)", border: "rgba(30,58,95,0.2)", color: "#1E3A5F" },
   배송중: { bg: "#F0F9FF", border: "#BAE6FD", color: "#0369A1" },
   납품완료: { bg: "#ECFDF5", border: "#A7F3D0", color: "#047857" },
+  취소: { bg: "#FEF2F2", border: "#FECACA", color: "#DC2626" },
 };
 
 export const NEXT_ACTION: Partial<Record<OrderStatus, { label: string; next: OrderStatus }>> = {
@@ -38,10 +39,12 @@ export const NEXT_ACTION: Partial<Record<OrderStatus, { label: string; next: Ord
 };
 
 export type OrderDetail = {
+  id: string;
   orderNo: string;
   payDate: string;
   payMethod: string;
   status: OrderStatus;
+  taxInvoiceStatus: "NONE" | "REQUESTED" | "ISSUED";
   items: { name: string; spec: string; amount: string }[];
   total: string;
   tax: {

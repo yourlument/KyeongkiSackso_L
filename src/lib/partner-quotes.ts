@@ -46,7 +46,7 @@ export async function loadPartnerQuotes(companyId: string): Promise<PartnerQuote
     orderBy: { createdAt: "desc" },
     include: {
       items: true,
-      attachments: { select: { fileName: true }, take: 1 },
+      attachments: { select: { fileName: true, fileUrl: true }, take: 1 },
       responses: { where: { supplierCompanyId: companyId }, take: 1 },
       ...officialInclude,
     },
@@ -74,6 +74,7 @@ export async function loadPartnerQuotes(companyId: string): Promise<PartnerQuote
         address: [q.deliveryAddress, q.deliveryAddressDetail].filter(Boolean).join(" ") || q.deliveryPlace || "-",
         note: q.description ?? "-",
         attachment: q.attachments[0]?.fileName ?? "첨부 파일 없음",
+        attachmentUrl: q.attachments[0]?.fileUrl ?? null,
       },
     };
   });
@@ -104,7 +105,7 @@ export async function loadPartnerQuotes(companyId: string): Promise<PartnerQuote
   const myResponses = await prisma.quoteResponse.findMany({
     where: { supplierCompanyId: companyId },
     orderBy: { createdAt: "desc" },
-    include: { quoteRequest: { include: officialInclude } },
+    include: { quoteRequest: { include: officialInclude }, attachments: { select: { fileName: true, fileUrl: true }, take: 1 } },
   });
 
   const proposals: Proposal[] = myResponses.map((r) => {
@@ -112,6 +113,7 @@ export async function loadPartnerQuotes(companyId: string): Promise<PartnerQuote
     const orgName = q.contactOrgName ?? q.official?.organization?.name ?? "-";
     return {
       id: r.id,
+      quoteRequestId: q.id,
       title: q.title,
       statusKind: RESP_KIND[r.status] ?? "접수",
       org: orgName,
@@ -119,7 +121,8 @@ export async function loadPartnerQuotes(companyId: string): Promise<PartnerQuote
       submittedAt: ymd(r.createdAt),
       amount: won(r.totalAmount),
       spec: r.specSummary ?? "-",
-      attachment: "첨부 파일 없음",
+      attachment: r.attachments[0]?.fileName ?? "첨부 파일 없음",
+      attachmentUrl: r.attachments[0]?.fileUrl ?? null,
     };
   });
 

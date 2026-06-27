@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { InfoDetailData } from "@/lib/info";
+import type { InfoDetailData, InfoComment } from "@/lib/info";
+import { VideoEmbed } from "@/components/video-embed";
 
 const NAVY = "#1E3A5F";
 const RED = "#EF4444";
@@ -21,10 +22,10 @@ const POST = {
 };
 
 const ATTACHMENTS = [
-  { type: "pdf", name: "경기도_조달_공통서식_모음집_2026.pdf", size: "7.8 MB" },
-  { type: "hwp", name: "구매요청서_표준양식_v4.hwp", size: "1.1 MB" },
-  { type: "pdf", name: "납품검수조서_작성_예시.pdf", size: "3.3 MB" },
-  { type: "pptx", name: "지출결의서_전자결재_연동_가이드.pptx", size: "5.3 MB" },
+  { type: "pdf", name: "경기도_조달_공통서식_모음집_2026.pdf", size: "7.8 MB", fileUrl: "" },
+  { type: "hwp", name: "구매요청서_표준양식_v4.hwp", size: "1.1 MB", fileUrl: "" },
+  { type: "pdf", name: "납품검수조서_작성_예시.pdf", size: "3.3 MB", fileUrl: "" },
+  { type: "pptx", name: "지출결의서_전자결재_연동_가이드.pptx", size: "5.3 MB", fileUrl: "" },
 ];
 
 const REACTIONS = { likes: "235", dislikes: "0" };
@@ -278,7 +279,20 @@ function CommentActions({ likes, replies }: { likes: string; replies: string }) 
   );
 }
 
-function ReplyInput() {
+function ReplyInput({
+  value,
+  onChange,
+  onSubmit,
+  onCancel,
+  disabled,
+}: {
+  value?: string;
+  onChange?: (v: string) => void;
+  onSubmit?: () => void;
+  onCancel?: () => void;
+  disabled?: boolean;
+} = {}) {
+  const interactive = onChange !== undefined;
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: "9.76px", paddingTop: "14.64px", paddingBottom: "19.52px", paddingLeft: "43.92px" }}>
       <span style={{ paddingTop: "12.2px" }}>
@@ -286,12 +300,24 @@ function ReplyInput() {
       </span>
       <div style={{ display: "flex", alignItems: "center", gap: "9.76px", flex: 1 }}>
         <div style={{ flex: 1, height: "44px", display: "flex", alignItems: "center", padding: "10.75px 15.64px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.3)", background: "#fff", boxSizing: "border-box" }}>
-          <span style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "rgba(29,29,31,0.3)" }}>답글을 입력하세요</span>
+          {interactive ? (
+            <input
+              type="text"
+              value={value ?? ""}
+              onChange={(e) => onChange?.(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") onSubmit?.(); }}
+              placeholder="답글을 입력하세요"
+              className="placeholder:text-[rgba(29,29,31,0.3)]"
+              style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#1D1D1F" }}
+            />
+          ) : (
+            <span style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "rgba(29,29,31,0.3)" }}>답글을 입력하세요</span>
+          )}
         </div>
-        <button type="button" style={{ height: "44px", padding: "9.76px 19.52px", borderRadius: "14.64px", background: NAVY, border: "none", color: "#fff", fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "22.75px", cursor: "pointer", flexShrink: 0 }}>
+        <button type="button" onClick={onSubmit} disabled={disabled} style={{ height: "44px", padding: "9.76px 19.52px", borderRadius: "14.64px", background: NAVY, border: "none", color: "#fff", fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "22.75px", cursor: "pointer", flexShrink: 0, opacity: disabled ? 0.6 : 1 }}>
           등록
         </button>
-        <button type="button" style={{ height: "44px", padding: "10.76px 15.64px", borderRadius: "14.64px", background: "#fff", border: "1px solid rgba(210,210,215,0.3)", color: "rgba(29,29,31,0.5)", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "22.75px", cursor: "pointer", flexShrink: 0 }}>
+        <button type="button" onClick={onCancel} style={{ height: "44px", padding: "10.76px 15.64px", borderRadius: "14.64px", background: "#fff", border: "1px solid rgba(210,210,215,0.3)", color: "rgba(29,29,31,0.5)", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "22.75px", cursor: "pointer", flexShrink: 0 }}>
           취소
         </button>
       </div>
@@ -301,6 +327,107 @@ function ReplyInput() {
 
 export function ReportView({ initialKind = null, data }: { initialKind?: ReportKind | null; data?: InfoDetailData } = {}) {
   const [modalKind, setModalKind] = useState<ReportKind | null>(initialKind);
+
+  const postId = data?.id ?? null;
+  const [likes, setLikes] = useState(data?.likes ?? 0);
+  const [dislikes, setDislikes] = useState(data?.dislikes ?? 0);
+  const [postReaction, setPostReaction] = useState<"LIKE" | "DISLIKE" | null>(data?.myReaction ?? null);
+  const [reacting, setReacting] = useState(false);
+
+  const [comments, setComments] = useState<InfoComment[]>(data?.comments ?? []);
+  const [popularComments, setPopularComments] = useState<InfoComment[]>(data?.popularComments ?? []);
+  const [commentText, setCommentText] = useState("");
+  const [submittingComment, setSubmittingComment] = useState(false);
+
+  const [openReplyId, setOpenReplyId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [submittingReply, setSubmittingReply] = useState(false);
+
+  const toggleReply = (commentId: string) => {
+    setOpenReplyId((prev) => (prev === commentId ? null : commentId));
+    setReplyText("");
+  };
+
+  const submitReply = async (parentId: string) => {
+    if (!postId || !replyText.trim() || submittingReply) return;
+    setSubmittingReply(true);
+    try {
+      const res = await fetch(`/api/info/${postId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: replyText.trim(), parentId }),
+      });
+      if (!res.ok) return;
+      const d = (await res.json()) as { id: string; author: string; date: string; likes: number };
+      const text = replyText.trim();
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === parentId
+            ? { ...c, replies: String(Number(c.replies) + 1), reply: c.reply ?? { author: d.author, date: d.date, text, likes: String(d.likes), replies: "0" } }
+            : c,
+        ),
+      );
+      setReplyText("");
+      setOpenReplyId(null);
+    } catch {} finally {
+      setSubmittingReply(false);
+    }
+  };
+
+  const reactPost = async (type: "LIKE" | "DISLIKE") => {
+    if (!postId || reacting) return;
+    setReacting(true);
+    try {
+      const res = await fetch(`/api/info/${postId}/reactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+      });
+      if (!res.ok) return;
+      const d = (await res.json()) as { likes: number; dislikes: number; myReaction: "LIKE" | "DISLIKE" | null };
+      setLikes(d.likes);
+      setDislikes(d.dislikes);
+      setPostReaction(d.myReaction);
+    } catch {} finally {
+      setReacting(false);
+    }
+  };
+
+  const reactComment = async (commentId: string, type: "LIKE" | "DISLIKE") => {
+    if (!postId) return;
+    try {
+      const res = await fetch(`/api/info/${postId}/reactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, commentId }),
+      });
+      if (!res.ok) return;
+      const d = (await res.json()) as { likes: number; myReaction: "LIKE" | "DISLIKE" | null };
+      setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, likes: String(d.likes), myReaction: d.myReaction } : c)));
+      setPopularComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, likes: String(d.likes), myReaction: d.myReaction } : c)));
+    } catch {}
+  };
+
+  const submitComment = async () => {
+    if (!postId || !commentText.trim() || submittingComment) return;
+    setSubmittingComment(true);
+    try {
+      const res = await fetch(`/api/info/${postId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: commentText.trim() }),
+      });
+      if (!res.ok) return;
+      const d = (await res.json()) as { id: string; author: string; date: string; likes: number };
+      setComments((prev) => [
+        ...prev,
+        { id: d.id, author: d.author, date: d.date, text: commentText.trim(), likes: String(d.likes), replies: "0", openReply: false, myReaction: null },
+      ]);
+      setCommentText("");
+    } catch {} finally {
+      setSubmittingComment(false);
+    }
+  };
 
   return (
     <div style={{ background: "#fff" }}>
@@ -319,7 +446,7 @@ export function ReportView({ initialKind = null, data }: { initialKind?: ReportK
             {data?.category ?? POST.category}
           </span>
           <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.3)" }}>
-            {POST.subtitle}
+            {data?.subtitle ?? POST.subtitle}
           </span>
         </div>
 
@@ -344,15 +471,13 @@ export function ReportView({ initialKind = null, data }: { initialKind?: ReportK
           </span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: "4.88px" }}>
             <CommentIcon />
-            <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>{data?.commentsCount ?? POST.comments}</span>
+            <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>{data ? String(comments.length) : POST.comments}</span>
           </span>
         </div>
 
         {data ? (
           data.videoUrl && (
-            <div style={{ marginTop: "29.28px", borderRadius: "19.52px", overflow: "hidden", background: "#000", aspectRatio: "16/9" }}>
-              <iframe src={data.videoUrl} title="동영상" allowFullScreen style={{ width: "100%", height: "100%", border: "none", display: "block" }} />
-            </div>
+            <VideoEmbed url={data.videoUrl} style={{ marginTop: "29.28px", borderRadius: "19.52px", overflow: "hidden", background: "#000", aspectRatio: "16/9" }} />
           )
         ) : (
           <div style={{ marginTop: "29.28px", height: "472px", borderRadius: "19.52px", background: "#000", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -387,9 +512,15 @@ export function ReportView({ initialKind = null, data }: { initialKind?: ReportK
                     <p style={{ margin: 0, fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)" }}>{f.size}</p>
                   </div>
                 </div>
-                <button type="button" aria-label="다운로드" style={{ width: "39px", height: "39px", background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <DownloadIcon />
-                </button>
+                {f.fileUrl ? (
+                  <a href={f.fileUrl} download target="_blank" rel="noopener noreferrer" aria-label="다운로드" style={{ width: "39px", height: "39px", background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <DownloadIcon />
+                  </a>
+                ) : (
+                  <button type="button" aria-label="다운로드" style={{ width: "39px", height: "39px", background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <DownloadIcon />
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -398,18 +529,22 @@ export function ReportView({ initialKind = null, data }: { initialKind?: ReportK
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "19.52px", paddingTop: "40.04px", paddingBottom: "40.04px", borderTop: "1px solid rgba(210,210,215,0.2)" }}>
           <button
             type="button"
-            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "7.32px", padding: "16.64px 41.04px", borderRadius: "19.52px", background: "rgba(30,58,95,0.05)", border: `2px solid ${NAVY}`, cursor: "pointer" }}
+            onClick={postId ? () => reactPost("LIKE") : undefined}
+            disabled={!postId || reacting}
+            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "7.32px", padding: "16.64px 41.04px", borderRadius: "19.52px", background: postReaction === "LIKE" ? "rgba(30,58,95,0.1)" : "rgba(30,58,95,0.05)", border: `2px solid ${NAVY}`, cursor: postId ? "pointer" : "default" }}
           >
             <ThumbUpIcon />
-            <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.195px", lineHeight: "23.4px", color: NAVY }}>{REACTIONS.likes}</span>
+            <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.195px", lineHeight: "23.4px", color: NAVY }}>{data ? String(likes) : REACTIONS.likes}</span>
             <span style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: NAVY }}>좋아요</span>
           </button>
           <button
             type="button"
-            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "7.32px", padding: "16.64px 41.04px", borderRadius: "19.52px", background: "#fff", border: "2px solid rgba(210,210,215,0.3)", cursor: "pointer" }}
+            onClick={postId ? () => reactPost("DISLIKE") : undefined}
+            disabled={!postId || reacting}
+            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "7.32px", padding: "16.64px 41.04px", borderRadius: "19.52px", background: postReaction === "DISLIKE" ? "rgba(239,68,68,0.06)" : "#fff", border: postReaction === "DISLIKE" ? `2px solid ${RED}` : "2px solid rgba(210,210,215,0.3)", cursor: postId ? "pointer" : "default" }}
           >
             <ThumbDownIcon />
-            <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.4)" }}>{REACTIONS.dislikes}</span>
+            <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.4)" }}>{data ? String(dislikes) : REACTIONS.dislikes}</span>
             <span style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)" }}>싫어요</span>
           </button>
         </div>
@@ -418,7 +553,7 @@ export function ReportView({ initialKind = null, data }: { initialKind?: ReportK
           <div style={{ display: "flex", alignItems: "center", gap: "9.76px", paddingBottom: "29.28px" }}>
             <CommentBubbleIcon />
             <span style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "-0.448px", lineHeight: "20px", color: "#1D1D1F" }}>댓글 </span>
-            <span style={{ fontSize: "14px", fontWeight: 400, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "rgba(29,29,31,0.4)" }}>{data?.commentsCount ?? POST.comments}</span>
+            <span style={{ fontSize: "14px", fontWeight: 400, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "rgba(29,29,31,0.4)" }}>{data ? String(comments.length) : POST.comments}</span>
           </div>
 
           <div style={{ paddingBottom: "39.04px" }}>
@@ -427,7 +562,7 @@ export function ReportView({ initialKind = null, data }: { initialKind?: ReportK
               <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.364px", lineHeight: "16.25px", color: NAVY }}>인기 댓글</span>
             </div>
             <div style={{ borderRadius: "19.52px", background: "rgba(30,58,95,0.02)", border: "1px solid rgba(30,58,95,0.1)" }}>
-              {POPULAR_COMMENTS.map((c, i) => (
+              {(data ? popularComments : POPULAR_COMMENTS).map((c, i) => (
                 <div key={i} style={{ padding: "19.52px 24.4px 20.52px", borderTop: i === 0 ? "none" : "1px solid rgba(210,210,215,0.2)" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: "7.32px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "9.76px" }}>
@@ -441,24 +576,24 @@ export function ReportView({ initialKind = null, data }: { initialKind?: ReportK
                         <span style={{ fontSize: "11px", fontWeight: 500, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "#D97706" }}>{c.badge}</span>
                       </span>
                     </div>
-                    <button type="button" style={{ display: "flex", alignItems: "center", gap: "4.88px", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: "4.88px" }}>
                       <ReplyArrowIcon />
                       <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "21px", color: "rgba(29,29,31,0.4)" }}>답글</span>
-                    </button>
+                    </span>
                   </div>
                   <div style={{ paddingLeft: "43.92px" }}>
                     <p style={{ margin: 0, fontSize: "14px", fontWeight: 400, letterSpacing: "-0.21px", lineHeight: "22.75px", color: "rgba(29,29,31,0.7)" }}>{c.text}</p>
                     <div style={{ display: "flex", alignItems: "center", gap: "14.64px", paddingTop: "9.76px" }}>
-                      <button type="button" style={{ display: "flex", alignItems: "center", gap: "4.88px", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
-                        <MiniThumbIcon />
-                        <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "21px", color: NAVY }}>{c.likes}</span>
+                      <button type="button" onClick={data ? () => reactComment((c as InfoComment).id, "LIKE") : undefined} style={{ display: "flex", alignItems: "center", gap: "4.88px", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+                        {data ? <CommentThumbIcon opacity={(c as InfoComment).myReaction === "LIKE" ? 0.7 : 0.3} /> : <MiniThumbIcon />}
+                        <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "21px", color: data ? ((c as InfoComment).myReaction === "LIKE" ? NAVY : "rgba(29,29,31,0.3)") : NAVY }}>{c.likes}</span>
                       </button>
                       <button type="button" style={{ display: "flex", alignItems: "center", gap: "4.88px", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
                         <ReplyArrowIcon />
                         <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "21px", color: "rgba(29,29,31,0.3)" }}>{c.replies}</span>
                       </button>
                     </div>
-                    {c.openReply && <ReplyInput />}
+                    {!data && c.openReply && <ReplyInput />}
                   </div>
                 </div>
               ))}
@@ -466,8 +601,8 @@ export function ReportView({ initialKind = null, data }: { initialKind?: ReportK
           </div>
 
           <div style={{ paddingBottom: "39.04px" }}>
-            {COMMENTS.map((c, i) => (
-              <div key={i} style={{ borderBottom: "1px solid rgba(210,210,215,0.2)" }}>
+            {(data ? comments : COMMENTS).map((c, i) => (
+              <div key={data ? (c as InfoComment).id : i} style={{ borderBottom: "1px solid rgba(210,210,215,0.2)" }}>
                 <div style={{ padding: "24.4px 0" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: "9.76px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "9.76px" }}>
@@ -477,14 +612,27 @@ export function ReportView({ initialKind = null, data }: { initialKind?: ReportK
                       <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "#1D1D1F" }}>{c.author}</span>
                       <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.3)" }}>{c.date}</span>
                     </div>
-                    <button type="button" style={{ display: "flex", alignItems: "center", gap: "4.88px", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+                    <button type="button" onClick={data ? () => toggleReply((c as InfoComment).id) : undefined} style={{ display: "flex", alignItems: "center", gap: "4.88px", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
                       <ReplyArrowIcon />
                       <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "21px", color: "rgba(29,29,31,0.4)" }}>답글</span>
                     </button>
                   </div>
                   <div style={{ paddingLeft: "43.92px" }}>
                     <p style={{ margin: 0, fontSize: "14px", fontWeight: 400, letterSpacing: "-0.21px", lineHeight: "22.75px", color: "rgba(29,29,31,0.7)" }}>{c.text}</p>
-                    <CommentActions likes={c.likes} replies={c.replies} />
+                    {data ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: "14.64px", paddingTop: "9.76px" }}>
+                        <button type="button" onClick={() => reactComment((c as InfoComment).id, "LIKE")} style={{ display: "flex", alignItems: "center", gap: "4.88px", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+                          <CommentThumbIcon opacity={(c as InfoComment).myReaction === "LIKE" ? 0.7 : 0.3} />
+                          <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "21px", color: (c as InfoComment).myReaction === "LIKE" ? NAVY : "rgba(29,29,31,0.3)" }}>{c.likes}</span>
+                        </button>
+                        <button type="button" style={{ display: "flex", alignItems: "center", gap: "4.88px", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+                          <ReplyArrowIcon />
+                          <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "21px", color: "rgba(29,29,31,0.3)" }}>{c.replies}</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <CommentActions likes={c.likes} replies={c.replies} />
+                    )}
                   </div>
 
                   {c.reply && (
@@ -513,7 +661,19 @@ export function ReportView({ initialKind = null, data }: { initialKind?: ReportK
                     </div>
                   )}
 
-                  {c.openReply && <ReplyInput />}
+                  {data ? (
+                    openReplyId === (c as InfoComment).id && (
+                      <ReplyInput
+                        value={replyText}
+                        onChange={setReplyText}
+                        onSubmit={() => submitReply((c as InfoComment).id)}
+                        onCancel={() => toggleReply((c as InfoComment).id)}
+                        disabled={submittingReply}
+                      />
+                    )
+                  ) : (
+                    c.openReply && <ReplyInput />
+                  )}
                 </div>
               </div>
             ))}
@@ -525,11 +685,23 @@ export function ReportView({ initialKind = null, data }: { initialKind?: ReportK
             </span>
             <div style={{ display: "flex", alignItems: "center", gap: "9.76px", flex: 1 }}>
               <div style={{ flex: 1, height: "51px", display: "flex", alignItems: "center", padding: "13.1875px 20.52px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.3)", background: "#fff", boxSizing: "border-box" }}>
-                <span style={{ fontSize: "14px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "24.5px", color: "rgba(29,29,31,0.3)" }}>
-                  댓글을 남겨주세요 (익명으로 작성됩니다)
-                </span>
+                {postId ? (
+                  <input
+                    type="text"
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") submitComment(); }}
+                    placeholder="댓글을 남겨주세요 (익명으로 작성됩니다)"
+                    className="placeholder:text-[rgba(29,29,31,0.3)]"
+                    style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontSize: "14px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "24.5px", color: "#1D1D1F" }}
+                  />
+                ) : (
+                  <span style={{ fontSize: "14px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "24.5px", color: "rgba(29,29,31,0.3)" }}>
+                    댓글을 남겨주세요 (익명으로 작성됩니다)
+                  </span>
+                )}
               </div>
-              <button type="button" style={{ height: "51px", padding: "12.2px 24.4px", borderRadius: "14.64px", background: NAVY, border: "none", color: "#fff", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "22.75px", cursor: "pointer", flexShrink: 0 }}>
+              <button type="button" onClick={postId ? submitComment : undefined} disabled={!postId || submittingComment} style={{ height: "51px", padding: "12.2px 24.4px", borderRadius: "14.64px", background: NAVY, border: "none", color: "#fff", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "22.75px", cursor: postId ? "pointer" : "default", flexShrink: 0, opacity: submittingComment ? 0.6 : 1 }}>
                 등록
               </button>
             </div>

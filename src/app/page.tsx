@@ -4,8 +4,12 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { KakaoChat } from "@/components/kakao-chat";
 import { CategoryPanel } from "@/components/category-panel";
+import type { PanelCategory } from "@/components/category-panel";
+import { loadNews } from "@/lib/news";
 
 export const dynamic = "force-dynamic";
+
+const REVENUE_STATES = ["PAID", "CONTRACTED", "SHIPPING", "DELIVERED", "COMPLETED"] as const;
 
 async function getPopularProducts() {
   const products = await prisma.product.findMany({
@@ -31,20 +35,78 @@ async function getPopularProducts() {
 
 const KRW = new Intl.NumberFormat("ko-KR");
 
-const NOTICES = [
-  { tag: "공지", text: "시스템 정기 점검 안내 (5월 15일)" },
-  { tag: "이벤트", text: "신규 입점 업체 수수료 면제 이벤트" },
-];
-const NOTICE_LIST = [
-  { date: "2026-05-12", text: "클레임 처리 프로세스 개편 안내" },
-  { date: "2026-05-08", text: "신규 업체 입점 가이드라인 개정 안내" },
-];
-const STATS = [
-  { value: "12,450", unit: "개", label: "등록 상품" },
-  { value: "892", unit: "개사", label: "입점 업체" },
-  { value: "156", unit: "건", label: "진행 중인 견적" },
-  { value: "2,340", unit: "억원", label: "누적 거래액" },
-];
+async function getStats() {
+  const [productCount, supplierCount, quoteCount, revAgg] = await Promise.all([
+    prisma.product.count({ where: { status: "ACTIVE" } }),
+    prisma.supplierCompany.count(),
+    prisma.quoteRequest.count({ where: { status: { in: ["OPEN", "REVIEWING"] } } }),
+    prisma.order.aggregate({
+      where: { status: { in: [...REVENUE_STATES] } },
+      _sum: { totalAmount: true },
+    }),
+  ]);
+  const eok = Math.round(Number(revAgg._sum.totalAmount ?? 0) / 1e8);
+  return {
+    supplierCount,
+    stats: [
+      { value: KRW.format(productCount), unit: "개", label: "등록 상품" },
+      { value: KRW.format(supplierCount), unit: "개사", label: "입점 업체" },
+      { value: KRW.format(quoteCount), unit: "건", label: "진행 중인 견적" },
+      { value: KRW.format(eok), unit: "억원", label: "누적 거래액" },
+    ],
+  };
+}
+
+async function getNotices() {
+  const { items } = await loadNews();
+  const notices = items.slice(0, 2).map((n) => ({ tag: n.category, text: n.title }));
+  const noticeList = items.slice(0, 2).map((n) => ({ date: n.date, text: n.title }));
+  return { notices, noticeList };
+}
+
+async function getCategoryTree(): Promise<{
+  categories: PanelCategory[];
+  topCount: number;
+  midCount: number;
+  leafCount: number;
+}> {
+  const rows = await prisma.category.findMany({
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, name: true, level: true, parentId: true, itemType: true },
+  });
+
+  const tops = rows.filter((r) => r.level === 1);
+  const mids = rows.filter((r) => r.level === 2);
+  const leaves = rows.filter((r) => r.level === 3);
+
+  const categories: PanelCategory[] = tops.map((top, ti) => {
+    const subs = mids
+      .filter((m) => m.parentId === top.id)
+      .map((mid, mi) => {
+        const items = leaves
+          .filter((l) => l.parentId === mid.id)
+          .map((l) => ({
+            name: l.name,
+            type: l.itemType === "SERVICE" ? ("서비스" as const) : ("물품" as const),
+          }));
+        return {
+          name: mid.name,
+          count: items.length,
+          open: ti === 0 && mi === 0,
+          items,
+        };
+      });
+    return { name: top.name, subs: subs.length > 0 ? subs : null };
+  });
+
+  return {
+    categories,
+    topCount: tops.length,
+    midCount: mids.length,
+    leafCount: leaves.length,
+  };
+}
+
 const FEATURES = [
   {
     title: "스마트 검색",
@@ -79,7 +141,11 @@ const FEATURES = [
 ];
 
 export default async function HomePage() {
-  const products = await getPopularProducts();
+  const [products, { supplierCount, stats }, { notices, noticeList }, categoryTree] =
+    await Promise.all([getPopularProducts(), getStats(), getNotices(), getCategoryTree()]);
+  const STATS = stats;
+  const NOTICES = notices;
+  const NOTICE_LIST = noticeList;
 
   return (
     <div className="flex min-h-screen flex-col bg-bg">
@@ -130,7 +196,7 @@ export default async function HomePage() {
               상품 검색
             </Link>
             <Link
-              href="/quote/notices"
+              href="/quotes"
               className="rounded-[14.64px] bg-field px-[24.4px] py-[9.76px] text-[14px] font-medium leading-[24.5px] tracking-[-0.293px] text-ink/70 transition-colors hover:bg-line/60"
             >
               견적 공고 보기
@@ -138,18 +204,18 @@ export default async function HomePage() {
           </div>
         </section>
 
-        <section className="bg-surface px-[48.8px] pb-[39.04px]">
+        <section className="bg-surface px-[24px] md:px-[48.8px] pb-[39.04px]">
           <div className="mx-auto max-w-[1249px]">
             <div className="flex flex-wrap gap-[9.76px]">
-              {NOTICES.map((n) => (
+              {NOTICES.map((n, i) => (
                 <div
-                  key={n.tag}
-                  className="flex items-center gap-[9.76px] rounded-[4.88px] border border-[#E5E7EB] bg-white px-[15.64px] py-[8.32px]"
+                  key={i}
+                  className="flex w-full items-center gap-[9.76px] rounded-[4.88px] border border-[#E5E7EB] bg-white px-[15.64px] py-[8.32px] md:w-auto"
                 >
-                  <span className="rounded-[4.88px] bg-[#1f2937] px-[7.32px] py-[2.44px] text-[10px] font-medium leading-[18px] tracking-[-0.15px] text-white">
+                  <span className="flex-none rounded-[4.88px] bg-[#1f2937] px-[7.32px] py-[2.44px] text-[10px] font-medium leading-[18px] tracking-[-0.15px] text-white">
                     {n.tag}
                   </span>
-                  <span className="text-[14.64px] font-normal leading-[19.52px] tracking-[-0.2196px] text-[#4b5563]">
+                  <span className="min-w-0 flex-1 truncate text-[14.64px] font-normal leading-[19.52px] tracking-[-0.2196px] text-[#4b5563] md:flex-none">
                     {n.text}
                   </span>
                   <img src="/icons/land-notice-chevron.svg" alt="" aria-hidden="true" width={15} height={15} />
@@ -162,8 +228,8 @@ export default async function HomePage() {
                 <img src="/icons/land-cat-empty.svg" alt="" width={15} height={12} className="opacity-60" />
               </span>
               <div className="flex min-w-0 flex-1 flex-col gap-[9.76px]">
-                {NOTICE_LIST.map((n) => (
-                  <div key={n.date} className="flex items-center gap-[9.76px]">
+                {NOTICE_LIST.map((n, i) => (
+                  <div key={i} className="flex items-center gap-[9.76px]">
                     <span className="flex-none text-[10px] font-normal leading-[18px] tracking-[-0.15px] text-[#9ca3af]">
                       {n.date}
                     </span>
@@ -173,9 +239,9 @@ export default async function HomePage() {
                   </div>
                 ))}
               </div>
-              <span className="flex-none text-[10px] font-normal leading-[17.5px] tracking-[-0.15px] text-[#9ca3af]">
+              <Link href="/news" className="flex-none text-[10px] font-normal leading-[17.5px] tracking-[-0.15px] text-[#9ca3af]">
                 전체보기
-              </span>
+              </Link>
             </div>
           </div>
         </section>
@@ -259,11 +325,11 @@ export default async function HomePage() {
                 카테고리
               </h2>
               <p className="pt-[9.76px] text-[14px] font-normal leading-[25.2px] tracking-[-0.21px] text-ink/50">
-                7대분류 · 18중분류 · 112소분류
+                {categoryTree.topCount}대분류 · {categoryTree.midCount}중분류 · {categoryTree.leafCount}소분류
               </p>
             </div>
 
-            <CategoryPanel />
+            <CategoryPanel categories={categoryTree.categories} />
           </div>
         </section>
 
@@ -316,7 +382,7 @@ export default async function HomePage() {
               지금 바로 입점하세요
             </h2>
             <div className="mb-[48.8px] flex flex-col text-[16px] font-normal leading-[26px] tracking-[-0.24px] text-white/60">
-              <span>892개 업체가 함께하는 KORLINK 공공조달 플랫폼.</span>
+              <span>{KRW.format(supplierCount)}개 업체가 함께하는 KORLINK 공공조달 플랫폼.</span>
               <span>간단한 등록으로 수요 기관과 바로 연결됩니다.</span>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-[14.64px]">
@@ -327,7 +393,7 @@ export default async function HomePage() {
                 입점 신청하기
               </Link>
               <Link
-                href="/quote/notices"
+                href="/quotes"
                 className="rounded-[14.64px] border border-white/30 px-[40.04px] py-[15.64px] text-[14px] font-medium leading-[24.5px] tracking-[-0.293px] text-white transition-colors hover:bg-white/10"
               >
                 견적 공고 보기

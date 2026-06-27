@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { STATUS_STYLE, type OrderDetail } from "./orders-data";
+import { STATUS_STYLE, type OrderDetail, type OrderRow } from "./orders-data";
+import { InvoiceModal } from "./invoice-modal";
 
 const INK = "#1D1D1F";
 const NAVY = "#1E3A5F";
@@ -11,6 +13,43 @@ export function OrderDetailModal({ order }: { order: OrderDetail }) {
   const d = order;
   const sStyle = STATUS_STYLE[d.status];
   const close = () => router.push("/partner/orders");
+  const [invoiceOpen, setInvoiceOpen] = useState(false);
+  const [taxSubmitting, setTaxSubmitting] = useState(false);
+  const cancelled = d.status === "취소";
+  const showShipButton = d.status === "결제대기" || d.status === "결제완료";
+
+  const invoiceRow: OrderRow = {
+    id: d.id,
+    orderNo: d.orderNo,
+    itemName: d.items[0]?.name ?? "-",
+    qty: "-",
+    buyerName: d.recipient.name,
+    buyerOrg: d.recipient.org,
+    amount: d.total,
+    status: d.status,
+    orderDate: d.payDate,
+  };
+
+  async function patchStatus(payload: Record<string, unknown>) {
+    const res = await fetch(`/api/partner/orders/${d.id}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) router.refresh();
+    return res.ok;
+  }
+
+  function openDocument(type: "purchase" | "sales") {
+    window.open(`/api/orders/${d.id}/document?type=${type}`, "_blank");
+  }
+
+  async function markTaxIssued() {
+    if (taxSubmitting || d.taxInvoiceStatus === "ISSUED" || cancelled) return;
+    setTaxSubmitting(true);
+    const ok = await patchStatus({ taxInvoiceStatus: "ISSUED" });
+    if (!ok) setTaxSubmitting(false);
+  }
 
   return (
     <div
@@ -78,7 +117,7 @@ export function OrderDetailModal({ order }: { order: OrderDetail }) {
               <InfoPair label="수신 이메일" value={d.tax.email} />
               <InfoPair label="사업장 주소" value={d.tax.address} full />
             </InfoCard>
-            <button type="button" style={{ width: "100%", marginTop: "14.64px", borderRadius: "14.64px", border: "none", background: NAVY, padding: "12.2px 0", fontSize: "12px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "21px", color: "#fff", cursor: "pointer" }}>
+            <button type="button" onClick={markTaxIssued} disabled={taxSubmitting || d.taxInvoiceStatus === "ISSUED" || cancelled} style={{ width: "100%", marginTop: "14.64px", borderRadius: "14.64px", border: "none", background: NAVY, opacity: taxSubmitting || d.taxInvoiceStatus === "ISSUED" || cancelled ? 0.4 : 1, padding: "12.2px 0", fontSize: "12px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "21px", color: "#fff", cursor: taxSubmitting || d.taxInvoiceStatus === "ISSUED" || cancelled ? "default" : "pointer" }}>
               세금계산서 발행 완료 처리
             </button>
           </Section>
@@ -107,19 +146,32 @@ export function OrderDetailModal({ order }: { order: OrderDetail }) {
             <p style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.275px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)", margin: "0 0 9.76px" }}>증빙 서류 출력</p>
             <p style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)", margin: "0 0 14.64px" }}>클릭 시 새 창에서 열립니다.</p>
             <div className="flex" style={{ gap: "9.76px" }}>
-              <DocButton>구매확인서</DocButton>
-              <DocButton>매출 전표</DocButton>
+              <DocButton onClick={() => openDocument("purchase")}>구매확인서</DocButton>
+              <DocButton onClick={() => openDocument("sales")}>매출 전표</DocButton>
               <DocButton locked>세금 계산서 🔒</DocButton>
             </div>
           </div>
 
-          <div style={{ marginTop: "24.4px", borderTop: "1px solid rgba(210,210,215,0.1)", paddingTop: "20.52px" }}>
-            <button type="button" style={{ width: "100%", borderRadius: "14.64px", border: "none", background: NAVY, padding: "12.2px 0", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#fff", cursor: "pointer" }}>
-              송장 번호 등록 후 배송중으로 변경
-            </button>
-          </div>
+          {showShipButton && (
+            <div style={{ marginTop: "24.4px", borderTop: "1px solid rgba(210,210,215,0.1)", paddingTop: "20.52px" }}>
+              <button type="button" onClick={() => setInvoiceOpen(true)} style={{ width: "100%", borderRadius: "14.64px", border: "none", background: NAVY, padding: "12.2px 0", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#fff", cursor: "pointer" }}>
+                송장 번호 등록 후 배송중으로 변경
+              </button>
+            </div>
+          )}
         </div>
       </div>
+
+      {invoiceOpen && (
+        <InvoiceModal
+          order={invoiceRow}
+          onClose={() => setInvoiceOpen(false)}
+          onSubmit={async (courier, trackingNo) => {
+            const ok = await patchStatus({ status: "SHIPPING", courier, trackingNo });
+            if (ok) setInvoiceOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -166,11 +218,12 @@ function InfoPair({ label, value, full }: { label: string; value: string; full?:
   );
 }
 
-function DocButton({ children, locked }: { children: React.ReactNode; locked?: boolean }) {
+function DocButton({ children, locked, onClick }: { children: React.ReactNode; locked?: boolean; onClick?: () => void }) {
   return (
     <button
       type="button"
       disabled={locked}
+      onClick={onClick}
       style={{ flex: 1, borderRadius: "14.64px", border: `1px solid ${locked ? "rgba(210,210,215,0.1)" : "rgba(210,210,215,0.2)"}`, background: "#fff", padding: "13.2px 0", fontSize: "12px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "21px", color: locked ? "rgba(29,29,31,0.3)" : "rgba(29,29,31,0.6)", cursor: locked ? "default" : "pointer" }}
     >
       {children}

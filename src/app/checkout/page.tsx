@@ -5,9 +5,12 @@ import { SiteFooter } from "@/components/site-footer";
 import { KakaoChat } from "@/components/kakao-chat";
 import { CheckoutView } from "./checkout-view";
 
-export default async function CheckoutPage() {
+export default async function CheckoutPage({ searchParams }: { searchParams: Promise<{ pay?: string }> }) {
   const claims = await getSessionClaims();
   if (!claims) redirect("/login");
+
+  const sp = await searchParams;
+  const initialPay = sp?.pay === "virtual" ? "virtual" : "card";
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">
@@ -23,7 +26,7 @@ export default async function CheckoutPage() {
           </p>
           <div style={{ marginTop: "29.28px", borderTop: "1px solid rgba(210,210,215,0.4)" }} />
 
-          <CheckoutView />
+          <CheckoutView initialPay={initialPay} />
         </div>
       </main>
       <SiteFooter />

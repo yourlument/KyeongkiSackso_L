@@ -4,45 +4,34 @@ import { useState } from "react";
 
 type SubItem = { name: string; type: "물품" | "서비스" };
 type SubCategory = { name: string; count: number; items: SubItem[]; open: boolean };
-type Category = { name: string; subs: SubCategory[] | null };
+export type PanelCategory = { name: string; subs: SubCategory[] | null };
 
-const CATEGORIES: Category[] = [
-  {
-    name: "도로교통 및 토목 분야",
-    subs: [
-      {
-        name: "도로 건설 및 유지보수",
-        count: 9,
-        open: true,
-        items: [
-          { name: "도로포장재(레미콘, 아스콘, 시멘트, 콘크리트)", type: "물품" },
-          { name: "도로용 도료(차선도색용 페인트)", type: "물품" },
-          { name: "그레이팅", type: "물품" },
-          { name: "맨홀", type: "물품" },
-          { name: "토목용보강재", type: "물품" },
-          { name: "석재", type: "물품" },
-          { name: "토목자재", type: "물품" },
-          { name: "도로 보수 공사 서비스", type: "서비스" },
-          { name: "유지보수 대행 서비스", type: "서비스" },
-        ],
-      },
-      { name: "교통 안전 및 관제", count: 6, open: false, items: [] },
-      { name: "운송 및 특수 차량", count: 8, open: false, items: [] },
-    ],
-  },
-  { name: "건축시설 및 전기/설비 분야", subs: null },
-  { name: "일반행정 및 교육/지원 분야", subs: null },
-  { name: "재난안전 및 소방/보건 분야", subs: null },
-  { name: "정보통신 및 디지털/4차산업 분야", subs: null },
-  { name: "환경/산림 및 조경/청소 분야", subs: null },
-  { name: "복지/식품 및 문화/관광 분야", subs: null },
-];
+function initOpenKeys(categories: PanelCategory[]): Set<string> {
+  const keys = new Set<string>();
+  categories.forEach((cat) => {
+    cat.subs?.forEach((sub) => {
+      if (sub.open) keys.add(`${cat.name}::${sub.name}`);
+    });
+  });
+  return keys;
+}
 
-export function CategoryPanel() {
+export function CategoryPanel({ categories }: { categories: PanelCategory[] }) {
   const [selected, setSelected] = useState<number | null>(null);
+  const [openKeys, setOpenKeys] = useState<Set<string>>(() => initOpenKeys(categories));
 
-  const cat = selected !== null ? CATEGORIES[selected] : null;
+  const cat = selected !== null ? categories[selected] : null;
   const hasData = cat?.subs != null;
+
+  function toggleSub(catName: string, subName: string) {
+    const key = `${catName}::${subName}`;
+    setOpenKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   return (
     <div className="flex flex-col gap-[24.4px] lg:flex-row">
@@ -51,7 +40,7 @@ export function CategoryPanel() {
         className="w-full overflow-hidden rounded-[19.52px] p-px lg:w-[254px]"
         style={{ border: "1px solid rgba(210,210,215,0.2)" }}
       >
-        {CATEGORIES.map((c, i) => (
+        {categories.map((c, i) => (
           <button
             key={c.name}
             type="button"
@@ -67,7 +56,7 @@ export function CategoryPanel() {
               color: selected === i ? "#ffffff" : "rgba(29,29,31,0.7)",
               background: selected === i ? "#1E3A5F" : "#ffffff",
               borderBottom:
-                i < CATEGORIES.length - 1 ? "1px solid rgba(210,210,215,0.15)" : "none",
+                i < categories.length - 1 ? "1px solid rgba(210,210,215,0.15)" : "none",
             }}
           >
             {c.name}
@@ -100,17 +89,21 @@ export function CategoryPanel() {
             </p>
 
             <div className="flex flex-col">
-              {cat.subs.map((sub, si) => (
+              {cat.subs.map((sub, si) => {
+                const isOpen = openKeys.has(`${cat.name}::${sub.name}`);
+                return (
                 <div
                   key={sub.name}
                   style={{ paddingTop: si > 0 ? "19.5px" : 0 }}
                 >
-                  <div
-                    className="flex items-center"
-                    style={{ gap: "9.8px", marginBottom: sub.open ? "9.76px" : 0 }}
+                  <button
+                    type="button"
+                    onClick={() => toggleSub(cat.name, sub.name)}
+                    className="flex w-full items-center text-left"
+                    style={{ gap: "9.8px", marginBottom: isOpen ? "9.76px" : 0 }}
                   >
                     <img
-                      src={sub.open ? "/icons/land-subcat-open.svg" : "/icons/land-subcat-closed.svg"}
+                      src={isOpen ? "/icons/land-subcat-open.svg" : "/icons/land-subcat-closed.svg"}
                       alt=""
                       aria-hidden="true"
                       width={18}
@@ -138,9 +131,9 @@ export function CategoryPanel() {
                     >
                       ({sub.count}개)
                     </span>
-                  </div>
+                  </button>
 
-                  {sub.open && sub.items.length > 0 && (
+                  {isOpen && sub.items.length > 0 && (
                     <div
                       className="grid"
                       style={{
@@ -203,7 +196,8 @@ export function CategoryPanel() {
                     </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         ) : (

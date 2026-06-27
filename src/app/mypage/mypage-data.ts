@@ -109,16 +109,9 @@ export type QuoteNoticeRow = {
   status: QuoteNoticeStatus;
 };
 
-export const QUOTE_NOTICES: QuoteNoticeRow[] = [
-  { regDate: "2026-05-01", title: "2026년 2분기 도로보수 공사 자재 구매", sub: "레미콘 24-40-140 50㎥, 아스콘 표준배합 15-40 30톤", budget: "8,000,000원", deadline: "2026-06-15", proposals: "3건", status: "공고중" },
-  { regDate: "2026-05-02", title: "2026년 화성시 도시개발 건자재 대규모 구매 (다수 업체 비교)", sub: "레미콘 24-40-140 200㎥, 아스콘 표준배합 15-40 100톤, 철근 D16 10m 500개", budget: "35,000,000원", deadline: "2026-07-31", proposals: "10건", status: "검토중" },
-  { regDate: "2026-05-08", title: "수지 보강 프로젝트 발전기 및 베어링 구매", sub: "발전기 100kW급 2대, 베어링 6206-2RS 500개", budget: "15,000,000원", deadline: "2026-06-20", proposals: "1건", status: "공고중" },
-  { regDate: "2026-02-15", title: "2026년 화성시 도로유지보수 포장 자재 구매 (물품 견적)", sub: "레미콘 24-40-140(중기) 80㎥, 아스콘 표준배합 15-40 40톤", budget: "12,000,000원", deadline: "2026-03-20", proposals: "4건", status: "선정완료" },
-  { regDate: "2026-01-20", title: "2026년 1분기 교통안전용품 구매 (물품 견적)", sub: "반사원형콘 750mm 200개, 강관난간 2중난간 50m", budget: "5,500,000원", deadline: "2026-02-28", proposals: "6건", status: "마감" },
-];
-
 export type ProductQuoteStatus = "대기중" | "견적 도착";
 export type ProductQuoteRow = {
+  id: string;
   product: string;
   supplier: string;
   phone: string;
@@ -128,31 +121,21 @@ export type ProductQuoteRow = {
   offer?: { amount: string; note: string };
 };
 
-export const PRODUCT_QUOTES: ProductQuoteRow[] = [
-  { product: "컴퓨터(데스크톱) 업무용 PC i7/16GB/512GB", supplier: "디지털솔루션(주)", phone: "031-780-4500", reqDate: "2026-05-10", qty: "20대", status: "대기중" },
-  { product: "컴퓨터(데스크톱) 업무용 PC i7/16GB/512GB", supplier: "디지털솔루션(주)", phone: "031-780-4500", reqDate: "2026-05-08", qty: "10대", status: "견적 도착", offer: { amount: "8,800,000원", note: "24인치 FHD 모니터 포함 세트" } },
-  { product: "네트워크장비(스위치) 48포트 L3 관리형", supplier: "네트웍솔루션(주)", phone: "031-555-1234", reqDate: "2026-05-14", qty: "3대", status: "대기중" },
-];
-
 export type QuoteAttachment = { name: string };
-export const QUOTE_REQUEST_DETAIL = {
-  product: "컴퓨터(데스크톱) 업무용 PC i7/16GB/512GB",
-  supplier: "디지털솔루션(주)",
-  org: "경기도 화성시청",
-  dept: "도로관리과",
-  email: "official@ggseso.go.kr",
-  phone: "031-369-1234",
-  qty: "20대",
-  wishDate: "2026-05-25",
-  address: "[18289] 경기도 화성시 시청로 159 화성시청 도로관리과",
-  reqDate: "2026-05-10",
-  status: "대기중" as const,
-  content:
-    "화성시청 정보통신과에서 도로관리과로 업무용 PC 20대를 긴급 요청합니다. CPU는 i7-13세대 이상, 메모리는 DDR5 16GB, 저장장치는 NVMe 512GB 이상이 필요합니다. 기존에 사용 중인 노후 PC(6년 이상)를 교체하는 것으로, Windows 11 Pro 정품 라이선스 포함 설치가 필요합니다. 납품 시 기존 데이터 이전 지원도 요청드립니다.",
-  attachments: [
-    { name: "견적요청서_도로관리과_2026.pdf" },
-    { name: "사양비교표.xlsx" },
-  ] as QuoteAttachment[],
+export type QuoteRequestDetailView = {
+  product: string;
+  supplier: string;
+  org: string;
+  dept: string;
+  email: string;
+  phone: string;
+  qty: string;
+  wishDate: string;
+  address: string;
+  reqDate: string;
+  status: ProductQuoteStatus;
+  content: string;
+  attachments: QuoteAttachment[];
 };
 
 export type DemandPostRow = { title: string; meta: string; status: "진행중" };
@@ -170,7 +153,7 @@ export const INFO_POSTS: InfoPostRow[] = [
 ];
 
 export type InquiryKind = "문의" | "신고";
-export type InquiryStatus = "접수" | "처리중" | "완료";
+export type InquiryStatus = "접수" | "처리중" | "완료" | "반려";
 export type InquiryRow = {
   kind: InquiryKind;
   category: string;
@@ -218,12 +201,12 @@ export const SUPPLIER_INQUIRIES: InquiryRow[] = [
   { kind: "문의", category: "구독문의", title: "프리미엄 플랜 이용 중 상품 노출 순위 문의", date: "2026-05-05", status: "완료" },
 ];
 
-export type AlarmSetting = { title: string; desc: string; on: boolean };
-export const ALARM_SETTINGS: AlarmSetting[] = [
-  { title: "주문/결제 알림", desc: "주문 접수, 결제 완료, 배송 시작 등", on: true },
-  { title: "견적 공고 알림", desc: "내 공고 입찰, 마감 임박, 선정 결과 등", on: true },
-  { title: "배송 알림", desc: "출고, 배송중, 납품 완료 등", on: true },
-  { title: "마케팅 및 프로모션", desc: "신규 상품, 이벤트, 할인 정보 등", on: false },
+export type AlarmLabel = { title: string; desc: string };
+export const ALARM_LABELS: AlarmLabel[] = [
+  { title: "주문/결제 알림", desc: "주문 접수, 결제 완료, 배송 시작 등" },
+  { title: "견적 공고 알림", desc: "내 공고 입찰, 마감 임박, 선정 결과 등" },
+  { title: "배송 알림", desc: "출고, 배송중, 납품 완료 등" },
+  { title: "마케팅 및 프로모션", desc: "신규 상품, 이벤트, 할인 정보 등" },
 ];
 
 export const BASIC_INFO = {

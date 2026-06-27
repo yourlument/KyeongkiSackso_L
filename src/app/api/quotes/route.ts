@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
     contactPhone,
     description,
     items,
+    attachments,
     kind,
     targetSupplierCompanyId,
     productId,
@@ -50,6 +51,7 @@ export async function POST(req: NextRequest) {
     contactPhone?: string;
     description?: string;
     items?: { name: string; qty: string; unit: string; spec: string }[];
+    attachments?: { url: string; name: string }[];
     kind?: string;
     targetSupplierCompanyId?: string;
     productId?: string;
@@ -94,18 +96,31 @@ export async function POST(req: NextRequest) {
       description: description?.trim() || null,
       items: {
         create: items
-          .filter((it) => it.name.trim())
+          .filter((it) => it.name?.trim())
           .map((it, i) => ({
             productId: isDirect && i === 0 && productId ? productId : null,
             name: it.name.trim(),
             quantity: parseInt(it.qty) || 1,
             unit: it.unit || null,
-            spec: it.spec.trim() || null,
+            spec: it.spec?.trim() || null,
           })),
       },
     },
     select: { id: true },
   });
+
+  if (attachments?.length) {
+    const validAttachments = attachments.filter((a) => a.url && a.name);
+    if (validAttachments.length) {
+      await prisma.quoteRequestAttachment.createMany({
+        data: validAttachments.map((a) => ({
+          quoteRequestId: quoteRequest.id,
+          fileUrl: a.url,
+          fileName: a.name,
+        })),
+      });
+    }
+  }
 
   return NextResponse.json({ id: quoteRequest.id });
 }

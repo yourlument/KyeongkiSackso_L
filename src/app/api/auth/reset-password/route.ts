@@ -3,6 +3,22 @@ import { z } from "zod";
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/auth/password";
+import { sendMail } from "@/lib/mail";
+
+function tempPasswordEmail(tempPassword: string): { subject: string; html: string } {
+  return {
+    subject: "[KORINK] 임시 비밀번호가 발급되었습니다",
+    html: `<div style="max-width:480px;margin:0 auto;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#1D1D1F">
+  <h2 style="font-size:18px;font-weight:700;color:#1E3A5F;margin:0 0 16px">임시 비밀번호 안내</h2>
+  <p style="font-size:14px;line-height:24px;color:#1D1D1F;margin:0 0 16px">요청하신 임시 비밀번호가 발급되었습니다. 아래 비밀번호로 로그인하신 후 반드시 비밀번호를 변경해 주세요.</p>
+  <div style="background:#1E3A5F0D;border:1px solid #1E3A5F33;border-radius:12px;padding:20px;text-align:center;margin:0 0 16px">
+    <p style="font-size:12px;color:#1D1D1F80;margin:0 0 8px">임시 비밀번호</p>
+    <p style="font-size:22px;font-weight:700;letter-spacing:1px;color:#1E3A5F;margin:0">${tempPassword}</p>
+  </div>
+  <p style="font-size:12px;line-height:20px;color:#1D1D1F66;margin:0">본 메일은 발신 전용입니다. 비밀번호 재설정을 요청하지 않으셨다면 즉시 고객센터로 문의해 주세요.</p>
+</div>`,
+  };
+}
 
 const officialSchema = z.object({
   portal: z.literal("OFFICIAL"),
@@ -61,5 +77,8 @@ export async function POST(req: Request) {
     data: { passwordHash: await hashPassword(tempPassword) },
   });
 
-  return NextResponse.json({ tempPassword });
+  const mail = tempPasswordEmail(tempPassword);
+  const sent = await sendMail({ to: user.email, subject: mail.subject, html: mail.html });
+
+  return NextResponse.json({ tempPassword, emailSent: sent.ok });
 }

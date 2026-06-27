@@ -12,9 +12,8 @@ export default async function PartnerSalesPage() {
   if (claims.role !== "SUPPLIER") redirect("/");
 
   const user = await prisma.user.findUnique({ where: { id: claims.sub }, select: { supplierCompanyId: true } });
-  const data = user?.supplierCompanyId
-    ? await loadPartnerSales(user.supplierCompanyId)
-    : { monthly: [], orders: [], subscriptions: [] };
+  if (!user?.supplierCompanyId) redirect("/");
+  const data = await loadPartnerSales(user.supplierCompanyId);
 
   return <SalesView data={data} />;
 }

@@ -12,13 +12,14 @@ export type NewsItem = {
   hasAttachment?: boolean;
 };
 
-export type Attachment = { name: string; size: string };
+export type Attachment = { name: string; size: string; url: string };
 
 export type NewsDetail = {
   author: string;
   views: number;
   body: string;
   attachments: Attachment[];
+  videoUrl?: string;
 };
 
 function ymd(d: Date): string {
@@ -104,7 +105,9 @@ export async function loadNewsById(id: string): Promise<{
       attachments: n.attachments.map((a) => ({
         name: a.fileName,
         size: a.fileSize != null ? formatSize(a.fileSize) : "-",
+        url: a.fileUrl ?? "",
       })),
+      videoUrl: n.videoUrl ?? undefined,
     },
     prev,
     next,

@@ -14,12 +14,17 @@ import {
 
 type Tab = "전체" | NewsCategory;
 const TABS: Tab[] = ["전체", "공지", "이벤트"];
+const NEWS_PER_PAGE = 10;
 
 export function NewsView({ allNews, tabCounts }: { allNews: NewsItem[]; tabCounts: { 전체: number; 공지: number; 이벤트: number } }) {
   const [tab, setTab] = useState<Tab>("전체");
+  const [page, setPage] = useState(1);
 
   const items = allNews.filter((n) => tab === "전체" || n.category === tab);
   const featured = allNews.filter((n) => n.pinned && (tab === "전체" || n.category === tab));
+  const pageCount = Math.max(1, Math.ceil(items.length / NEWS_PER_PAGE));
+  const safePage = Math.min(page, pageCount);
+  const paged = items.slice((safePage - 1) * NEWS_PER_PAGE, safePage * NEWS_PER_PAGE);
 
   return (
     <div>
@@ -30,7 +35,7 @@ export function NewsView({ allNews, tabCounts }: { allNews: NewsItem[]; tabCount
             <button
               key={t}
               type="button"
-              onClick={() => setTab(t)}
+              onClick={() => { setTab(t); setPage(1); }}
               className="inline-flex items-center"
               style={{
                 gap: "7px",
@@ -78,25 +83,26 @@ export function NewsView({ allNews, tabCounts }: { allNews: NewsItem[]; tabCount
       )}
 
       <div className="flex flex-col">
-        {items.map((n, i) => (
-          <NewsRow key={n.id} item={n} last={i === items.length - 1} />
+        {paged.map((n, i) => (
+          <NewsRow key={n.id} item={n} last={i === paged.length - 1} />
         ))}
       </div>
 
-      <div className="flex items-center justify-center" style={{ gap: "4.88px", paddingTop: "19.52px", paddingBottom: "19.52px" }}>
-        <button type="button" aria-label="이전" className="inline-flex items-center justify-center" style={pageBtn(false)}>
-          <PageChevronLeftIcon />
-        </button>
-        <button type="button" className="inline-flex items-center justify-center" style={{ ...pageBtn(true) }}>
-          <span style={{ fontSize: "17.08px", fontWeight: 500, letterSpacing: "-0.293px", lineHeight: "24.4px", color: "#FFFFFF" }}>1</span>
-        </button>
-        <button type="button" className="inline-flex items-center justify-center" style={{ ...pageBtn(false) }}>
-          <span style={{ fontSize: "17.08px", fontWeight: 500, letterSpacing: "-0.293px", lineHeight: "24.4px", color: "#4B5563" }}>2</span>
-        </button>
-        <button type="button" aria-label="다음" className="inline-flex items-center justify-center" style={pageBtn(false)}>
-          <PageChevronRightIcon />
-        </button>
-      </div>
+      {pageCount > 1 && (
+        <div className="flex items-center justify-center" style={{ gap: "4.88px", paddingTop: "19.52px", paddingBottom: "19.52px" }}>
+          <button type="button" aria-label="이전" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage <= 1} className="inline-flex items-center justify-center" style={pageBtn(false)}>
+            <PageChevronLeftIcon />
+          </button>
+          {Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
+            <button key={n} type="button" onClick={() => setPage(n)} className="inline-flex items-center justify-center" style={pageBtn(n === safePage)}>
+              <span style={{ fontSize: "17.08px", fontWeight: 500, letterSpacing: "-0.293px", lineHeight: "24.4px", color: n === safePage ? "#FFFFFF" : "#4B5563" }}>{n}</span>
+            </button>
+          ))}
+          <button type="button" aria-label="다음" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={safePage >= pageCount} className="inline-flex items-center justify-center" style={pageBtn(false)}>
+            <PageChevronRightIcon />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

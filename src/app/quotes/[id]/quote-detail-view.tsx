@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { QuoteDetailData, QuoteDetailProposal } from "@/lib/quotes";
-import { EditNoticeModal, QuotePreviewModal, ProposalStatusModal, DeleteNoticeModal } from "./quote-action-modals";
+import type { ChatMessageView } from "@/lib/chat";
+import { uploadFile } from "@/lib/upload-client";
+import { ChatFileChip } from "@/components/chat-file-chip";
+import { EditNoticeModal, QuotePreviewModal, ProposalStatusModal, DeleteNoticeModal, NoticeStatusModal, QuoteOrderModal } from "./quote-action-modals";
 
 const NAVY = "#1E3A5F";
 const TEXT = "#1D1D1F";
@@ -12,8 +15,10 @@ type Tab = (typeof TABS)[number];
 
 export function QuoteDetailView({ id, data }: { id: string; data: QuoteDetailData }) {
   const [tab, setTab] = useState<Tab>("개요");
-  const [modal, setModal] = useState<null | "edit" | "quote" | "status" | "delete">(null);
+  const [modal, setModal] = useState<null | "edit" | "quote" | "status" | "delete" | "noticeStatus" | "order">(null);
   const [selectedProposal, setSelectedProposal] = useState<QuoteDetailProposal | null>(null);
+  const awardedProposal = data.awardedResponseId ? (data.proposals.find((p) => p.id === data.awardedResponseId) ?? null) : null;
+  const openQuote = (p: QuoteDetailProposal) => { setSelectedProposal(p); setModal("quote"); };
 
   return (
     <div>
@@ -81,10 +86,22 @@ export function QuoteDetailView({ id, data }: { id: string; data: QuoteDetailDat
 
       {data.isOwner && (
         <div className="flex items-center" style={{ gap: "9.76px", marginTop: "24.4px", marginBottom: "19.52px" }}>
-          <button type="button" onClick={() => setModal("edit")} style={actionBtn("rgba(210,210,215,0.3)", "rgba(29,29,31,0.6)")}>
-            <PencilIcon />
-            <span>수정</span>
-          </button>
+          {data.rawStatus === "OPEN" && (
+            <button type="button" onClick={() => setModal("edit")} style={actionBtn("rgba(210,210,215,0.3)", "rgba(29,29,31,0.6)")}>
+              <PencilIcon />
+              <span>수정</span>
+            </button>
+          )}
+          {(data.rawStatus === "OPEN" || data.rawStatus === "REVIEWING") && (
+            <button type="button" onClick={() => setModal("noticeStatus")} style={actionBtn("rgba(210,210,215,0.3)", "rgba(29,29,31,0.6)")}>
+              <span>상태 변경</span>
+            </button>
+          )}
+          {data.rawStatus === "AWARDED" && awardedProposal && !data.paid && (
+            <button type="button" onClick={() => setModal("order")} style={orderActionBtn()}>
+              <span>발주</span>
+            </button>
+          )}
           <button type="button" onClick={() => setModal("delete")} style={actionBtn("#FECACA", "#F87171")}>
             <TrashIcon />
             <span>삭제</span>
@@ -195,23 +212,27 @@ export function QuoteDetailView({ id, data }: { id: string; data: QuoteDetailDat
               프로세스 히스토리
             </p>
             <div className="flex flex-col" style={{ gap: "24.4px" }}>
-              <HistoryRow done title="공고 등록 완료" sub="2026-05-08 · 경기도 화성시 화폐과" />
-              <HistoryRow title="견적 접수 완료" sub="1개 업체 제안 접수" />
-              <HistoryRow title="견적 검토" sub="대기 중" />
-              <HistoryRow title="업체 선정" sub="미선정" />
-              <HistoryRow title="결제 완료" sub="대기 중" />
+              <HistoryRow done title="공고 등록 완료" sub={`${data.createdAt} · ${data.org}`} />
+              <HistoryRow done={data.proposals.length > 0} title="견적 접수 완료" sub={data.proposals.length > 0 ? `${data.proposals.length}개 업체 제안 접수` : "대기 중"} />
+              <HistoryRow done={data.rawStatus === "REVIEWING" || data.rawStatus === "AWARDED"} title="견적 검토" sub="대기 중" />
+              <HistoryRow done={awardedProposal !== null} title="업체 선정" sub={awardedProposal ? awardedProposal.company : "미선정"} />
+              <HistoryRow done={data.paid} title="결제 완료" sub="대기 중" />
             </div>
           </section>
         </>
       ) : tab === "제안서" ? (
-        <ProposalsPanel proposals={data.proposals} onQuote={() => setModal("quote")} onStatus={(p) => { setSelectedProposal(p); setModal("status"); }} onChat={() => setTab("실시간 상담")} onCompare={() => setTab("제안서 비교")} />
+        <ProposalsPanel proposals={data.proposals} onQuote={openQuote} onStatus={(p) => { setSelectedProposal(p); setModal("status"); }} onChat={() => setTab("실시간 상담")} onCompare={() => setTab("제안서 비교")} />
       ) : tab === "실시간 상담" ? (
-        <ChatPanel onQuote={() => setModal("quote")} />
+        <ChatPanel id={id} proposals={data.proposals} onQuote={openQuote} />
       ) : (
-        <ComparePanel onQuote={() => setModal("quote")} onStatus={() => setModal("status")} onChat={() => setTab("실시간 상담")} onBack={() => setTab("제안서")} />
+        <ComparePanel proposals={data.proposals} budgetAmount={data.budgetAmount} onQuote={openQuote} onStatus={(p) => { setSelectedProposal(p); setModal("status"); }} onChat={() => setTab("실시간 상담")} onBack={() => setTab("제안서")} />
       )}
-      {modal === "edit" && <EditNoticeModal onClose={() => setModal(null)} />}
-      {modal === "quote" && <QuotePreviewModal onClose={() => setModal(null)} />}
+      {modal === "edit" && <EditNoticeModal onClose={() => setModal(null)} quoteId={id} title={data.title} budget={data.budgetAmount} dueDate={data.dueDate} deliveryCondition={data.deliveryCondition} />}
+      {modal === "noticeStatus" && <NoticeStatusModal onClose={() => setModal(null)} quoteId={id} current={data.rawStatus} />}
+      {modal === "order" && awardedProposal && (
+        <QuoteOrderModal onClose={() => setModal(null)} responseId={awardedProposal.id} company={awardedProposal.company} totalAmount={awardedProposal.totalAmount} />
+      )}
+      {modal === "quote" && selectedProposal && <QuotePreviewModal onClose={() => setModal(null)} proposal={selectedProposal} quote={data} />}
       {modal === "status" && selectedProposal && (
         <ProposalStatusModal
           onClose={() => setModal(null)}
@@ -236,7 +257,7 @@ const PROP_COLS = [
   { label: "작업", width: "29.66%" },
 ];
 
-function ProposalsPanel({ proposals, onQuote, onStatus, onChat, onCompare }: { proposals: QuoteDetailProposal[]; onQuote: () => void; onStatus: (p: QuoteDetailProposal) => void; onChat: () => void; onCompare: () => void }) {
+function ProposalsPanel({ proposals, onQuote, onStatus, onChat, onCompare }: { proposals: QuoteDetailProposal[]; onQuote: (p: QuoteDetailProposal) => void; onStatus: (p: QuoteDetailProposal) => void; onChat: () => void; onCompare: () => void }) {
   return (
     <div style={{ paddingBottom: "58.6px" }}>
       <div style={{ borderRadius: "19.52px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff", overflow: "hidden" }}>
@@ -269,7 +290,7 @@ function ProposalsPanel({ proposals, onQuote, onStatus, onChat, onCompare }: { p
               <span style={statusBadge()}>{p.statusLabel}</span>
             </div>
             <div className="flex items-center" style={{ width: PROP_COLS[5].width, padding: "19.52px 24.4px", gap: "9.76px" }}>
-              <button type="button" onClick={onQuote} style={chipBtn()}><QuoteIcon /><span>견적서</span></button>
+              <button type="button" onClick={() => onQuote(p)} style={chipBtn()}><QuoteIcon /><span>견적서</span></button>
               <button type="button" onClick={onChat} style={chipBtn()}><ChatBubbleIcon /><span>대화</span></button>
               <button type="button" onClick={() => onStatus(p)} style={chipBtn()}><StatusIcon /><span>상태 변경</span></button>
             </div>
@@ -287,147 +308,221 @@ function ProposalsPanel({ proposals, onQuote, onStatus, onChat, onCompare }: { p
   );
 }
 
-function nowStamp() {
-  const d = new Date();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const ap = d.getHours() < 12 ? "오전" : "오후";
-  let h = d.getHours() % 12;
-  if (h === 0) h = 12;
-  const hh = String(h).padStart(2, "0");
-  const min = String(d.getMinutes()).padStart(2, "0");
-  return `${mm}- ${dd}- ${ap} ${hh}:${min}`;
-}
+const CHAT_SYSTEM_NOTE = "견적 문의 채팅방이 개설되었습니다. 기술 문의 및 추가 자료 전송이 가능합니다.";
 
-function ChatPanel({ onQuote }: { onQuote: () => void }) {
-  const [draft, setDraft] = useState("");
-  const [sent, setSent] = useState<{ text: string; time: string }[]>([]);
-  const send = () => {
-    const t = draft.trim();
-    if (!t) return;
-    setSent((m) => [...m, { text: t, time: nowStamp() }]);
-    setDraft("");
-  };
+function ChatPanel({ id, proposals, onQuote }: { id: string; proposals: QuoteDetailProposal[]; onQuote: (p: QuoteDetailProposal) => void }) {
+  const [threadMap, setThreadMap] = useState<Record<string, string>>({});
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/chat/by-request/${id}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!active || !d) return;
+        const map: Record<string, string> = {};
+        for (const t of (d.threads ?? []) as { supplierCompanyId: string; threadId: string }[]) {
+          map[t.supplierCompanyId] = t.threadId;
+        }
+        setThreadMap(map);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [id]);
+
+  useEffect(() => {
+    if (selectedId === null && proposals.length > 0) setSelectedId(proposals[0].supplierCompanyId);
+  }, [proposals, selectedId]);
+
+  const selected = proposals.find((p) => p.supplierCompanyId === selectedId) ?? null;
+  const threadId = selected ? threadMap[selected.supplierCompanyId] ?? null : null;
+
   return (
     <div className="flex" style={{ gap: "19.52px", marginBottom: "58.6px" }}>
       <div style={{ width: "422.9px", flexShrink: 0, borderRadius: "19.52px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff", overflow: "hidden" }}>
         <div className="flex items-center justify-between" style={{ padding: "19.52px 24.4px 20.52px", borderBottom: `1px solid rgba(210,210,215,0.15)` }}>
           <span style={{ fontSize: "14px", fontWeight: 600, letterSpacing: "-0.392px", lineHeight: "17.5px", color: TEXT }}>참여 업체</span>
-          <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>1개</span>
+          <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>{proposals.length}개</span>
         </div>
-        <div
-          className="flex flex-col"
-          style={{ padding: "17.08px 24.4px 18.08px 28.44px", background: "rgba(30,58,95,0.05)", borderLeft: `2px solid ${NAVY}`, gap: "0" }}
-        >
-          <div className="flex items-center justify-between" style={{ paddingBottom: "4.88px" }}>
-            <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.195px", lineHeight: "23.4px", color: NAVY }}>기계공업(주)</span>
-            <span style={statusBadgeSm()}>접수</span>
+        {proposals.length === 0 ? (
+          <div className="flex items-center justify-center" style={{ padding: "39.04px 24.4px" }}>
+            <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.3)" }}>접수된 제안이 없습니다</span>
           </div>
-          <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>메시지를 시작하세요</span>
-          <span style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)", paddingTop: "2.44px" }}>14,800,000원</span>
-        </div>
-      </div>
-
-      <div className="flex flex-col" style={{ flex: 1, minWidth: 0, borderRadius: "19.52px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff", overflow: "hidden" }}>
-        <div className="flex items-center justify-between" style={{ padding: "19.52px 24.4px 20.52px", borderBottom: `1px solid rgba(210,210,215,0.15)` }}>
-          <div className="flex items-center" style={{ gap: "14.64px" }}>
-            <span className="flex items-center justify-center" style={{ width: "43.9px", height: "43.9px", borderRadius: "9999px", background: "rgba(30,58,95,0.1)", flexShrink: 0 }}>
-              <BuildingIcon />
-            </span>
-            <div>
-              <p style={{ fontSize: "14px", fontWeight: 600, letterSpacing: "-0.21px", lineHeight: "25.2px", color: TEXT, margin: 0 }}>기계공업(주)</p>
-              <p style={{ margin: 0 }}>
-                <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>제안가:&#8203; </span>
-                <span style={{ fontSize: "12px", fontWeight: 600, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.6)" }}>14,800,000원</span>
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center" style={{ gap: "9.76px" }}>
-            <span style={statusBadge()}>접수</span>
-            <button type="button" onClick={onQuote} style={{ ...chipBtn(), fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "21px" }}><QuoteIcon /><span>견적서</span></button>
-          </div>
-        </div>
-
-        <div className="flex flex-col" style={{ flex: 1, padding: "19.52px" }}>
-          <ChatBubble text="안녕하세요" />
-          <div style={{ height: "14.64px" }} />
-          <ChatBubble text="견적서 관련 자료입니다." />
-          <div style={{ height: "14.64px" }} />
-          <ChatFileBubble />
-          {sent.map((m, i) => (
-            <div key={i}>
-              <div style={{ height: "14.64px" }} />
-              <ChatBubble text={m.text} time={m.time} />
-            </div>
-          ))}
-        </div>
-
-        <div style={{ padding: "15.6px 14.64px 14.64px", borderTop: `1px solid rgba(210,210,215,0.15)` }}>
-          <div className="flex items-center" style={{ gap: "9.76px", borderRadius: "14.64px", border: `1px solid rgba(210,210,215,0.2)`, background: "rgba(29,29,31,0.02)", padding: "1px 15.6px" }}>
-            <span className="flex items-center justify-center" style={{ width: "34.2px", height: "34.2px", flexShrink: 0 }}>
-              <AttachChatIcon />
-            </span>
-            <input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); send(); } }}
-              placeholder="메시지를 입력하세요..."
-              className="placeholder:text-[rgba(29,29,31,0.3)]"
-              style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", padding: "14.64px 0", fontSize: "13px", fontWeight: 500, letterSpacing: "-0.293px", lineHeight: "22.75px", color: TEXT }}
-            />
-            <button type="button" aria-label="전송" onClick={send} className="flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "9.76px", background: draft.trim() ? NAVY : "rgba(30,58,95,0.3)", flexShrink: 0, border: "none", cursor: "pointer" }}>
-              <SendIcon />
+        ) : proposals.map((p) => {
+          const on = p.supplierCompanyId === selectedId;
+          return (
+            <button
+              key={p.supplierCompanyId}
+              type="button"
+              onClick={() => setSelectedId(p.supplierCompanyId)}
+              className="block w-full text-left"
+              style={{ padding: "17.08px 24.4px 18.08px 28.44px", border: "none", borderLeft: on ? `2px solid ${NAVY}` : "2px solid transparent", background: on ? "rgba(30,58,95,0.05)" : "transparent", cursor: "pointer" }}
+            >
+              <div className="flex items-center justify-between" style={{ paddingBottom: "4.88px" }}>
+                <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.195px", lineHeight: "23.4px", color: on ? NAVY : TEXT }}>{p.company}</span>
+                <span style={statusBadgeSm()}>{p.statusLabel}</span>
+              </div>
+              <span style={{ display: "block", fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>메시지를 시작하세요</span>
+              <span style={{ display: "block", fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)", paddingTop: "2.44px" }}>{p.totalAmount}</span>
             </button>
+          );
+        })}
+      </div>
+
+      {selected && threadId ? (
+        <BuyerChatRoom key={threadId} threadId={threadId} company={selected.company} totalAmount={selected.totalAmount} statusLabel={selected.statusLabel} onQuote={() => onQuote(selected)} />
+      ) : (
+        <div className="flex items-center justify-center" style={{ flex: 1, minWidth: 0, borderRadius: "19.52px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff" }}>
+          <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.3)" }}>접수된 제안이 없습니다</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BuyerChatRoom({ threadId, company, totalAmount, statusLabel, onQuote }: { threadId: string; company: string; totalAmount: string; statusLabel: string; onQuote: () => void }) {
+  const [draft, setDraft] = useState("");
+  const [messages, setMessages] = useState<ChatMessageView[]>([]);
+  const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const canSend = draft.trim() !== "" && !sending;
+
+  const loadMessages = useCallback(async () => {
+    const res = await fetch(`/api/chat/threads/${threadId}`, { cache: "no-store" });
+    if (!res.ok) return;
+    const data = (await res.json()) as { messages: ChatMessageView[] };
+    setMessages(data.messages);
+  }, [threadId]);
+
+  useEffect(() => {
+    loadMessages();
+    const t = setInterval(loadMessages, 4000);
+    return () => clearInterval(t);
+  }, [loadMessages]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages]);
+
+  const send = async () => {
+    const text = draft.trim();
+    if (!text || sending) return;
+    setSending(true);
+    const res = await fetch(`/api/chat/threads/${threadId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body: text }),
+    });
+    setSending(false);
+    if (!res.ok) return;
+    setDraft("");
+    await loadMessages();
+  };
+
+  const onPickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || uploading || sending) return;
+    setUploading(true);
+    try {
+      const uploaded = await uploadFile(file);
+      const res = await fetch(`/api/chat/threads/${threadId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileUrl: uploaded.url, fileName: uploaded.name }),
+      });
+      if (!res.ok) return;
+      await loadMessages();
+    } catch {
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col" style={{ flex: 1, minWidth: 0, borderRadius: "19.52px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff", overflow: "hidden" }}>
+      <div className="flex items-center justify-between" style={{ padding: "19.52px 24.4px 20.52px", borderBottom: `1px solid rgba(210,210,215,0.15)` }}>
+        <div className="flex items-center" style={{ gap: "14.64px" }}>
+          <span className="flex items-center justify-center" style={{ width: "43.9px", height: "43.9px", borderRadius: "9999px", background: "rgba(30,58,95,0.1)", flexShrink: 0 }}>
+            <BuildingIcon />
+          </span>
+          <div>
+            <p style={{ fontSize: "14px", fontWeight: 600, letterSpacing: "-0.21px", lineHeight: "25.2px", color: TEXT, margin: 0 }}>{company}</p>
+            <p style={{ margin: 0 }}>
+              <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>제안가:&#8203; </span>
+              <span style={{ fontSize: "12px", fontWeight: 600, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.6)" }}>{totalAmount}</span>
+            </p>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function ChatBubble({ text, time = "05- 19- 오후 04:59" }: { text: string; time?: string }) {
-  return (
-    <div className="flex flex-col items-end">
-      <div style={{ borderRadius: "19.52px 19.52px 7.32px 19.52px", background: NAVY, padding: "12.2px 19.52px" }}>
-        <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "#fff" }}>{text}</span>
-      </div>
-      <span style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "rgba(29,29,31,0.3)", padding: "4.88px 4.88px 0" }}>{time}</span>
-    </div>
-  );
-}
-
-function ChatFileBubble() {
-  return (
-    <div className="flex flex-col items-end">
-      <div
-        className="flex items-center"
-        style={{ gap: "12.2px", borderRadius: "19.52px 19.52px 7.32px 19.52px", background: "rgba(30,58,95,0.9)", border: `1px solid rgba(22,48,79,0.4)`, padding: "13.2px 18.08px" }}
-      >
-        <span className="flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "9.76px", background: "rgba(255,255,255,0.15)", flexShrink: 0 }}>
-          <FileJpgIcon />
-        </span>
-        <div>
-          <p style={{ fontSize: "12px", fontWeight: 500, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "#fff", margin: 0 }}>다운로드.jpg</p>
-          <p style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "rgba(255,255,255,0.6)", margin: "2.44px 0 0" }}>JPG 스파일</p>
+        <div className="flex items-center" style={{ gap: "9.76px" }}>
+          <span style={statusBadge()}>{statusLabel}</span>
+          <button type="button" onClick={onQuote} style={{ ...chipBtn(), fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "21px" }}><QuoteIcon /><span>견적서</span></button>
         </div>
-        <span className="flex items-center justify-center" style={{ width: "29.3px", height: "29.3px", flexShrink: 0 }}>
-          <DownloadIcon />
-        </span>
       </div>
-      <span style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "rgba(29,29,31,0.3)", padding: "4.88px 4.88px 0" }}>05- 19- 오후 04:59</span>
+
+      <div ref={scrollRef} className="flex flex-col" style={{ flex: 1, padding: "19.52px", overflowY: "auto" }}>
+        <div className="flex">
+          <span style={{ borderRadius: "9999px", border: "1px solid rgba(210,210,215,0.2)", background: "rgba(29,29,31,0.02)", padding: "5.88px 15.64px", fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)" }}>{CHAT_SYSTEM_NOTE}</span>
+        </div>
+        {messages.filter((m) => !m.isSystem).map((m) => (
+          <div key={m.id} className="flex" style={{ justifyContent: m.mine ? "flex-end" : "flex-start", gap: "9.76px", marginTop: "19.52px" }}>
+            {!m.mine && (
+              <span className="flex items-center justify-center" style={{ width: "34px", height: "34px", flexShrink: 0, borderRadius: "9999px", background: "rgba(30,58,95,0.1)" }}>
+                <BuildingIcon />
+              </span>
+            )}
+            <div style={{ maxWidth: m.mine ? "530px" : "517px" }}>
+              {!m.mine && <p style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)", margin: "0 0 2.44px 4.88px" }}>{company}</p>}
+              <div style={{ padding: "12.2px 19.52px", background: m.mine ? NAVY : "rgba(29,29,31,0.05)", borderRadius: m.mine ? "19.52px 19.52px 7.32px 19.52px" : "19.52px 19.52px 19.52px 7.32px" }}>
+                {m.text && <p style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: m.mine ? "#fff" : TEXT, margin: 0 }}>{m.text}</p>}
+                {m.fileUrl && <ChatFileChip url={m.fileUrl} name={m.fileName} mine={m.mine} spaced={!!m.text} />}
+              </div>
+              <p style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "rgba(29,29,31,0.3)", margin: "2.44px 4.88px 0", textAlign: m.mine ? "right" : "left" }}>{m.time}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ padding: "15.6px 14.64px 14.64px", borderTop: `1px solid rgba(210,210,215,0.15)` }}>
+        <div className="flex items-center" style={{ gap: "9.76px", borderRadius: "14.64px", border: `1px solid rgba(210,210,215,0.2)`, background: "rgba(29,29,31,0.02)", padding: "1px 15.6px" }}>
+          <input ref={fileRef} type="file" onChange={onPickFile} style={{ display: "none" }} />
+          <button type="button" aria-label="첨부" disabled={uploading || sending} onClick={() => fileRef.current?.click()} className="flex items-center justify-center" style={{ width: "34.2px", height: "34.2px", flexShrink: 0, border: "none", background: "none", cursor: uploading || sending ? "default" : "pointer", opacity: uploading ? 0.4 : 1 }}>
+            <AttachChatIcon />
+          </button>
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); send(); } }}
+            placeholder="메시지를 입력하세요..."
+            className="placeholder:text-[rgba(29,29,31,0.3)]"
+            style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", padding: "14.64px 0", fontSize: "13px", fontWeight: 500, letterSpacing: "-0.293px", lineHeight: "22.75px", color: TEXT }}
+          />
+          <button type="button" aria-label="전송" disabled={!canSend} onClick={send} className="flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "9.76px", background: canSend ? NAVY : "rgba(30,58,95,0.3)", flexShrink: 0, border: "none", cursor: canSend ? "pointer" : "default" }}>
+            <SendIcon />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
-function ComparePanel({ onQuote, onStatus, onChat, onBack }: { onQuote: () => void; onStatus: () => void; onChat: () => void; onBack: () => void }) {
+function ComparePanel({ proposals, budgetAmount, onQuote, onStatus, onChat, onBack }: { proposals: QuoteDetailProposal[]; budgetAmount: number | null; onQuote: (p: QuoteDetailProposal) => void; onStatus: (p: QuoteDetailProposal) => void; onChat: () => void; onBack: () => void }) {
   const LABEL_W = "175.7px";
+  const amounts = proposals.map((p) => p.amount);
+  const minAmount = amounts.length ? Math.min(...amounts) : 0;
+  const maxAmount = amounts.length ? Math.max(...amounts) : 0;
+  const avgAmount = amounts.length ? Math.round(amounts.reduce((a, b) => a + b, 0) / amounts.length) : 0;
+  const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
   return (
     <div style={{ paddingBottom: "58.6px" }}>
       <div className="flex items-center justify-between">
         <div>
           <p style={{ fontSize: "15px", fontWeight: 600, letterSpacing: "-0.42px", lineHeight: "18.75px", color: TEXT, margin: 0 }}>업체별 제안 비교 분석</p>
           <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)", margin: "2.44px 0 0" }}>
-            총 1개 업체 제안 · 좌우로 스크롤하여 전체 비교
+            총 {proposals.length}개 업체 제안 · 좌우로 스크롤하여 전체 비교
           </p>
         </div>
         <button type="button" onClick={onBack} className="flex items-center" style={{ gap: "4.88px", border: "none", background: "none", cursor: "pointer", padding: 0 }}>
@@ -436,60 +531,83 @@ function ComparePanel({ onQuote, onStatus, onChat, onBack }: { onQuote: () => vo
         </button>
       </div>
 
-      <div style={{ marginTop: "19.52px", borderRadius: "19.52px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff", overflow: "hidden" }}>
-        <div className="flex" style={{ background: "rgba(210,210,215,0.1)", gap: "1px" }}>
-          <SummaryCell label="최저 제안가" value="14,800,000원" color="#EF4444" />
-          <SummaryCell label="평균 제안가" value="14,800,000원" color={TEXT} />
-          <SummaryCell label="최고 제안가" value="14,800,000원" color="rgba(29,29,31,0.5)" />
+      {proposals.length === 0 ? (
+        <div style={{ marginTop: "19.52px", borderRadius: "19.52px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff", overflow: "hidden" }}>
+          <div className="flex items-center justify-center" style={{ padding: "39.04px 24.4px" }}>
+            <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.3)" }}>접수된 제안이 없습니다</span>
+          </div>
         </div>
+      ) : (
+        <div style={{ marginTop: "19.52px", borderRadius: "19.52px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff", overflow: "hidden" }}>
+          <div className="flex" style={{ background: "rgba(210,210,215,0.1)", gap: "1px" }}>
+            <SummaryCell label="최저 제안가" value={won(minAmount)} color="#EF4444" />
+            <SummaryCell label="평균 제안가" value={won(avgAmount)} color={TEXT} />
+            <SummaryCell label="최고 제안가" value={won(maxAmount)} color="rgba(29,29,31,0.5)" />
+          </div>
 
-        <div style={{ maxWidth: "700px" }}>
-          <div className="flex" style={{ borderBottom: `1px solid rgba(210,210,215,0.1)` }}>
-            <CompareLabel w={LABEL_W} text="비교 항목" padY="19.52px" />
-            <div className="flex flex-col items-center justify-center" style={{ flex: 1, padding: "19.52px 14.64px", gap: "4.88px" }}>
-              <span style={lowBadge()}>최저가</span>
-              <span style={{ fontSize: "13px", fontWeight: 700, letterSpacing: "-0.195px", lineHeight: "23.4px", color: TEXT }}>기계공업(주)</span>
-              <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "-0.15px", lineHeight: "18px", color: "rgba(29,29,31,0.3)" }}>2026-05-09</span>
+          <div>
+            <div className="flex" style={{ borderBottom: `1px solid rgba(210,210,215,0.1)` }}>
+              <CompareLabel w={LABEL_W} text="비교 항목" padY="19.52px" />
+              {proposals.map((p) => (
+                <div key={p.id} className="flex flex-col items-center justify-center" style={{ flex: 1, minWidth: "175.7px", padding: "19.52px 14.64px", gap: "4.88px" }}>
+                  {p.amount === minAmount && <span style={lowBadge()}>최저가</span>}
+                  <span style={{ fontSize: "13px", fontWeight: 700, letterSpacing: "-0.195px", lineHeight: "23.4px", color: TEXT }}>{p.company}</span>
+                  <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "-0.15px", lineHeight: "18px", color: "rgba(29,29,31,0.3)" }}>{p.submittedAt}</span>
+                </div>
+              ))}
             </div>
-          </div>
-          <div className="flex" style={{ background: "rgba(29,29,31,0.01)", borderBottom: `1px solid rgba(210,210,215,0.1)` }}>
-            <CompareLabel w={LABEL_W} text="제안 금액" />
-            <div className="flex items-center justify-center" style={{ flex: 1, padding: "17.08px 14.64px" }}>
-              <span style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "#EF4444" }}>14,800,000원</span>
+            <div className="flex" style={{ background: "rgba(29,29,31,0.01)", borderBottom: `1px solid rgba(210,210,215,0.1)` }}>
+              <CompareLabel w={LABEL_W} text="제안 금액" />
+              {proposals.map((p) => (
+                <div key={p.id} className="flex items-center justify-center" style={{ flex: 1, minWidth: "175.7px", padding: "17.08px 14.64px" }}>
+                  <span style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "-0.21px", lineHeight: "25.2px", color: p.amount === minAmount ? "#EF4444" : TEXT }}>{won(p.amount)}</span>
+                </div>
+              ))}
             </div>
-          </div>
-          <div className="flex" style={{ borderBottom: `1px solid rgba(210,210,215,0.1)` }}>
-            <CompareLabel w={LABEL_W} text="예산 대비" />
-            <div className="flex flex-col items-center justify-center" style={{ flex: 1, padding: "17.08px 14.64px" }}>
-              <span style={{ fontSize: "12px", fontWeight: 600, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "#059669" }}>99%</span>
-              <div style={{ width: "100px", height: "4.9px", borderRadius: "9999px", background: "rgba(210,210,215,0.2)", marginTop: "7.32px", overflow: "hidden" }}>
-                <div style={{ width: "99%", height: "100%", borderRadius: "9999px", background: "#34D399" }} />
-              </div>
-              <span style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#10B981", paddingTop: "4.88px" }}>예산내</span>
+            <div className="flex" style={{ borderBottom: `1px solid rgba(210,210,215,0.1)` }}>
+              <CompareLabel w={LABEL_W} text="예산 대비" />
+              {proposals.map((p) => {
+                const pct = budgetAmount && budgetAmount > 0 ? Math.round((p.amount / budgetAmount) * 100) : 0;
+                return (
+                  <div key={p.id} className="flex flex-col items-center justify-center" style={{ flex: 1, minWidth: "175.7px", padding: "17.08px 14.64px" }}>
+                    <span style={{ fontSize: "12px", fontWeight: 600, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "#059669" }}>{pct}%</span>
+                    <div style={{ width: "100px", height: "4.9px", borderRadius: "9999px", background: "rgba(210,210,215,0.2)", marginTop: "7.32px", overflow: "hidden" }}>
+                      <div style={{ width: `${Math.min(pct, 100)}%`, height: "100%", borderRadius: "9999px", background: "#34D399" }} />
+                    </div>
+                    <span style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#10B981", paddingTop: "4.88px" }}>예산내</span>
+                  </div>
+                );
+              })}
             </div>
-          </div>
-          <div className="flex" style={{ background: "rgba(29,29,31,0.01)", borderBottom: `1px solid rgba(210,210,215,0.1)` }}>
-            <CompareLabel w={LABEL_W} text="규격 요약" />
-            <div className="flex items-center justify-center" style={{ flex: 1, padding: "17.08px 14.64px" }}>
-              <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "19.5px", color: "rgba(29,29,31,0.6)", textAlign: "center" }}>발전기 100kW 2대, 베어링 500개, 설치 포함</span>
+            <div className="flex" style={{ background: "rgba(29,29,31,0.01)", borderBottom: `1px solid rgba(210,210,215,0.1)` }}>
+              <CompareLabel w={LABEL_W} text="규격 요약" />
+              {proposals.map((p) => (
+                <div key={p.id} className="flex items-center justify-center" style={{ flex: 1, minWidth: "175.7px", padding: "17.08px 14.64px" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "19.5px", color: "rgba(29,29,31,0.6)", textAlign: "center" }}>{p.specSummary}</span>
+                </div>
+              ))}
             </div>
-          </div>
-          <div className="flex" style={{ borderBottom: `1px solid rgba(210,210,215,0.1)` }}>
-            <CompareLabel w={LABEL_W} text="상태" />
-            <div className="flex items-center justify-center" style={{ flex: 1, padding: "17.08px 14.64px" }}>
-              <span style={statusBadge()}>접수</span>
+            <div className="flex" style={{ borderBottom: `1px solid rgba(210,210,215,0.1)` }}>
+              <CompareLabel w={LABEL_W} text="상태" />
+              {proposals.map((p) => (
+                <div key={p.id} className="flex items-center justify-center" style={{ flex: 1, minWidth: "175.7px", padding: "17.08px 14.64px" }}>
+                  <span style={statusBadge()}>{p.statusLabel}</span>
+                </div>
+              ))}
             </div>
-          </div>
-          <div className="flex">
-            <CompareLabel w={LABEL_W} text="작업" />
-            <div className="flex flex-col items-center justify-center" style={{ flex: 1, padding: "17.08px 14.64px", gap: "7.32px" }}>
-              <button type="button" onClick={onQuote} style={compareActionBtn()}><QuoteIcon /><span>견적서</span></button>
-              <button type="button" onClick={onChat} style={compareActionBtn()}><ChatBubbleIcon /><span>대화</span></button>
-              <button type="button" onClick={onStatus} style={compareActionBtn()}><StatusIcon /><span>상태 변경</span></button>
+            <div className="flex">
+              <CompareLabel w={LABEL_W} text="작업" />
+              {proposals.map((p) => (
+                <div key={p.id} className="flex flex-col items-center justify-center" style={{ flex: 1, minWidth: "175.7px", padding: "17.08px 14.64px", gap: "7.32px" }}>
+                  <button type="button" onClick={() => onQuote(p)} style={compareActionBtn()}><QuoteIcon /><span>견적서</span></button>
+                  <button type="button" onClick={onChat} style={compareActionBtn()}><ChatBubbleIcon /><span>대화</span></button>
+                  <button type="button" onClick={() => onStatus(p)} style={compareActionBtn()}><StatusIcon /><span>상태 변경</span></button>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -708,6 +826,23 @@ function actionBtn(border: string, color: string): React.CSSProperties {
     cursor: "pointer",
   };
 }
+function orderActionBtn(): React.CSSProperties {
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "7.32px",
+    borderRadius: "9.76px",
+    border: "none",
+    background: NAVY,
+    padding: "10.76px 20.52px",
+    fontSize: "13px",
+    fontWeight: 600,
+    letterSpacing: "-0.293px",
+    lineHeight: "22.75px",
+    color: "#fff",
+    cursor: "pointer",
+  };
+}
 
 function PencilIcon() {
   return (
@@ -776,20 +911,6 @@ function BuildingIcon() {
   return (
     <svg width={16} height={15} viewBox="0 0 16 15" fill="none" aria-hidden>
       <path d="M1.45453 13.1229V3.31637C1.45453 3.15907 1.49817 3.01652 1.58544 2.88872C1.67271 2.76091 1.78907 2.67243 1.93453 2.62328L8.95991 0.0278744C9.05688 -0.01145 9.15142 -0.00899139 9.24354 0.0352482C9.33566 0.0794877 9.39627 0.150763 9.42536 0.249074C9.44475 0.288398 9.45445 0.327723 9.45445 0.367046V4.0242L14.0508 5.5726C14.1962 5.62175 14.315 5.71269 14.4071 5.84541C14.4992 5.97813 14.5453 6.12314 14.5453 6.28044V13.1229H15.9998V14.5975H0V13.1229H1.45453ZM2.90906 13.1229H7.99992V1.94493L2.90906 3.8325V13.1229ZM13.0908 13.1229V6.81131L9.45445 5.5726V13.1229H13.0908Z" fill="#1E3A5F" />
-    </svg>
-  );
-}
-function FileJpgIcon() {
-  return (
-    <svg width={15} height={17} viewBox="0 0 15 17" fill="none" aria-hidden>
-      <path d="M5.00005 -0.000338956H14.1668C14.4002 -0.000338956 14.5974 0.0813514 14.7585 0.24473C14.9196 0.408108 15.0002 0.608105 15.0002 0.844722V16.0558C15.0002 16.2924 14.9196 16.4924 14.7585 16.6558C14.5974 16.8192 14.4002 16.9009 14.1668 16.9009H0.833342C0.600006 16.9009 0.402782 16.8192 0.241669 16.6558C0.0805564 16.4924 0 16.2924 0 16.0558V5.07003L5.00005 -0.000338956ZM2.35003 5.07003H5.00005V2.39963L2.35003 5.07003ZM6.66674 1.68978V5.91509C6.66674 6.1517 6.58618 6.3517 6.42507 6.51508C6.26396 6.67846 6.06673 6.76015 5.8334 6.76015H1.66668V15.2108H13.3335V1.68978H6.66674Z" fill="white" />
-    </svg>
-  );
-}
-function DownloadIcon() {
-  return (
-    <svg width={13} height={14} viewBox="0 0 13 14" fill="none" aria-hidden>
-      <path d="M0 12.449H13.001V13.9135H0V12.449ZM7.22276 8.18713L11.6142 3.73492L12.6254 4.77475L6.50048 10.9844L0.375583 4.77475L1.38677 3.73492L5.77821 8.18713V0.000334655H7.22276V8.18713Z" fill="white" fillOpacity="0.6" />
     </svg>
   );
 }

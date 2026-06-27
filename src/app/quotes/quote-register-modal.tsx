@@ -1,9 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { uploadFile } from "@/lib/upload-client";
 
-export function QuoteRegisterButton({ disabled = false }: { disabled?: boolean }) {
+export type OfficialInfo = {
+  organizationName: string | null;
+  departmentName: string | null;
+  position: string | null;
+  contactPhone: string | null;
+};
+
+export function QuoteRegisterButton({ disabled = false, official }: { disabled?: boolean; official?: OfficialInfo }) {
   const [open, setOpen] = useState(false);
   if (disabled) {
     return (
@@ -26,7 +34,7 @@ export function QuoteRegisterButton({ disabled = false }: { disabled?: boolean }
       >
         <span style={{ fontSize: "15px", lineHeight: 1 }}>+</span> 공고 등록
       </button>
-      {open && <QuoteRegisterModal onClose={() => setOpen(false)} />}
+      {open && <QuoteRegisterModal onClose={() => setOpen(false)} official={official} />}
     </>
   );
 }
@@ -68,7 +76,7 @@ const CATEGORY_TREE: TopCat[] = [
   { name: "복지/식품 및 문화/관광 분야", subs: [] },
 ];
 
-export function QuoteRegisterModal({ onClose }: { onClose: () => void }) {
+export function QuoteRegisterModal({ onClose, official }: { onClose: () => void; official?: OfficialInfo }) {
   const router = useRouter();
   const [step, setStep] = useState(1);
 
@@ -86,6 +94,8 @@ export function QuoteRegisterModal({ onClose }: { onClose: () => void }) {
   const [place, setPlace] = useState("");
   const [placeDetail, setPlaceDetail] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [attachments, setAttachments] = useState<{ url: string; name: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   const isGoods = type === "물품 견적";
 
@@ -120,6 +130,23 @@ export function QuoteRegisterModal({ onClose }: { onClose: () => void }) {
     setItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
   }
 
+  async function handleAttachFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    setUploading(true);
+    try {
+      const results = await Promise.all(files.map((f) => uploadFile(f)));
+      setAttachments((prev) => [...prev, ...results.map((r) => ({ url: r.url, name: r.name }))]);
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  function removeAttachment(i: number) {
+    setAttachments((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
   async function handleSubmit() {
     setSubmitting(true);
     try {
@@ -140,6 +167,7 @@ export function QuoteRegisterModal({ onClose }: { onClose: () => void }) {
           deliveryAddress: place || null,
           deliveryAddressDetail: placeDetail || null,
           items,
+          attachments,
         }),
       });
       const data = await res.json() as { id?: string; error?: string };
@@ -216,6 +244,11 @@ export function QuoteRegisterModal({ onClose }: { onClose: () => void }) {
               budgetTbd={budgetTbd} budget={budget}
               cat1={cat1} cat2={cat2} cat3={cat3}
               dueDate={dueDate} place={place} placeDetail={placeDetail} delivery={delivery}
+              official={official}
+              attachments={attachments}
+              uploading={uploading}
+              onAttachFiles={handleAttachFiles}
+              onRemoveAttachment={removeAttachment}
               onPrev={() => setStep(2)} onSubmit={handleSubmit} submitting={submitting}
             />
           )}
@@ -470,8 +503,20 @@ function Step3(p: {
   budgetTbd: boolean; budget: string;
   cat1: string; cat2: string; cat3: string;
   dueDate: string; place: string; placeDetail: string; delivery: string;
+  official?: OfficialInfo;
+  attachments: { url: string; name: string }[];
+  uploading: boolean;
+  onAttachFiles: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onRemoveAttachment: (i: number) => void;
   onPrev: () => void; onSubmit: () => void; submitting: boolean;
 }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const orgDept = [p.official?.organizationName, p.official?.departmentName].filter(Boolean).join(" ") || "-";
+  const officialRows: Array<[string, string]> = [
+    ["소속 기관/부서", orgDept],
+    ["직책", p.official?.position || "-"],
+    ["부서 전화", p.official?.contactPhone || "-"],
+  ];
   const fmtBudget = p.budgetTbd
     ? "예산 미확정"
     : p.budget
@@ -479,6 +524,7 @@ function Step3(p: {
       : "-";
   const catPath = [p.cat1, p.cat2, p.cat3].filter(Boolean).join(" > ") || "-";
   const placeFull = [p.place, p.placeDetail].filter(Boolean).join(" ") || "-";
+  const attachLabel = p.attachments.length > 0 ? `${p.attachments.length}개` : "없음";
   const reviewRows: Array<[string, string]> = [
     ["유형", p.type],
     ["공고명", p.title || "-"],
@@ -488,20 +534,41 @@ function Step3(p: {
     ["납기 기한", p.dueDate || "-"],
     [p.isGoods ? "납품 장소" : "장소", placeFull],
     ...(p.isGoods ? [["인도 조건", p.delivery] as [string, string]] : []),
-    ["첨부파일", "없음"],
+    ["첨부파일", attachLabel],
   ];
 
   return (
     <>
       <div style={blockStyle}>
         <label style={{ ...labelStyle, marginBottom: "7.32px" }}>첨부파일</label>
-        <div style={{ borderRadius: "14.64px", border: "2px dashed rgba(210,210,215,0.3)", padding: "31.28px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => fileRef.current?.click()}
+          onKeyDown={(e) => e.key === "Enter" && fileRef.current?.click()}
+          style={{ borderRadius: "14.64px", border: "2px dashed rgba(210,210,215,0.3)", padding: "31.28px", display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer" }}
+        >
           <div style={{ width: "48.8px", height: "48.8px", borderRadius: "9999px", background: "#F5F5F7", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <UploadIcon />
           </div>
-          <p style={{ fontSize: "13px", fontWeight: 400, lineHeight: "23.4px", letterSpacing: "-0.195px", color: "rgba(29,29,31,0.4)", margin: "9.76px 0 0" }}>물품 규격서, 참고 사진, 현장 도면</p>
+          <p style={{ fontSize: "13px", fontWeight: 400, lineHeight: "23.4px", letterSpacing: "-0.195px", color: "rgba(29,29,31,0.4)", margin: "9.76px 0 0" }}>
+            {p.uploading ? "업로드 중…" : "물품 규격서, 참고 사진, 현장 도면"}
+          </p>
           <p style={{ fontSize: "12px", fontWeight: 400, lineHeight: "21.6px", letterSpacing: "-0.18px", color: "rgba(29,29,31,0.3)", margin: "2.44px 0 0" }}>PDF, JPG, PNG 파일 가능</p>
         </div>
+        <input ref={fileRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,image/*" onChange={p.onAttachFiles} style={{ display: "none" }} />
+        {p.attachments.length > 0 && (
+          <div style={{ marginTop: "9.76px", display: "flex", flexDirection: "column", gap: "4.88px" }}>
+            {p.attachments.map((a, i) => (
+              <div key={i} className="flex items-center justify-between" style={{ borderRadius: "9.76px", background: "#F5F5F7", padding: "7.32px 12.2px" }}>
+                <span style={{ fontSize: "12px", fontWeight: 400, lineHeight: "21.6px", letterSpacing: "-0.18px", color: "rgba(29,29,31,0.7)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{a.name}</span>
+                <button type="button" onClick={() => p.onRemoveAttachment(i)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0 0 0 7.32px", flexShrink: 0 }} aria-label="삭제">
+                  <XIcon />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div style={blockStyle}>
@@ -519,11 +586,7 @@ function Step3(p: {
       <div style={blockStyle}>
         <div style={{ borderRadius: "14.64px", background: "#F5F5F7", border: "1px solid rgba(210,210,215,0.2)", padding: "20.52px" }}>
           <p style={{ fontSize: "13px", fontWeight: 600, lineHeight: "23.4px", letterSpacing: "-0.195px", color: "rgba(29,29,31,0.8)", margin: "0 0 7.32px" }}>공무원 정보</p>
-          {([
-            ["소속 기관/부서", "경기도 화성시청 도로과"],
-            ["직책", "주무관"],
-            ["부서 전화", "031-369-1234"],
-          ] as Array<[string, string]>).map(([k, v], idx) => (
+          {officialRows.map(([k, v], idx) => (
             <p key={k} style={{ fontSize: "13px", fontWeight: 400, lineHeight: "23.4px", letterSpacing: "-0.195px", margin: idx === 0 ? 0 : "4.88px 0 0" }}>
               <span style={{ color: "rgba(29,29,31,0.4)" }}>{k}:</span>
               <span style={{ color: "rgba(29,29,31,0.6)" }}> {v}</span>
@@ -532,7 +595,7 @@ function Step3(p: {
         </div>
       </div>
 
-      <Footer left={<PrevBtn onClick={p.onPrev} />} right={<PrimaryBtn onClick={p.onSubmit} disabled={p.submitting}>공고 등록</PrimaryBtn>} />
+      <Footer left={<PrevBtn onClick={p.onPrev} />} right={<PrimaryBtn onClick={p.onSubmit} disabled={p.submitting || p.uploading}>공고 등록</PrimaryBtn>} />
     </>
   );
 }

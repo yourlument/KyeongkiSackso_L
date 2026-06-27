@@ -77,7 +77,7 @@ export type CommunityDetailPost = {
   answers: number;
   summary: string;
   videoUrl?: string;
-  attachments: { name: string; size: string }[];
+  attachments: { name: string; size: string; url: string }[];
   comments: CommunityDetailComment[];
   isOwner: boolean;
 };
@@ -127,6 +127,7 @@ export async function loadCommunityDetail(
     attachments: post.attachments.map((a) => ({
       name: a.fileName,
       size: a.fileSize ? formatSize(a.fileSize) : "-",
+      url: a.fileUrl,
     })),
     comments: post.comments.map((c) => ({
       id: c.id,

@@ -92,22 +92,24 @@ export function SubscriptionView({ data }: { data: PartnerSubscriptionData }) {
             <h3 style={{ fontSize: "16px", fontWeight: 700, lineHeight: "20px", letterSpacing: "-0.448px", color: INK, margin: 0 }}>
               프리미엄 이용권
             </h3>
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                padding: "4.88px 14.64px",
-                borderRadius: "9999px",
-                background: NAVY,
-                color: "#fff",
-                fontSize: "11px",
-                fontWeight: 500,
-                lineHeight: "19.8px",
-                letterSpacing: "-0.165px",
-              }}
-            >
-              현재 이용 중
-            </span>
+            {data.hasSubscription && (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "4.88px 14.64px",
+                  borderRadius: "9999px",
+                  background: NAVY,
+                  color: "#fff",
+                  fontSize: "11px",
+                  fontWeight: 500,
+                  lineHeight: "19.8px",
+                  letterSpacing: "-0.165px",
+                }}
+              >
+                현재 이용 중
+              </span>
+            )}
           </div>
 
           <div style={{ paddingTop: "14.64px", paddingBottom: "19.52px" }}>

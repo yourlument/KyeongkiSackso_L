@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { AdminDashboardData } from "@/lib/admin-dashboard";
 
 const NAVY = "#1E3A5F";
@@ -96,9 +97,9 @@ export function DashboardView({ data }: { data: AdminDashboardData }) {
             <p style={{ margin: 0, fontSize: "13px", fontWeight: 700, letterSpacing: "-0.364px", lineHeight: "16.25px", color: INK }}>
               최근 비교견적 요청
             </p>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: "2px", fontSize: "11px", fontWeight: 500, letterSpacing: "-0.293px", lineHeight: "19.25px", color: INK_40 }}>
+            <Link href="/admin/contents" style={{ display: "inline-flex", alignItems: "center", gap: "2px", fontSize: "11px", fontWeight: 500, letterSpacing: "-0.293px", lineHeight: "19.25px", color: INK_40, textDecoration: "none" }}>
               전체 보기 <ArrowIcon />
-            </span>
+            </Link>
           </div>
           <div>
             {data.recentRequests.map((r, i) => (
@@ -139,9 +140,9 @@ export function DashboardView({ data }: { data: AdminDashboardData }) {
           <p style={{ margin: 0, fontSize: "13px", fontWeight: 700, letterSpacing: "-0.364px", lineHeight: "16.25px", color: INK }}>
             입점 신청 현황
           </p>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: "2px", fontSize: "11px", fontWeight: 500, letterSpacing: "-0.293px", lineHeight: "19.25px", color: INK_40 }}>
+          <Link href="/admin/approval" style={{ display: "inline-flex", alignItems: "center", gap: "2px", fontSize: "11px", fontWeight: 500, letterSpacing: "-0.293px", lineHeight: "19.25px", color: INK_40, textDecoration: "none" }}>
             전체보기 <ArrowIcon />
-          </span>
+          </Link>
         </div>
         <div
           style={{

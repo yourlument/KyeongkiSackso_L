@@ -11,8 +11,7 @@ const NAV: NavItem[] = [
   { label: "상품관리", href: "/partner/products", icon: <ProductsIcon /> },
   { label: "견적대응", href: "/partner/quotes", icon: <QuotesIcon /> },
   { label: "주문관리", href: "/partner/orders", icon: <OrdersIcon /> },
-  { label: "이용권", href: "/partner/subscription", icon: <SubscriptionIcon /> },
-  { label: "매출/정산", href: "/partner/sales", icon: <SalesIcon /> },
+{ label: "매출/정산", href: "/partner/sales", icon: <SalesIcon /> },
   { label: "인증서 제출", href: "/partner/certifications", icon: <CertsIcon /> },
   { label: "프로필 설정", href: "/partner/profile", icon: <ProfileIcon /> },
 ];

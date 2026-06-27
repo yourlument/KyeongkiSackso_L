@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { uploadFile } from "@/lib/upload-client";
 import type { AdminBoardData, PostRow, NewsRow } from "@/lib/admin-board";
 
 const PAGE_SIZE = 10;
@@ -157,10 +158,10 @@ function SelectChevronIcon() {
     </svg>
   );
 }
-function ComposePinIcon() {
+function ComposePinIcon({ color }: { color?: string }) {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M9.43521 1.49169L15.5408 7.68179L14.5328 8.71834L14.0144 8.19276L10.9616 11.2878L10.4576 13.8719L9.43521 14.9084L6.38241 11.8134L2.81121 15.4194L1.80321 14.3975L5.36001 10.7768L2.30721 7.68179L3.32961 6.64524L5.87841 6.13426L8.93121 3.03922L8.41281 2.51364L9.43521 1.49169ZM9.93921 4.06117L6.58401 7.4774L4.55361 7.88618L9.23361 12.6309L9.63681 10.5724L13.0064 7.17081L9.93921 4.06117Z" fill="#1D1D1F" fillOpacity="0.3" />
+      <path d="M9.43521 1.49169L15.5408 7.68179L14.5328 8.71834L14.0144 8.19276L10.9616 11.2878L10.4576 13.8719L9.43521 14.9084L6.38241 11.8134L2.81121 15.4194L1.80321 14.3975L5.36001 10.7768L2.30721 7.68179L3.32961 6.64524L5.87841 6.13426L8.93121 3.03922L8.41281 2.51364L9.43521 1.49169ZM9.93921 4.06117L6.58401 7.4774L4.55361 7.88618L9.23361 12.6309L9.63681 10.5724L13.0064 7.17081L9.93921 4.06117Z" fill={color ?? "#1D1D1F"} fillOpacity={color ? 1 : 0.3} />
     </svg>
   );
 }
@@ -308,6 +309,7 @@ export function BoardView({ data }: { data: AdminBoardData }) {
   const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [composing, setComposing] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     return data.posts.filter((p) => {
@@ -337,8 +339,16 @@ export function BoardView({ data }: { data: AdminBoardData }) {
     if (res.ok) startTransition(() => router.refresh());
   }
 
-  if (composing) {
-    return <NewsComposeView onBack={() => setComposing(false)} />;
+  if (composing || editId !== null) {
+    return (
+      <NewsComposeView
+        editId={editId}
+        onBack={() => {
+          setComposing(false);
+          setEditId(null);
+        }}
+      />
+    );
   }
 
   return (
@@ -407,7 +417,7 @@ export function BoardView({ data }: { data: AdminBoardData }) {
       </div>
 
       {tab === "소식" ? (
-        <NewsView news={data.news} kpis={data.newsKpis} />
+        <NewsView news={data.news} kpis={data.newsKpis} onEdit={setEditId} />
       ) : (
         <>
       <div className="flex" style={{ gap: "19.52px", marginBottom: "29.28px" }}>
@@ -657,7 +667,7 @@ export function BoardView({ data }: { data: AdminBoardData }) {
   );
 }
 
-function NewsView({ news, kpis }: { news: NewsRow[]; kpis: AdminBoardData["newsKpis"] }) {
+function NewsView({ news, kpis, onEdit }: { news: NewsRow[]; kpis: AdminBoardData["newsKpis"]; onEdit: (id: string) => void }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [typeChip, setTypeChip] = useState<NewsTypeChip>("전체");
@@ -891,6 +901,7 @@ function NewsView({ news, kpis }: { news: NewsRow[]; kpis: AdminBoardData["newsK
                   <div className="flex items-center" style={{ gap: "4.88px" }}>
                     <button
                       type="button"
+                      onClick={() => onEdit(p.id)}
                       style={{
                         padding: "5.88px 10.76px",
                         borderRadius: "4.88px",
@@ -995,31 +1006,104 @@ function NewsView({ news, kpis }: { news: NewsRow[]; kpis: AdminBoardData["newsK
   );
 }
 
-const EDITOR_IMG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA90AAAHvCAYAAABJ47wJAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAESZSURBVHhe7d13dFRl4v/xz0wmlRYCKTQBMYQSSpAq4FpAVMoRRVBRQUXZddV1XVdW+f50dXUtX9e2DRtFulIUBaRGMLTEUEJJaAGSQCAJCZA6SWbm98cmdzOT0IQHv7u+X+fMOebeO5PJzATzvs+9z7V5PB6PAAAAAADAZWe72Oh2uVxyudzyeDy6uHsCAAAAAPCfx2b7181ut8vPz082m813k7O6oOh2uVwqL69QRcW/bpWVLnk8Lt/NAAAAAAD4r+Px2GS3S3a7Q35+fgoMDJS/v0MBAf6+m9Zyzuh2uz1yOp1yOssleeR2uy6q6AEAAAAA+G9ks9nlcPgrMDBA/v4O39WWs0Z3ZWWlSkudCgjwV0CAP7ENAAAAAEANlZUulZU55XD4KSgo0He1dLborqioVFmZUyEhwfLzs/uuBgAAAAAAkjwej0pLnbLZbAoOrh3etYra5fpXqderF0JwAwAAAABwDjabTSEhQfJ4PCorK/ddXTu6S0udCgkJkt3O4eQAAAAAAFyI4OBAVVZWqrKy0mu5V3Q7neVyOPzk5+dXczEAAAAAADiHfx1eHlRrtNsrusvLKxQYGFBzEQAAAAAAuAB+fna5XJWqqKiwllnRXV5eobKyUmYpBwAAAADgR/J4PKqo+Pch5lZ0/2uq8zJrBQAAAAAAuDhut0vl5RWqvlCYFd0ul0tOp7PmtgAAAAAA4CK5XC65XC6pOro9Hk/Vze27LQAAAAAAuAhud6Xc7hoj3dXD3gAAAAAA4NK43f8a2FbNw8uZQA0AAAAAgEtXM6+9LhkGAAAAAAAuH6IbAAAAAABDiG4AAAAAAAwhugEAAAAAMMTm8Xg8brdbxcWlOn78mKKjo323Af5POnLkiFq2bCk/Pz/fVSooKJDD4VCDBg18V/1X8Hg8OnTokK6++mrfVYCcTqeys7PVpk0b31U/2u7duyVJnTt31u7du9W8eXNVVlYqJyfHWlZzffV/48rKzc1VTk6O9XVJSYnKysoUFhYmVU2a2qlTpxr3AAAAl1t+fr4qKyvVqFGoAgMDiO6fk9LSUu3bt89rWVBQkNq1ayeHw+G1/HJITExUZWWlJOnYsWOKioqS3W6Xv7+/evXq5bv5Rdm/f78ef/xxTZgwQWPGjPFdrYcfflgOh0MfffSR76ofzel06tixY/J4PGrVqpX8/f19N7li3nrrLa1bt05Lly6VJCUlJamiosJ3M0v9+vXVtWtX38XntXXrVrVo0UKRkZHauHGj7+pa2rRpo+bNm/suNsLlcmnLli2+i8/KZrOpX79+vovPKzMzU5mZmb6LzyokJETdu3f3XXxFPf3009q7d69mzJihiIgI39UXbfPmzVq+fLluv/12eTwerVixQk899ZQqKys1Y8YMDR48WMnJyfJ4POrcubNWrVqlG264QQMHDvR9KGMqKir097//XQkJCWratKluu+02jRgx4rJemSM9PV2FhYW+i+tkt9vVsWNHI/+2nsvDDz983s/rK6+88qN+FwAAwIUhun9C6enpCgkJUVRUlO+qK2Ly5MlKTEz0XayGDRtq8uTJ6tGjh++qH+3QoUN67LHHfBdbPvnkE7Vu3dp38QVLSkrSCy+8oDvvvFO/+tWvfFfrzjvvlN1u14IFC3xXXbT8/HxNmzZNK1eulNvtliQ5HA4NHDhQjz76qMLDw33vckWMGjVKCxYsUGZmph5++GHf1bUsXbpUAQEBvovP6tSpU7r77rsVFxen4cOH65VXXvHdpJbOnTvrvffe811sxIcffnjR7+/LL7+s6667znfxOT3++OPav3+/7+Jz+vLLL1WvXj3fxVdEamqqnnrqKUnSmDFjNGHCBN9NLtqcOXOsz3lSUpIeeOABtWrVSsnJyWrVqpWys7O1efNmXX311UpMTFRcXJxuv/1234cxprKyUs8995x27typjh07qri4WBkZGerevbtefPHFy3LES/WOvotxtn+fTFq4cKGOHDkiScrLy1NSUpLCw8PVs2dPqWrn08SJExUSEuJzTwAAcLkYj+7Zs2friy++0BtvvKEOHTpYyxMSErRw4UK99tprV/x/9iUlJZo8ebJ69uypsWPH+q6+Inbs2KHJkyfL4XDorbfeUvv27X03Me7pp5/W7t27NWbMGCu+SktLtXbtWhUXF2vatGmXNSBnzpyp8vJyJSYmKj09XTfffLPCw8MVGBio+++/33fzi3KlovvMmTN66qmndPToUXXp0sUawdy+fbt27typ+vXr65NPPlGTJk1872rUvHnzNHv2bI0d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xzybM2fOaO7cudq3b5/sdrueeOIJtW7dWpI0b948tW3bVn369FFWVpY++eQT62eRpOjoaD3wwAMqLy/XJ598ovvvv19NmzbVkiVLtHHjxhrf5V/uuusutWzZUgsWLNAjjzyikJAQqepzUFFR4bu5kpOTlZOTo3vuucd3ldxut+bOnaudO3f6rpIkDRw4UEOHDlVxcbE+/vhjHT9+XJLUsGFDTZgwQdu2bVNoaKjatWunzz//XOPHj1dISIi2bdum+fPn+z6cJCk0NFQTJ05Uo0aNVFxcLLfbrZycHC1ZskRjx45VcHCwgoKCtGXLFhUXF+u2226TqsJtxowZXo9V/fxKSkr06aefatSoUWrWrJni4+MVEBCg/v37e22vqvcjJiZGcXFxvqskSZ999plyc3NrxWNeXp7atGmjO+64Q6racTV16lQdP35cwcHBmjhxolq0aCFVhf3evXt1zz33yOl06tNPP9XQoUOtz0TN92rFihWKiorS9ddfr4qKCs2ePVtpaWnW9/X399f48ePVrl07ffnllwoLC9OAAQM0f/587dixw9quWlxcnNq0aaNDhw7V+Z77io+P1+HDh/XQQw/5rvJSWlqqOXPm6PTp02rcuLHS0tJ0zz33KC4urtbr73u/KVOmqGHDhnr44YdrRfeSJUvUunVrdevWzWu5JOt39o477tDp06c1ZcoUFRQUWOurP0tlZWX66quvNH78+Dp3bAAAAOC/W0FBgZxOpxo3DlNgYMDlH+k+duyYEhMT1atXL2s0qLi4WElJSerXr592796tRo0aqV27dioqKtKSJUs0cuRItW3bVgEBAXI4HKpXr56cTqcKCgoUGxsrm82m8vJyrVixQjfddJNat24tu90um80mf39/HT58WDabrdbIVfWI01133aXrrrtObdu2Vf369ZWSkqK4uDjt379fp0+fVq9evWSz2RQeHq6uXbuqa9euatmypTIyMtSqVSvFx8dr69atCgkJUd++fbVz505t2LBB+/btk81mU2Fhofbt26eCggL5+/vr2LFj6t27t9dI3fbt2+VwOKwRzXXr1qlLly46ceKE6tevby2v3rHw+OOPq2/fvuratauuu+46RUVFadmyZerevft5R9nmzJmj66+/XmPHjlWjRo20YcMGxcXFqby8XBs3blSPHj0UGhqq1NRU1a9fX0888YQGDRqkBg0ayOVyqXPnzsrOzlZ6err69u0rh8OhmJgYDRo0SOHh4XK5XPrd736nwYMHq0WLFkpPT1dBQYF69uwpm82moqIiffDBBzpy5IgOHjyoffv2WbfCwkJdd911XkcLVCsuLtbGjRv1+OOPa/jw4Ro0aJDXrfo18vPzU2xsrG644QZ1795dGRkZ6tGjhzZu3Khu3brp9OnTys/PV48ePWSz2dSsWbNajzVo0CBdc801On78uHr37q3S0lKtXLlSu3fv1tGjR1W/fn2lp6dr3759atq0qbZt26bOnTsrPDxcktSkSRMNHjxYgwYN0s0336wTJ06oY8eOioiIUF5envbv369+/fpZO4u6dOlS63erpKRECQkJ6t27tzWi7rt+8+bNuuOOO9StWzfFxMQoJiZG7du3V1pamrp3766IiAgVFxdrxowZGj58uMaMGSNJSkhIkJ+fn7Kzs7V582Z16tRJLVu21KlTp7Rt2zYNGDBAAQEBqqio0Pr167Vt2zalpqZq9+7duv766xUWFia73a5u3bpZP2f37t2Vnp6ugQMHyuPxKCEhQT179lTjxo3VuXNnXX311XK73WratKkGDBig++67T127dlVCQoJcLpf8/Pysx63LwYMHtXTpUpWUlKhbt27WESm+3G63NeJ81113KS4uTs2bN9emTZvUvXt3HT9+XAcOHFD//v29Rr+PHj2qmTNnqnfv3tq9e7f8/PzUsmVL698Mp9Op9evXq3v37tYOw2oej0dr1qxRx44dFRUVpaysLJ08edL6PRg0aJAGDBig4OBg7dmzR2VlZerevbvXYwAAAODnwXeku+6/fi/BkSNH1Lx5c68/mPPy8lSvXj0FBwcrMzNTbdq0kSSFhISoffv2+uijj/Tll19q69atWrFihd59912lpaVpxIgR1h/EgYGBuvnmmzVv3jxNmjRJf/jDH/TCCy/oz3/+s4KDgzVy5Mhao1Y5OTlyOBxq3ry5VPWH87FjxxQbGytJOnTokNq2bSubzaZTp07pxRdftB777bffVnh4uDp06KD7779fbdq0UceOHWW329WjRw/de++96tOnjzp16qRbbrlF999/v2655RZlZ2erRYsWXofRut1u7du3T1dddZVUFVOnT59WWFiY1/KioiLt27dPw4YNq3UYbmhoqDUSfi5JSUlq1qyZOnToIEmKiopSZWWlKioq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woUL9cADDygkJERut1szZsxQ37591bFjR6/zueuyYcMGRUVFqV27dlq1apUaNGigvn37em2Tk5Nj/V5XH6VSfT539edgz549+vLLL+Xn56eAgAANGzZM11xzjRITEy/4fO6LkZmZqcWLFysvL0+9evXS4MGDFRQU5HU+d8OGDfXpp5/q2LFjvnf30rZtW40fP16LFy+2fj981Tyf+9SpU5o2bZoeeuihWqdJZGdna/HixRo1atRZd2AAAADgv5vvOd2XNbqPHDliBU91OBUVFWnGjBkaO3asfvjhB0nSTTfdZE1adS4Oh0MhISGqrKzUmjVrznq46bXXXmuNbPnKzMxUVlaWNYnb2ZbXnExKVYfWVofQwYMHtW3bNt11110qLi7W1KlTrYnSXC6XZs2apYEDB8put9eK6E2bNun48eNq0KCBSkpKNGLECM2ZM0c9evRQbm6uSktLNWTIEOv7pqamasOGDRo0aJDOnDmj4uJi7d27V+PGjTtncKsquj/++GM98sgjaty4sY4dO6bPP/9cjzzyiAICArwm0KoZEfKJCt/3sfrnyMjIUGxsrJYtW6Zf//rXqlevnnbs2KHt27frwQcflM1mk8vlUnFx8VkPgw8JCalzJNvj8aikpESVlZXWMn9//1rR4ruzQFWjqjNmzNDgwYNVUlKi5ORkjR079pyvV3x8vIqKijR8+HBJ0vr1670mStu/f782bdqksWPHatasWerdu7fXZ8zpdGrx4sXyeDwaPXq0FczZ2dnWJFp+fn6aOnWqbr75Zq/D+N1ut0pLSzV16tQ6J/uq3qb6d6S8vFxz587VTTfdZE2kV/06njx5UrNmzdIjjzyi+vXr69ChQ/roo4+s1//MmTMaN26cFZK5ublas2aNKisr5Xa7tWfPHrVq1craSdOvXz+vfwMOHz6suXPnasyYMdbh806nU9OmTdNtt91mHSly9OhRnThxwrpfTTV3VFSrayKyunTq1En33XdfnfMYVI8i17waQfVRIvXq1ZPdbldFRYUOHz6stm3bej1G9dEcTZs2VcOGDeV0OjV16lQNHz5cLVu2tLZzVl3BYPbs2erevbu6deumAwcOeE0GWdOWLVuM7GQAAADAfw7f6L6sE6nt3btXq1at0qZNm7Ry5Upt2LBBDRs2VGFhoa699lolJCSoW7duatKkiQIDA1VQUKDFixdr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wBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ4huAAAAAAAMIboBAAAAADCE6AYAAAAAwBCiGwAAAAAAQ6zottvpbwAAAAAALlVgYJD135Q2AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhCdAMAAAAAYAjRDQAAAACAIUQ3AAAAAACGEN0AAAAAABhSFd02eTwe33UAAAAAAOCi/buv7ZJks4noBgAAAADgsrDJZrNJ/45um2w2yW7naHMAAAAAAC6F3W63+tqqbD8/PwUGBtbcDgAAAAAAXCSbzSY/P5/odjgcCgwMqrkdAAAAAAC4CHa7XQ6Hw/vwckny93coMDCQc7sBAAAAAPjR7PL396/xVQ0BAQFyOstrLgIAAAAAABfA5XLJ4XDI399hLfOJbn+5XG5VVlbWXAwAAAAAAM7B4/GotLRMgYEBXstrTVceFBSo0lKnKitdvqsAAAAAAIAPj8ejkpJS+fv7y+Hw81pXK7r9/OwKDg5SSUmpyssrfFcDAAAAAIAqbrdbxcWlVVcE8x7lliSb5ywzp7lcLpWWOmW32xUUFCi7/V8zrwEAAAAAAMnpLJfTWa7AwIA6g1vnim5J8ngkp9OpsjKnJI9cLpeks24OAAAAAMB/NY/HI7vdT3a7Xf7+AQoKCpCfn/ch5TWdM7qrud1ulZdXqLLSpcrKCrlcbklu380AAAAAAPiv4/HYZLPJiu2AAH/5+zvkcPx7lvKzuaDorsntdlfdLupuAAAAAAD8x7LZbLLbbecc1a7LRUc3AAAAAAC4MLVmLwcAAAAAAJfH/wdSQqj1EZSUAQAAAABJRU5ErkJggg==";
 
-function NewsComposeView({ onBack }: { onBack: () => void }) {
+interface AttachmentItem {
+  fileName: string;
+  fileUrl: string;
+  fileSize: number;
+}
+
+function NewsComposeView({ editId, onBack }: { editId: string | null; onBack: () => void }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [postType, setPostType] = useState<"공지사항" | "이벤트">("공지사항");
   const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
   const [status, setStatus] = useState("임시저장");
   const [isPinned, setIsPinned] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [videoMode, setVideoMode] = useState<"url" | "file">("url");
+  const [videoUploading, setVideoUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!editId) return;
+    let active = true;
+    (async () => {
+      const res = await fetch(`/api/admin/board/news/${editId}`);
+      if (!res.ok) return;
+      const d = await res.json();
+      if (!active) return;
+      setPostType(d.type === "EVENT" ? "이벤트" : "공지사항");
+      setTitle(d.title ?? "");
+      setContent(d.content ?? "");
+      setVideoUrl(d.videoUrl ?? "");
+      setStatus(d.status === "PUBLISHED" ? "게시중" : "임시저장");
+      setIsPinned(Boolean(d.isPinned));
+      setAttachments(
+        Array.isArray(d.attachments)
+          ? d.attachments.map((a: AttachmentItem) => ({ fileName: a.fileName, fileUrl: a.fileUrl, fileSize: a.fileSize ?? 0 }))
+          : [],
+      );
+    })();
+    return () => {
+      active = false;
+    };
+  }, [editId]);
+
+  async function onAttachFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    e.target.value = "";
+    setUploading(true);
+    try {
+      const results = await Promise.all(files.map((f) => uploadFile(f)));
+      setAttachments((prev) => [
+        ...prev,
+        ...results.map((r) => ({ fileName: r.name, fileUrl: r.url, fileSize: 0 })),
+      ]);
+    } catch {
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function onVideoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setVideoUploading(true);
+    try {
+      const result = await uploadFile(file);
+      setVideoUrl(result.url);
+    } catch {
+    } finally {
+      setVideoUploading(false);
+    }
+  }
+
+  function removeAttachment(idx: number) {
+    setAttachments((prev) => prev.filter((_, i) => i !== idx));
+  }
 
   async function submit() {
     if (submitting || !title.trim()) return;
     setSubmitting(true);
-    const res = await fetch("/api/admin/board/news", {
-      method: "POST",
+    const res = await fetch(editId ? `/api/admin/board/news/${editId}` : "/api/admin/board/news", {
+      method: editId ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         type: postType === "이벤트" ? "EVENT" : "NOTICE",
         title: title.trim(),
-        content: "",
+        content: content.trim(),
         status: status === "게시중" ? "PUBLISHED" : "DRAFT",
         isPinned,
         videoUrl: videoUrl.trim() || undefined,
+        attachments: attachments.length ? attachments : undefined,
       }),
     });
     setSubmitting(false);
@@ -1135,10 +1219,19 @@ function NewsComposeView({ onBack }: { onBack: () => void }) {
           {"내용 ​"}
           <span style={{ color: "#F87171" }}>*</span>
         </p>
-        <img src={EDITOR_IMG} alt="" width={989} height={495} style={{ display: "block", width: "989px", height: "495px" }} />
-        <p style={{ ...hintStyle, margin: "9.76px 0 0" }}>
-          이미지는 에디터에 직접 드래그 앤 드롭하거나 붙여넣기로 삽입할 수 있습니다. (Base64 저장)
-        </p>
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="내용을 입력하세요"
+          className="placeholder:font-medium placeholder:text-[rgba(29,29,31,0.3)]"
+          style={{
+            ...inputStyle,
+            height: "495px",
+            padding: "16px 20.52px",
+            resize: "vertical",
+            lineHeight: "1.7",
+          }}
+        />
       </div>
 
       <div className="flex" style={{ gap: "14.64px", marginTop: "24.4px" }}>
@@ -1182,11 +1275,11 @@ function NewsComposeView({ onBack }: { onBack: () => void }) {
               aria-pressed={isPinned}
               onClick={() => setIsPinned((v) => !v)}
               className="flex items-center justify-center"
-              style={{ width: "48.8px", height: "48.8px", borderRadius: "14.64px", border: "none", cursor: "pointer", background: "#F5F5F7", flexShrink: 0 }}
+              style={{ width: "48.8px", height: "48.8px", borderRadius: "14.64px", border: "none", cursor: "pointer", background: isPinned ? "#1E3A5F" : "#F5F5F7", flexShrink: 0 }}
             >
-              <ComposePinIcon />
+              <ComposePinIcon color={isPinned ? "#FFFFFF" : undefined} />
             </button>
-            <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.5)", whiteSpace: "nowrap" }}>
+            <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: isPinned ? "#1E3A5F" : "rgba(29,29,31,0.5)", whiteSpace: "nowrap" }}>
               상단고정 안함
             </span>
           </div>
@@ -1203,8 +1296,9 @@ function NewsComposeView({ onBack }: { onBack: () => void }) {
         <div className="inline-flex items-center" style={{ padding: "4.88px", gap: "2.44px", borderRadius: "14.64px", background: "#F5F5F7", marginBottom: "14.64px" }}>
           <button
             type="button"
+            onClick={() => setVideoMode("url")}
             className="flex items-center"
-            style={{ padding: "9.76px 19.52px", borderRadius: "9.76px", border: "none", cursor: "pointer", background: "#FFFFFF", fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#1D1D1F", whiteSpace: "nowrap" }}
+            style={{ padding: "9.76px 19.52px", borderRadius: "9.76px", border: "none", cursor: "pointer", background: videoMode === "url" ? "#FFFFFF" : "none", fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: videoMode === "url" ? "#1D1D1F" : "rgba(29,29,31,0.5)", whiteSpace: "nowrap" }}
           >
             <span className="inline-flex items-center" style={{ marginRight: "4.88px" }}>
               <ComposeUrlIcon />
@@ -1213,8 +1307,9 @@ function NewsComposeView({ onBack }: { onBack: () => void }) {
           </button>
           <button
             type="button"
+            onClick={() => setVideoMode("file")}
             className="flex items-center"
-            style={{ padding: "9.76px 19.52px", borderRadius: "9.76px", border: "none", cursor: "pointer", background: "none", fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "rgba(29,29,31,0.5)", whiteSpace: "nowrap" }}
+            style={{ padding: "9.76px 19.52px", borderRadius: "9.76px", border: "none", cursor: "pointer", background: videoMode === "file" ? "#FFFFFF" : "none", fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: videoMode === "file" ? "#1D1D1F" : "rgba(29,29,31,0.5)", whiteSpace: "nowrap" }}
           >
             <span className="inline-flex items-center" style={{ marginRight: "4.88px" }}>
               <ComposeFileUploadIcon />
@@ -1222,17 +1317,46 @@ function NewsComposeView({ onBack }: { onBack: () => void }) {
             {" 파일 업로드"}
           </button>
         </div>
-        <input
-          type="text"
-          value={videoUrl}
-          onChange={(e) => setVideoUrl(e.target.value)}
-          placeholder="YouTube 또는 동영상 URL을 입력하세요 (선택사항)"
-          className="placeholder:font-medium placeholder:text-[rgba(29,29,31,0.3)]"
-          style={inputStyle}
-        />
-        <p style={{ ...hintStyle, margin: "7.32px 0 0" }}>
-          YouTube URL 입력 시 게시글 상단에 동영상이 노출됩니다. (예: https://www.youtube.com/embed/...)
-        </p>
+        {videoMode === "url" ? (
+          <>
+            <input
+              type="text"
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+              placeholder="YouTube 또는 동영상 URL을 입력하세요 (선택사항)"
+              className="placeholder:font-medium placeholder:text-[rgba(29,29,31,0.3)]"
+              style={inputStyle}
+            />
+            <p style={{ ...hintStyle, margin: "7.32px 0 0" }}>
+              YouTube URL 입력 시 게시글 상단에 동영상이 노출됩니다. (예: https://www.youtube.com/embed/...)
+            </p>
+          </>
+        ) : (
+          <div className="flex items-center" style={{ gap: "14.64px" }}>
+            <button
+              type="button"
+              onClick={() => videoInputRef.current?.click()}
+              disabled={videoUploading}
+              className="flex items-center"
+              style={{ height: "49.13px", padding: "0 20.52px", gap: "7.32px", borderRadius: "14.64px", background: "none", border: "1px solid rgba(210,210,215,0.4)", cursor: "pointer", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "rgba(29,29,31,0.5)", whiteSpace: "nowrap" }}
+            >
+              <ComposeFileSelectIcon />
+              {videoUploading ? "업로드 중..." : "파일 선택"}
+            </button>
+            {videoUrl && (
+              <span style={{ fontSize: "13px", color: "#1D1D1F", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                {videoUrl}
+              </span>
+            )}
+            <input
+              ref={videoInputRef}
+              type="file"
+              accept="video/*"
+              onChange={onVideoFileChange}
+              style={{ display: "none" }}
+            />
+          </div>
+        )}
       </div>
 
       <div style={{ marginTop: "24.4px" }}>
@@ -1245,14 +1369,40 @@ function NewsComposeView({ onBack }: { onBack: () => void }) {
         <div className="flex items-center" style={{ gap: "14.64px" }}>
           <button
             type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading || attachments.length >= 10}
             className="flex items-center"
             style={{ height: "49.13px", padding: "0 20.52px", gap: "7.32px", borderRadius: "14.64px", background: "none", border: "1px solid rgba(210,210,215,0.4)", cursor: "pointer", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "rgba(29,29,31,0.5)", whiteSpace: "nowrap" }}
           >
             <ComposeFileSelectIcon />
-            파일 선택
+            {uploading ? "업로드 중..." : "파일 선택"}
           </button>
           <span style={hintStyle}>최대 10개, 파일당 50MB (PDF, HWP, Excel, Word, PPT, ZIP, 이미지, TXT, DWG)</span>
         </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept=".pdf,.hwp,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.zip,.jpg,.jpeg,.png,.gif,.webp,.txt,.dwg"
+          onChange={onAttachFiles}
+          style={{ display: "none" }}
+        />
+        {attachments.length > 0 && (
+          <div style={{ marginTop: "9.76px", display: "flex", flexDirection: "column", gap: "6px" }}>
+            {attachments.map((a, i) => (
+              <div key={i} className="flex items-center" style={{ gap: "8px", fontSize: "13px", color: "#1D1D1F" }}>
+                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.fileName}</span>
+                <button
+                  type="button"
+                  onClick={() => removeAttachment(i)}
+                  style={{ flexShrink: 0, padding: "0 6px", background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: "rgba(29,29,31,0.4)" }}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center" style={{ gap: "14.64px", marginTop: "24.4px", paddingTop: "20.52px", borderTop: "1px solid rgba(210,210,215,0.1)" }}>

@@ -46,6 +46,17 @@ export const officialSignupSchema = z.object({
 });
 export type OfficialSignupInput = z.infer<typeof officialSignupSchema>;
 
+export function validateBizNo(raw: string): boolean {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length !== 10) return false;
+  const w = [1, 3, 7, 1, 3, 7, 1, 3, 5];
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += w[i] * Number(digits[i]);
+  sum += Math.floor((5 * Number(digits[8])) / 10);
+  const check = (10 - (sum % 10)) % 10;
+  return check === Number(digits[9]);
+}
+
 export const supplierSignupSchema = z.object({
   email: z.string().email("이메일 형식이 올바르지 않습니다"),
   password: passwordField,

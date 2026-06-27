@@ -16,10 +16,10 @@ const INPUT: React.CSSProperties = { width: "100%", boxSizing: "border-box", bor
 const LABEL: React.CSSProperties = { fontSize: "12px", fontWeight: 500, letterSpacing: "-0.18px", color: "rgba(29,29,31,0.6)", display: "block", marginBottom: "7.32px" };
 const IN_CLS = "placeholder:text-[#1d1d1f]/30";
 
-export function CheckoutView() {
+export function CheckoutView({ initialPay = "card" }: { initialPay?: PayMethod }) {
   const router = useRouter();
   const [items, setItems] = useState<CartItem[] | null>(null);
-  const [pay, setPay] = useState<PayMethod>("card");
+  const [pay, setPay] = useState<PayMethod>(initialPay);
   const [f, setF] = useState({ name: "", phone: "", org: "", dept: "", addr: "", memo: "" });
   const [submitting, setSubmitting] = useState(false);
   const [addrOpen, setAddrOpen] = useState(false);
@@ -44,23 +44,17 @@ export function CheckoutView() {
     if (!canPay) return;
     setSubmitting(true);
     try {
-      const order = {
-        id: `MOCK-${Date.now()}`,
-        date: new Date().toISOString(),
-        items: (items ?? []).map((it) => ({ name: it.name, supplier: it.supplierCompanyName, qty: it.quantity, price: it.price })),
-        total: productTotal,
-        pay,
-        receiver: f.name,
-        addr: f.addr,
-        status: "결제완료",
-      };
-      try {
-        const prev = JSON.parse(localStorage.getItem("korink_mock_orders") ?? "[]");
-        localStorage.setItem("korink_mock_orders", JSON.stringify([order, ...prev]));
-      } catch {  }
-      await Promise.all((items ?? []).map((it) => fetch(`/api/cart/${it.id}`, { method: "DELETE" }).catch(() => {})));
-      router.push("/orders?paid=1");
-    } finally {
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pay, recipient: { name: f.name, phone: f.phone, org: f.org, dept: f.dept, address: f.addr, memo: f.memo } }),
+      });
+      if (res.ok) {
+        router.push("/mypage");
+      } else {
+        setSubmitting(false);
+      }
+    } catch {
       setSubmitting(false);
     }
   }

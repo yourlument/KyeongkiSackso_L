@@ -1,18 +1,21 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getSessionClaims } from "@/lib/auth/session";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { KakaoChat } from "@/components/kakao-chat";
-import { PencilIcon } from "./info-icons";
+import { PencilIcon, ChevronLeftIcon, ChevronRightIcon } from "./info-icons";
 import { InfoListView } from "./info-list-view";
 import { loadInfo } from "@/lib/info";
 
 export const dynamic = "force-dynamic";
 
-export default async function InfoPage() {
+export default async function InfoPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const claims = await getSessionClaims();
   if (!claims) redirect("/login");
-  const { posts, hotPosts } = await loadInfo(claims.sub);
+  const { page: pageParam } = await searchParams;
+  const requested = Number.parseInt(pageParam ?? "1", 10);
+  const { posts, hotPosts, page, pageCount } = await loadInfo(claims.sub, Number.isFinite(requested) ? requested : 1);
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">
@@ -29,20 +32,53 @@ export default async function InfoPage() {
                 익명 기반 조달 업무 노하우, 업체 납품 평판 공유
               </p>
             </div>
-            <span
+            <Link
+              href="/info/new"
               className="inline-flex shrink-0 items-center"
-              style={{ gap: "7.32px", background: "#1E3A5F", borderRadius: "14.64px", padding: "12.2px 24.4px", color: "#fff" }}
+              style={{ gap: "7.32px", background: "#1E3A5F", borderRadius: "14.64px", padding: "12.2px 24.4px", color: "#fff", textDecoration: "none" }}
             >
               <PencilIcon />
               <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.293px", lineHeight: "22.8px" }}>글쓰기</span>
-            </span>
+            </Link>
           </div>
           <div style={{ marginTop: "29.28px" }} />
           <InfoListView posts={posts} hotPosts={hotPosts} />
+
+          {pageCount > 1 && (
+            <div className="flex items-center justify-center" style={{ gap: "4.88px", padding: "19.52px 0" }}>
+              <PagerLink page={page - 1} disabled={page <= 1} ariaLabel="이전">
+                <span style={{ color: page <= 1 ? "#D1D5DB" : "#4B5563" }}><ChevronLeftIcon /></span>
+              </PagerLink>
+              {Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => {
+                const active = n === page;
+                return (
+                  <Link
+                    key={n}
+                    href={`/info?page=${n}`}
+                    className="flex items-center justify-center"
+                    style={{ width: "39px", height: "39px", borderRadius: "7.32px", background: active ? "#1F2937" : "transparent", color: active ? "#fff" : "#4B5563", fontSize: "17.08px", fontWeight: 500, letterSpacing: "-0.293px", textDecoration: "none" }}
+                  >
+                    {n}
+                  </Link>
+                );
+              })}
+              <PagerLink page={page + 1} disabled={page >= pageCount} ariaLabel="다음">
+                <span style={{ color: page >= pageCount ? "#D1D5DB" : "#4B5563" }}><ChevronRightIcon /></span>
+              </PagerLink>
+            </div>
+          )}
         </div>
       </main>
       <SiteFooter />
       <KakaoChat />
     </div>
   );
+}
+
+function PagerLink({ page, disabled, ariaLabel, children }: { page: number; disabled: boolean; ariaLabel: string; children: React.ReactNode }) {
+  const style: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "center", width: "39px", height: "39px", borderRadius: "7.32px", textDecoration: "none" };
+  if (disabled) {
+    return <span aria-label={ariaLabel} style={{ ...style, opacity: 0.5, pointerEvents: "none" }}>{children}</span>;
+  }
+  return <Link href={`/info?page=${page}`} aria-label={ariaLabel} style={style}>{children}</Link>;
 }

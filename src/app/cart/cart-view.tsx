@@ -49,6 +49,7 @@ export function CartView() {
     setBusy(id);
     await fetch(`/api/cart/${id}`, { method: "DELETE" }).catch(() => {});
     setItems((prev) => prev?.filter((it) => it.id !== id) ?? prev);
+    if (typeof window !== "undefined") window.dispatchEvent(new Event("cart:changed"));
     setBusy(null);
   }
 

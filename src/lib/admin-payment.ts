@@ -28,6 +28,7 @@ export type TxnExtra = {
   settleNote: string;
 };
 export type Txn = {
+  orderId: string;
   date: string;
   pg: string;
   method: string;
@@ -41,9 +42,11 @@ export type Txn = {
 };
 
 export type SubStatus = "정상" | "미납";
-export type SubRow = { name: string; plan: string; fee: string; nextPay: string; remain: string; status: SubStatus };
+export type SubRow = { id: string; name: string; plan: string; fee: string; nextPay: string; remain: string; status: SubStatus };
 
 export type RefundReq = {
+  id: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
   order: string;
   buyer: string;
   buyerOrg: string;
@@ -87,6 +90,7 @@ export async function loadAdminPayment(nowMs: number): Promise<AdminPaymentData>
     const sup = o.items[0]?.supplierCompany ?? null;
     const settle: Settle = o.settlement?.status === "PAID" ? "정산완료" : "정산대기";
     return {
+      orderId: o.id,
       date: ymdhm(p.paidAt ?? o.createdAt),
       pg: dash(p.transactionId),
       method: dash(p.method),
@@ -129,6 +133,7 @@ export async function loadAdminPayment(nowMs: number): Promise<AdminPaymentData>
       remain = diff < 0 ? `${-diff}일 초과` : `${diff}일`;
     }
     return {
+      id: s.id,
       name: s.supplierCompany.name,
       plan: s.planName.split(" (")[0],
       fee: won(s.price),
@@ -156,6 +161,8 @@ export async function loadAdminPayment(nowMs: number): Promise<AdminPaymentData>
     const items = r.order.items;
     const amt = r.payment?.amount ?? r.order.totalAmount;
     return {
+      id: r.id,
+      status: r.status,
       order: r.order.orderNo,
       buyer: dash(decrypt(r.requester.name)),
       buyerOrg: dash(r.requester.organization?.name),

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RichEditor } from "./rich-editor";
+import { uploadFile } from "@/lib/upload-client";
 
 function htmlHasContent(html: string): boolean {
   if (/<img\b/i.test(html)) return true;
@@ -58,15 +59,8 @@ type DemandInitial = {
 };
 
 async function uploadOne(file: File): Promise<{ url: string; name: string }> {
-  const fd = new FormData();
-  fd.append("file", file);
-  const res = await fetch("/api/uploads", { method: "POST", body: fd });
-  if (!res.ok) {
-    const d = (await res.json().catch(() => ({}))) as { message?: string };
-    throw new Error(d.message ?? "파일 업로드에 실패했습니다");
-  }
-  const saved = (await res.json()) as { url: string };
-  return { url: saved.url, name: file.name };
+  const saved = await uploadFile(file);
+  return { url: saved.url, name: saved.name };
 }
 
 export function DemandForm({ initial }: { initial?: DemandInitial } = {}) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   MyInfoIcon,
   PurchaseIcon,
@@ -18,15 +19,7 @@ import {
 import {
   OFFICIAL_TABS,
   SUPPLIER_TABS,
-  PURCHASES,
-  ORDER_DETAIL_O001,
-  ORDER_DETAIL_O002,
-  QUOTE_NOTICES,
-  PRODUCT_QUOTES,
-  QUOTE_REQUEST_DETAIL,
-  ALARM_SETTINGS,
-  TERMS_REQUIRED,
-  TERMS_OPTIONAL,
+  ALARM_LABELS,
   WITHDRAW_NOTES,
   type OfficialTabKey,
   type SupplierTabKey,
@@ -39,9 +32,11 @@ import {
   type InquiryKind,
   type InquiryStatus,
   type OrderDetail,
+  TERMS_REQUIRED,
+  TERMS_OPTIONAL,
   type Term,
 } from "./mypage-data";
-import type { MyPageData, MyDemandPost, MyInfoPost, MyInquiryRow, MyBasicInfo, MySupplierField, MyDemandAnswer } from "@/lib/mypage";
+import type { MyPageData, MyDemandPost, MyInfoPost, MyInquiryRow, MyBasicInfo, MySupplierField, MyDemandAnswer, MyQuoteNoticeRow, MyQuoteRequestDetailView } from "@/lib/mypage";
 
 const NAVY = "#1E3A5F";
 const INK = "#1D1D1F";
@@ -175,11 +170,13 @@ const INQUIRY_BADGE: Record<InquiryStatus, BadgeT> = {
   접수: { bg: "#F3F4F6", border: "#D1D5DB", color: "#374151" },
   처리중: { bg: "#E5E7EB", border: "#D1D5DB", color: "#1F2937" },
   완료: { bg: "#111827", border: "#E5E7EB", color: "#fff" },
+  반려: { bg: "#FEF2F2", border: "#FECACA", color: "#DC2626" },
 };
 const SUPPLIER_INQUIRY_BADGE: Record<InquiryStatus, BadgeT> = {
   접수: { bg: "#F3F4F6", border: "#D1D5DB", color: "#374151" },
   처리중: { bg: "#E5E7EB", border: "#D1D5DB", color: "#1F2937" },
   완료: { bg: "#111827", border: "#E5E7EB", color: "#FFFFFF" },
+  반려: { bg: "#FEF2F2", border: "#FECACA", color: "#DC2626" },
 };
 
 function Pill({ t, children }: { t: BadgeT; children: React.ReactNode }) {
@@ -210,12 +207,12 @@ function OfficialView({ data }: { data: MyPageData }) {
   return (
     <PageShell headerSub={data.headerSub} sidebar={<Sidebar items={OFFICIAL_TABS} active={tab} onSelect={setTab} />}>
       {tab === "info" && <InfoTab basicInfo={data.basicInfo} />}
-      {tab === "purchase" && <PurchaseTab />}
-      {tab === "quote" && <QuoteTab />}
+      {tab === "purchase" && <PurchaseTab purchases={data.purchases} orderDetails={data.orderDetails} />}
+      {tab === "quote" && <QuoteTab notices={data.quoteNotices} products={data.productQuotes} details={data.quoteDetails} />}
       {tab === "demand" && <DemandTab posts={data.demandPosts} />}
       {tab === "infoshare" && <InfoShareTab posts={data.infoPosts} />}
       {tab === "inquiry" && <InquiryTab items={data.inquiries} />}
-      {tab === "alarm" && <AlarmTab />}
+      {tab === "alarm" && <AlarmTab values={data.alarmSettings} />}
       {tab === "withdraw" && <WithdrawTab />}
     </PageShell>
   );
@@ -223,12 +220,26 @@ function OfficialView({ data }: { data: MyPageData }) {
 
 const P_GRID = "93px 84px 157px 102px 108px 158px 166px";
 
-function PurchaseTab() {
+function PurchaseTab({ purchases, orderDetails }: { purchases: PurchaseRow[]; orderDetails: Record<string, OrderDetail> }) {
+  const router = useRouter();
   const [detail, setDetail] = useState<OrderDetail | null>(null);
-  const [confirm, setConfirm] = useState(false);
+  const [confirmNo, setConfirmNo] = useState<string | null>(null);
+  const [refundNo, setRefundNo] = useState<string | null>(null);
+  const [taxBusy, setTaxBusy] = useState<string | null>(null);
 
   function openDetail(orderNo: string) {
-    setDetail(orderNo === "o001" ? ORDER_DETAIL_O001 : ORDER_DETAIL_O002);
+    setDetail(orderDetails[orderNo] ?? null);
+  }
+
+  async function requestTax(orderNo: string) {
+    if (taxBusy) return;
+    setTaxBusy(orderNo);
+    try {
+      const res = await fetch(`/api/mypage/orders/${encodeURIComponent(orderNo)}/tax-request`, { method: "POST" });
+      if (res.ok) router.refresh();
+    } finally {
+      setTaxBusy(null);
+    }
   }
 
   return (
@@ -240,18 +251,19 @@ function PurchaseTab() {
             <span key={i} style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.275px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)" }}>{h}</span>
           ))}
         </div>
-        {PURCHASES.map((r) => (
-          <PurchaseRowView key={r.orderNo} r={r} onDetail={() => openDetail(r.orderNo)} onConfirm={() => setConfirm(true)} />
+        {purchases.map((r) => (
+          <PurchaseRowView key={r.orderNo} r={r} onDetail={() => openDetail(r.orderNo)} onConfirm={() => setConfirmNo(r.orderNo)} onRefund={() => setRefundNo(r.orderNo)} onTaxRequest={() => requestTax(r.orderNo)} />
         ))}
       </Panel>
 
       {detail && <OrderDetailModal d={detail} onClose={() => setDetail(null)} />}
-      {confirm && <ConfirmPurchaseModal onClose={() => setConfirm(false)} />}
+      {confirmNo && <ConfirmPurchaseModal orderNo={confirmNo} onClose={() => setConfirmNo(null)} />}
+      {refundNo && <RefundModal orderNo={refundNo} onClose={() => setRefundNo(null)} />}
     </>
   );
 }
 
-function PurchaseRowView({ r, onDetail, onConfirm }: { r: PurchaseRow; onDetail: () => void; onConfirm: () => void }) {
+function PurchaseRowView({ r, onDetail, onConfirm, onRefund, onTaxRequest }: { r: PurchaseRow; onDetail: () => void; onConfirm: () => void; onRefund: () => void; onTaxRequest: () => void }) {
   return (
     <div className="grid" style={{ gridTemplateColumns: P_GRID, gap: "19.52px", padding: "16px 19.52px", borderBottom: `1px solid rgba(210,210,215,0.1)`, alignItems: "flex-start" }}>
       <span style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)", paddingTop: "2px" }}>{r.date}</span>
@@ -269,20 +281,20 @@ function PurchaseRowView({ r, onDetail, onConfirm }: { r: PurchaseRow; onDetail:
       </div>
       <div className="flex flex-col" style={{ gap: "8px", alignItems: "flex-start" }}>
         {r.actions.map((a, k) => (
-          <PurchaseActionBtn key={k} action={a} onDetail={onDetail} onConfirm={onConfirm} />
+          <PurchaseActionBtn key={k} action={a} orderNo={r.orderNo} onDetail={onDetail} onConfirm={onConfirm} onRefund={onRefund} onTaxRequest={onTaxRequest} />
         ))}
       </div>
     </div>
   );
 }
 
-function PurchaseActionBtn({ action, onDetail, onConfirm }: { action: PurchaseAction; onDetail: () => void; onConfirm: () => void }) {
+function PurchaseActionBtn({ action, onDetail, onConfirm, onRefund, onTaxRequest }: { action: PurchaseAction; orderNo: string; onDetail: () => void; onConfirm: () => void; onRefund: () => void; onTaxRequest: () => void }) {
   if (action.kind === "detail")
     return <button type="button" onClick={onDetail} style={linkBtn(NAVY)}>상세 / 증빙</button>;
   if (action.kind === "refund")
-    return <button type="button" style={{ ...linkBtn(INK), fontWeight: 400 }}>환불 신청</button>;
+    return <button type="button" onClick={onRefund} style={{ ...linkBtn(INK), fontWeight: 400 }}>환불 신청</button>;
   if (action.kind === "tax-request")
-    return <button type="button" style={{ ...solidBtn, background: "#D97706" }}>세금계산서 발행 요청</button>;
+    return <button type="button" onClick={onTaxRequest} style={{ ...solidBtn, background: "#D97706" }}>세금계산서 발행 요청</button>;
   return <button type="button" onClick={onConfirm} style={{ ...solidBtn, background: NAVY }}>구매 확정</button>;
 }
 
@@ -363,9 +375,9 @@ function OrderDetailModal({ d, onClose }: { d: OrderDetail; onClose: () => void 
           <p style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.275px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)", margin: "24px 0 4px" }}>증빙 서류 출력</p>
           <p style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)", margin: "0 0 12px" }}>클릭 시 새 창에서 열립니다.</p>
           <div className="grid" style={{ gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
-            <DocBtn label="구매확인서" />
-            <DocBtn label="매출 전표" />
-            <DocBtn label="세금 계산서" locked={!d.taxIssued} />
+            <DocBtn label="구매확인서" href={`/api/orders/${encodeURIComponent(d.orderNo)}/document?type=purchase`} />
+            <DocBtn label="매출 전표" href={`/api/orders/${encodeURIComponent(d.orderNo)}/document?type=sales`} />
+            <DocBtn label="세금 계산서" locked={!d.taxIssued} href={`/api/orders/${encodeURIComponent(d.orderNo)}/document?type=tax`} />
           </div>
         </div>
       </div>
@@ -389,11 +401,12 @@ function KVStatus({ label, status }: { label: string; status: PurchaseStatus }) 
     </div>
   );
 }
-function DocBtn({ label, locked }: { label: string; locked?: boolean }) {
+function DocBtn({ label, locked, href }: { label: string; locked?: boolean; href?: string }) {
   return (
     <button
       type="button"
       disabled={locked}
+      onClick={() => { if (!locked && href) window.open(href, "_blank", "noopener,noreferrer"); }}
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -415,7 +428,23 @@ function DocBtn({ label, locked }: { label: string; locked?: boolean }) {
   );
 }
 
-function ConfirmPurchaseModal({ onClose }: { onClose: () => void }) {
+function ConfirmPurchaseModal({ orderNo, onClose }: { orderNo: string; onClose: () => void }) {
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+  const submit = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/mypage/orders/${encodeURIComponent(orderNo)}/confirm`, { method: "POST" });
+      if (res.ok) {
+        onClose();
+        router.refresh();
+      } else {
+        setSaving(false);
+      }
+    } catch {
+      setSaving(false);
+    }
+  };
   return (
     <ModalOverlay onClose={onClose}>
       <div style={{ width: "468px", maxWidth: "calc(100vw - 40px)", borderRadius: "19.52px", background: "#fff", border: `1px solid rgba(210,210,215,0.2)`, padding: "30.28px" }}>
@@ -428,8 +457,43 @@ function ConfirmPurchaseModal({ onClose }: { onClose: () => void }) {
         <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.5)", textAlign: "center", margin: "0 0 4.88px" }}>구매 확정 후에는 취소/환불이 어려울 수 있습니다.</p>
         <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.5)", textAlign: "center", margin: "0 0 29.28px" }}>확정 후 세금계산서 발행 요청이 가능합니다.</p>
         <div className="flex" style={{ gap: "14.64px" }}>
-          <button type="button" onClick={onClose} style={{ flex: 1, height: "49px", borderRadius: "14.64px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", color: "rgba(29,29,31,0.6)", cursor: "pointer" }}>취소</button>
-          <button type="button" style={{ flex: 1, height: "49px", borderRadius: "14.64px", border: "none", background: NAVY, fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", color: "#fff", cursor: "pointer" }}>구매 확정</button>
+          <button type="button" onClick={onClose} disabled={saving} style={{ flex: 1, height: "49px", borderRadius: "14.64px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", color: "rgba(29,29,31,0.6)", cursor: "pointer" }}>취소</button>
+          <button type="button" onClick={submit} disabled={saving} style={{ flex: 1, height: "49px", borderRadius: "14.64px", border: "none", background: NAVY, fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", color: "#fff", cursor: "pointer" }}>구매 확정</button>
+        </div>
+      </div>
+    </ModalOverlay>
+  );
+}
+
+function RefundModal({ orderNo, onClose }: { orderNo: string; onClose: () => void }) {
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+  const submit = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/mypage/refunds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderNo, reason: "환불 신청" }),
+      });
+      if (res.ok) {
+        onClose();
+        router.refresh();
+      } else {
+        setSaving(false);
+      }
+    } catch {
+      setSaving(false);
+    }
+  };
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div style={{ width: "468px", maxWidth: "calc(100vw - 40px)", borderRadius: "19.52px", background: "#fff", border: `1px solid rgba(210,210,215,0.2)`, padding: "30.28px" }}>
+        <p style={{ fontSize: "15px", fontWeight: 700, letterSpacing: "-0.225px", lineHeight: "27px", color: INK, textAlign: "center", margin: "0 0 9.76px" }}>환불을 신청하시겠습니까?</p>
+        <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.5)", textAlign: "center", margin: "0 0 29.28px" }}>환불 신청 후 관리자 확인을 거쳐 처리됩니다.</p>
+        <div className="flex" style={{ gap: "14.64px" }}>
+          <button type="button" onClick={onClose} disabled={saving} style={{ flex: 1, height: "49px", borderRadius: "14.64px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", color: "rgba(29,29,31,0.6)", cursor: "pointer" }}>취소</button>
+          <button type="button" onClick={submit} disabled={saving} style={{ flex: 1, height: "49px", borderRadius: "14.64px", border: "none", background: NAVY, fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", color: "#fff", cursor: "pointer" }}>환불 신청</button>
         </div>
       </div>
     </ModalOverlay>
@@ -447,7 +511,7 @@ function ModalOverlay({ children, onClose }: { children: React.ReactNode; onClos
   );
 }
 
-function QuoteTab() {
+function QuoteTab({ notices, products, details }: { notices: MyQuoteNoticeRow[]; products: ProductQuoteRow[]; details: Record<string, MyQuoteRequestDetailView> }) {
   const [sub, setSub] = useState<"notice" | "product">("notice");
   return (
     <Panel>
@@ -481,13 +545,14 @@ function QuoteTab() {
           );
         })}
       </div>
-      {sub === "notice" ? <QuoteNoticeList /> : <ProductQuoteList />}
+      {sub === "notice" ? <QuoteNoticeList notices={notices} /> : <ProductQuoteList products={products} details={details} />}
     </Panel>
   );
 }
 
 const Q_GRID = "76px minmax(0,1fr) 96px 78px 50px 74px 64px";
-function QuoteNoticeList() {
+function QuoteNoticeList({ notices }: { notices: MyQuoteNoticeRow[] }) {
+  const router = useRouter();
   return (
     <>
       <div style={{ padding: "24.4px 29.28px 25.4px" }}>
@@ -498,8 +563,8 @@ function QuoteNoticeList() {
           <span key={i} style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.275px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)" }}>{h}</span>
         ))}
       </div>
-      {QUOTE_NOTICES.map((r) => (
-        <div key={r.title} className="grid" style={{ gridTemplateColumns: Q_GRID, gap: "12px", padding: "16px 19.52px", borderBottom: `1px solid rgba(210,210,215,0.1)`, alignItems: "flex-start" }}>
+      {notices.map((r, ri) => (
+        <div key={ri} className="grid" style={{ gridTemplateColumns: Q_GRID, gap: "12px", padding: "16px 19.52px", borderBottom: `1px solid rgba(210,210,215,0.1)`, alignItems: "flex-start" }}>
           <span style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)", paddingTop: "2px" }}>{r.regDate}</span>
           <div style={{ minWidth: 0 }}>
             <p style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.195px", lineHeight: "21px", color: INK, margin: 0 }}>{r.title}</p>
@@ -509,26 +574,26 @@ function QuoteNoticeList() {
           <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.6)", paddingTop: "1px" }}>{r.deadline}</span>
           <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.6)", paddingTop: "1px" }}>{r.proposals}</span>
           <span><Pill t={QUOTE_BADGE[r.status]}>{r.status}</Pill></span>
-          <button type="button" style={linkBtn(NAVY)}>상세보기</button>
+          <button type="button" onClick={() => router.push(`/quotes/${r.id}`)} style={linkBtn(NAVY)}>상세보기</button>
         </div>
       ))}
     </>
   );
 }
 
-function ProductQuoteList() {
-  const [detail, setDetail] = useState(false);
+function ProductQuoteList({ products, details }: { products: ProductQuoteRow[]; details: Record<string, MyQuoteRequestDetailView> }) {
+  const [detailId, setDetailId] = useState<string | null>(null);
   return (
     <>
       <div style={{ padding: "24.4px 29.28px 25.4px" }}>
         <h2 style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "-0.392px", lineHeight: "17.5px", color: INK, margin: 0 }}>상품 견적 관리</h2>
       </div>
       <div style={{ padding: "0 29.28px 8px" }}>
-        {PRODUCT_QUOTES.map((r, i) => (
-          <ProductQuoteRowView key={i} r={r} first={i === 0} onView={() => setDetail(true)} />
+        {products.map((r, i) => (
+          <ProductQuoteRowView key={r.id} r={r} first={i === 0} onView={() => setDetailId(r.id)} />
         ))}
       </div>
-      {detail && <QuoteRequestModal onClose={() => setDetail(false)} />}
+      {detailId && details[detailId] && <QuoteRequestModal detail={details[detailId]} onClose={() => setDetailId(null)} />}
     </>
   );
 }
@@ -558,8 +623,9 @@ function ProductQuoteRowView({ r, first, onView }: { r: ProductQuoteRow; first: 
   );
 }
 
-function QuoteRequestModal({ onClose }: { onClose: () => void }) {
-  const d = QUOTE_REQUEST_DETAIL;
+function QuoteRequestModal({ detail, onClose }: { detail: MyQuoteRequestDetailView; onClose: () => void }) {
+  const router = useRouter();
+  const d = detail;
   return (
     <ModalOverlay onClose={onClose}>
       <div style={{ width: "625px", maxWidth: "calc(100vw - 40px)", maxHeight: "90vh", overflowY: "auto", borderRadius: "19.52px", background: "#fff", border: `1px solid rgba(210,210,215,0.2)` }}>
@@ -599,14 +665,14 @@ function QuoteRequestModal({ onClose }: { onClose: () => void }) {
               <div key={f.name} className="flex items-center" style={{ gap: "9.76px", borderRadius: "14.64px", background: "rgba(29,29,31,0.01)", border: `1px solid rgba(210,210,215,0.2)`, padding: "13.19px 18.08px" }}>
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}><path d="M9.5 2.5L4 8a2.5 2.5 0 003.5 3.5l5-5a4 4 0 00-5.66-5.66l-5 5a5.5 5.5 0 007.78 7.78L13 9" stroke="rgba(29,29,31,0.5)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 <span style={{ flex: 1, minWidth: 0, fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.7)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.name}</span>
-                <button type="button" style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)", whiteSpace: "nowrap" }}>다운로드</button>
+                <a href={f.fileUrl} download={f.name} target="_blank" rel="noopener noreferrer" style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)", whiteSpace: "nowrap", textDecoration: "none" }}>다운로드</a>
               </div>
             ))}
           </div>
 
           <div className="flex" style={{ gap: "14.64px", marginTop: "24.4px" }}>
             <button type="button" onClick={onClose} style={{ width: "281px", maxWidth: "281px", flexShrink: 0, height: "49px", borderRadius: "14.64px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "rgba(29,29,31,0.6)", cursor: "pointer" }}>닫기</button>
-            <button type="button" style={{ flex: 1, height: "49px", borderRadius: "14.64px", border: "none", background: NAVY, fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#fff", cursor: "pointer" }}>상품 페이지로 이동</button>
+            <button type="button" disabled={!d.productId} onClick={() => { if (d.productId) router.push(`/products/${d.productId}`); }} style={{ flex: 1, height: "49px", borderRadius: "14.64px", border: "none", background: NAVY, fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#fff", cursor: d.productId ? "pointer" : "default", opacity: d.productId ? 1 : 0.5 }}>상품 페이지로 이동</button>
           </div>
         </div>
       </div>
@@ -642,6 +708,7 @@ function DemandTab({ posts }: { posts: MyDemandPost[] }) {
 }
 
 function InfoShareTab({ posts }: { posts: MyInfoPost[] }) {
+  const router = useRouter();
   return (
     <Panel>
       <PanelHead title="정보공유 게시판 글" />
@@ -650,7 +717,7 @@ function InfoShareTab({ posts }: { posts: MyInfoPost[] }) {
           <div key={i} style={{ padding: "20px 0", borderTop: i === 0 ? "none" : `1px solid rgba(210,210,215,0.1)` }}>
             <p style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.195px", lineHeight: "21px", color: INK, margin: 0 }}>{p.title}</p>
             <p style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)", margin: "8px 0 0" }}>{p.meta}</p>
-            <button type="button" style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21px", color: NAVY, background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left", whiteSpace: "nowrap", marginTop: "8px", textDecoration: "underline" }}>글 보기</button>
+            <button type="button" onClick={() => router.push(`/info/${p.id}`)} style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21px", color: NAVY, background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left", whiteSpace: "nowrap", marginTop: "8px", textDecoration: "underline" }}>글 보기</button>
           </div>
         ))}
       </div>
@@ -672,13 +739,13 @@ function InquiryTab({ items = [], badge = INQUIRY_BADGE }: { items?: MyInquiryRo
             <div className="flex items-start justify-between" style={{ gap: "16px" }}>
               <div style={{ minWidth: 0 }}>
                 <div className="flex items-center" style={{ gap: "8px" }}>
-                  <Pill t={INQUIRY_KIND_BADGE[q.kind]}>{q.kind}</Pill>
+                  <Pill t={INQUIRY_KIND_BADGE[q.kind] ?? NAVY_SOFT_BADGE}>{q.kind}</Pill>
                   <span style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)" }}>{q.category}</span>
                 </div>
                 <p style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.195px", lineHeight: "23.4px", color: INK, margin: "10px 0 0" }}>{q.title}</p>
                 <p style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)", margin: "8px 0 0" }}>{q.date}</p>
               </div>
-              <Pill t={badge[q.status]}>{q.status}</Pill>
+              <Pill t={badge[q.status] ?? INQUIRY_BADGE.접수}>{q.status}</Pill>
             </div>
             {q.thread && (
               <div style={{ marginTop: "16px" }}>
@@ -702,13 +769,26 @@ function InquiryTab({ items = [], badge = INQUIRY_BADGE }: { items?: MyInquiryRo
   );
 }
 
-function AlarmTab() {
-  const [settings, setSettings] = useState(ALARM_SETTINGS.map((s) => s.on));
+function AlarmTab({ values }: { values: boolean[] }) {
+  const [settings, setSettings] = useState(values);
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    setSaving(true);
+    try {
+      await fetch("/api/mypage/notification-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderPayment: settings[0], quoteNotice: settings[1], delivery: settings[2], marketing: settings[3] }),
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
   return (
     <Panel>
       <PanelHead title="알림 설정" sub="수신하고 싶은 알림 종류를 설정합니다." />
       <div style={{ padding: "13px 29.28px 29.28px" }}>
-        {ALARM_SETTINGS.map((s, i) => (
+        {ALARM_LABELS.map((s, i) => (
           <label key={i} className="flex items-start" style={{ gap: "14.64px", padding: "18.08px 20.52px", borderRadius: "14.64px", cursor: "pointer" }}>
             <span style={{ paddingTop: "2.44px", display: "inline-flex" }} onClick={(e) => { e.preventDefault(); setSettings((arr) => arr.map((v, k) => (k === i ? !v : v))); }}>
               <AlarmCheckIcon on={settings[i]} />
@@ -719,7 +799,7 @@ function AlarmTab() {
             </div>
           </label>
         ))}
-        <button type="button" style={{ marginTop: "13px", borderRadius: "14.64px", background: NAVY, color: "#fff", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.195px", border: "none", padding: "9.76px 24.4px", cursor: "pointer" }}>설정 저장</button>
+        <button type="button" onClick={save} disabled={saving} style={{ marginTop: "13px", borderRadius: "14.64px", background: NAVY, color: "#fff", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.195px", border: "none", padding: "9.76px 24.4px", cursor: "pointer" }}>설정 저장</button>
       </div>
     </Panel>
   );
@@ -749,6 +829,20 @@ function WithdrawTab() {
 }
 
 function WithdrawConfirmModal({ onClose }: { onClose: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const submit = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/mypage/withdraw", { method: "POST" });
+      if (res.ok) {
+        window.location.href = "/";
+      } else {
+        setSaving(false);
+      }
+    } catch {
+      setSaving(false);
+    }
+  };
   return (
     <ModalOverlay onClose={onClose}>
       <div style={{ width: "468px", maxWidth: "calc(100vw - 40px)", borderRadius: "19.52px", background: "#fff", border: `1px solid rgba(210,210,215,0.2)`, padding: "30.28px" }}>
@@ -760,8 +854,8 @@ function WithdrawConfirmModal({ onClose }: { onClose: () => void }) {
         <p style={{ fontSize: "15px", fontWeight: 700, letterSpacing: "-0.225px", lineHeight: "27px", color: INK, textAlign: "center", margin: "0 0 9.76px" }}>정말 탈퇴하시겠습니까?</p>
         <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.5)", textAlign: "center", margin: "0 0 29.28px" }}>탈퇴 후 모든 데이터가 삭제되며 복구할 수 없습니다.</p>
         <div className="flex" style={{ gap: "14.64px" }}>
-          <button type="button" onClick={onClose} style={{ flex: 1, height: "49px", borderRadius: "14.64px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", color: "rgba(29,29,31,0.6)", cursor: "pointer" }}>취소</button>
-          <button type="button" style={{ flex: 1, height: "49px", borderRadius: "14.64px", border: "none", background: "#EF4444", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", color: "#fff", cursor: "pointer" }}>탈퇴하기</button>
+          <button type="button" onClick={onClose} disabled={saving} style={{ flex: 1, height: "49px", borderRadius: "14.64px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", color: "rgba(29,29,31,0.6)", cursor: "pointer" }}>취소</button>
+          <button type="button" onClick={submit} disabled={saving} style={{ flex: 1, height: "49px", borderRadius: "14.64px", border: "none", background: "#EF4444", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", color: "#fff", cursor: "pointer" }}>탈퇴하기</button>
         </div>
       </div>
     </ModalOverlay>
@@ -769,6 +863,21 @@ function WithdrawConfirmModal({ onClose }: { onClose: () => void }) {
 }
 
 function InfoTab({ basicInfo, supplierFields, supplier = false }: { basicInfo?: MyBasicInfo; supplierFields?: MySupplierField[]; supplier?: boolean }) {
+  const [termView, setTermView] = useState<{ title: string; body: string } | null>(null);
+  const [dbTerms, setDbTerms] = useState<Array<{ title: string; content: string }>>([]);
+  async function openTerm(t: Term) {
+    let loaded = dbTerms;
+    if (!loaded.length) {
+      try {
+        const res = await fetch("/api/terms?portal=OFFICIAL");
+        const d = (await res.json()) as { terms?: Array<{ title: string; content: string }> };
+        loaded = (d.terms ?? []).map((x) => ({ title: x.title, content: x.content }));
+        setDbTerms(loaded);
+      } catch {}
+    }
+    const match = loaded.find((x) => x.title === t.title);
+    setTermView({ title: t.title, body: match?.content ?? t.desc });
+  }
   return (
     <div className="flex flex-col" style={{ gap: "19.52px" }}>
       <div style={{ borderRadius: "19.52px", background: "#fff", border: `1px solid rgba(210,210,215,0.2)`, padding: "30.28px" }}>
@@ -788,15 +897,7 @@ function InfoTab({ basicInfo, supplierFields, supplier = false }: { basicInfo?: 
         <p style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)", margin: "20px 0 0" }}>* 기본 정보 변경은 관리자에게 문의하세요.</p>
       </div>
 
-      <div style={{ borderRadius: "19.52px", background: "#fff", border: `1px solid rgba(210,210,215,0.2)`, padding: "30.28px" }}>
-        <h2 style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "-0.392px", lineHeight: "17.5px", color: INK, margin: 0 }}>비밀번호 변경</h2>
-        <div style={{ maxWidth: "468px", marginTop: "20px" }}>
-          <PwInput label="현재 비밀번호" />
-          <PwInput label="새 비밀번호" />
-          <PwInput label="새 비밀번호 확인" />
-          <button type="button" style={{ marginTop: "14.64px", borderRadius: "14.64px", background: NAVY, color: "#fff", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.195px", border: "none", padding: "9.76px 24.4px", cursor: "pointer" }}>비밀번호 변경</button>
-        </div>
-      </div>
+      <PasswordSection />
 
       {!supplier && (
         <div style={{ borderRadius: "19.52px", background: "#fff", border: `1px solid rgba(210,210,215,0.2)`, padding: "30.28px" }}>
@@ -808,18 +909,83 @@ function InfoTab({ basicInfo, supplierFields, supplier = false }: { basicInfo?: 
           <p style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "-0.165px", color: "rgba(29,29,31,0.6)", margin: "24px 0 12px" }}>회원가입 필수 약관</p>
           <div className="flex flex-col" style={{ gap: "12px" }}>
             {TERMS_REQUIRED.map((t, i) => (
-              <TermCard key={i} term={t} />
+              <TermCard key={i} term={t} onView={() => openTerm(t)} />
             ))}
           </div>
 
           <p style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "-0.165px", color: "rgba(29,29,31,0.6)", margin: "24px 0 12px" }}>서비스 이용 선택 약관</p>
           <div className="flex flex-col" style={{ gap: "12px" }}>
             {TERMS_OPTIONAL.map((t, i) => (
-              <TermCard key={i} term={t} />
+              <TermCard key={i} term={t} onView={() => openTerm(t)} />
             ))}
           </div>
         </div>
       )}
+
+      {termView && (
+        <div onClick={() => setTermView(null)} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "560px", maxWidth: "100%", maxHeight: "80vh", display: "flex", flexDirection: "column", borderRadius: "19.52px", background: "#fff", overflow: "hidden" }}>
+            <div className="flex items-center justify-between" style={{ padding: "24px 29.28px 16px" }}>
+              <h3 style={{ fontSize: "15px", fontWeight: 700, letterSpacing: "-0.225px", color: INK, margin: 0 }}>{termView.title}</h3>
+              <button type="button" aria-label="닫기" onClick={() => setTermView(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(29,29,31,0.3)", fontSize: "18px", lineHeight: 1 }}>✕</button>
+            </div>
+            <div style={{ padding: "0 29.28px", overflowY: "auto", flex: 1 }}>
+              <p style={{ fontSize: "13px", fontWeight: 400, lineHeight: "21.6px", letterSpacing: "-0.195px", color: "rgba(29,29,31,0.7)", margin: 0, whiteSpace: "pre-wrap" }}>{termView.body}</p>
+            </div>
+            <div style={{ padding: "16px 29.28px 24px" }}>
+              <button type="button" onClick={() => setTermView(null)} style={{ width: "100%", height: "49px", borderRadius: "14.64px", border: "none", background: NAVY, fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", color: "#fff", cursor: "pointer" }}>확인했습니다</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PasswordSection() {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    setMsg(null);
+    setSaving(true);
+    try {
+      const res = await fetch("/api/auth/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword: current, newPassword: next, confirmPassword: confirm }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      if (res.ok) {
+        setMsg({ ok: true, text: "비밀번호가 변경되었습니다." });
+        setCurrent("");
+        setNext("");
+        setConfirm("");
+      } else {
+        setMsg({ ok: false, text: data.message ?? "비밀번호 변경에 실패했습니다." });
+      }
+    } catch {
+      setMsg({ ok: false, text: "비밀번호 변경에 실패했습니다." });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ borderRadius: "19.52px", background: "#fff", border: `1px solid rgba(210,210,215,0.2)`, padding: "30.28px" }}>
+      <h2 style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "-0.392px", lineHeight: "17.5px", color: INK, margin: 0 }}>비밀번호 변경</h2>
+      <div style={{ maxWidth: "468px", marginTop: "20px" }}>
+        <PwInput label="현재 비밀번호" value={current} onChange={setCurrent} />
+        <PwInput label="새 비밀번호" value={next} onChange={setNext} />
+        <PwInput label="새 비밀번호 확인" value={confirm} onChange={setConfirm} />
+        {msg && (
+          <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: msg.ok ? "#047857" : "#EF4444", margin: "0 0 8px", whiteSpace: "pre-line" }}>{msg.text}</p>
+        )}
+        <button type="button" onClick={submit} disabled={saving} style={{ marginTop: "14.64px", borderRadius: "14.64px", background: NAVY, color: "#fff", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.195px", border: "none", padding: "9.76px 24.4px", cursor: "pointer" }}>비밀번호 변경</button>
+      </div>
     </div>
   );
 }
@@ -833,11 +999,11 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-function PwInput({ label }: { label: string }) {
+function PwInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div style={{ marginBottom: "14.64px" }}>
       <p style={{ fontSize: "11px", fontWeight: 500, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.5)", margin: "0 0 6px" }}>{label}</p>
-      <input type="password" style={{ width: "100%", height: "49px", borderRadius: "14.64px", border: `1px solid rgba(210,210,215,0.3)`, padding: "13.19px 18.08px", fontSize: "13px", color: INK, outline: "none", background: "#fff" }} />
+      <input type="password" value={value} onChange={(e) => onChange(e.target.value)} style={{ width: "100%", height: "49px", borderRadius: "14.64px", border: `1px solid rgba(210,210,215,0.3)`, padding: "13.19px 18.08px", fontSize: "13px", color: INK, outline: "none", background: "#fff" }} />
     </div>
   );
 }
@@ -849,7 +1015,7 @@ const TERM_TAG_STYLE: Record<Term["tag"]["tone"], { bg: string; color: string; w
   civil: { bg: "rgba(29,29,31,0.05)", color: "rgba(29,29,31,0.4)", weight: 500 },
 };
 
-function TermCard({ term }: { term: Term }) {
+function TermCard({ term, onView }: { term: Term; onView?: () => void }) {
   const [on, setOn] = useState(!!term.on);
   const checked = term.required || on;
   const tag = TERM_TAG_STYLE[term.tag.tone];
@@ -873,9 +1039,9 @@ function TermCard({ term }: { term: Term }) {
         <div className="flex items-center" style={{ gap: "9.76px", flexShrink: 0 }}>
           {!term.required && <Toggle on={on} onClick={() => setOn((v) => !v)} />}
           {term.required ? (
-            <button type="button" style={{ borderRadius: "9.76px", border: `1px solid rgba(210,210,215,0.3)`, background: "#fff", padding: "8.32px 15.64px", fontSize: "11px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "19.25px", color: "rgba(29,29,31,0.5)", cursor: "pointer", whiteSpace: "nowrap" }}>전체보기</button>
+            <button type="button" onClick={onView} style={{ borderRadius: "9.76px", border: `1px solid rgba(210,210,215,0.3)`, background: "#fff", padding: "8.32px 15.64px", fontSize: "11px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "19.25px", color: "rgba(29,29,31,0.5)", cursor: "pointer", whiteSpace: "nowrap" }}>전체보기</button>
           ) : (
-            <button type="button" style={{ background: "none", border: "none", padding: 0, fontSize: "11px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "19.25px", color: "rgba(29,29,31,0.5)", cursor: "pointer", whiteSpace: "nowrap" }}>전체보기</button>
+            <button type="button" onClick={onView} style={{ background: "none", border: "none", padding: 0, fontSize: "11px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "19.25px", color: "rgba(29,29,31,0.5)", cursor: "pointer", whiteSpace: "nowrap" }}>전체보기</button>
           )}
         </div>
       </div>
@@ -903,7 +1069,7 @@ function SupplierView({ data }: { data: MyPageData }) {
       {tab === "info" && <InfoTab supplierFields={data.supplierFields} supplier />}
       {tab === "answer" && <DemandAnswerTab answers={data.demandAnswers} />}
       {tab === "inquiry" && <InquiryTab items={data.inquiries} badge={SUPPLIER_INQUIRY_BADGE} />}
-      {tab === "alarm" && <AlarmTab />}
+      {tab === "alarm" && <AlarmTab values={data.alarmSettings} />}
       {tab === "withdraw" && <WithdrawTab />}
     </PageShell>
   );

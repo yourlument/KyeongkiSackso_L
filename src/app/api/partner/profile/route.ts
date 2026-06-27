@@ -21,6 +21,13 @@ const input = z.object({
     .array(z.object({ project: z.string(), client: z.string().optional(), year: z.string().optional(), amount: z.string().optional() }))
     .optional(),
   equipments: z.array(z.object({ name: z.string(), quantity: z.string().optional() })).optional(),
+  portfolioFileName: z.string().nullable().optional(),
+  bankName: z.string().nullable().optional(),
+  bankAccountNo: z.string().nullable().optional(),
+  bankAccountHolder: z.string().nullable().optional(),
+  bankbookFileUrl: z.string().nullable().optional(),
+  verifyAccount: z.boolean().optional(),
+  verifyCode: z.string().optional(),
 });
 
 export async function PATCH(req: Request) {
@@ -45,6 +52,12 @@ export async function PATCH(req: Request) {
             managerPosition: d.manager.position ?? null,
           }
         : {}),
+      ...(d.portfolioFileName !== undefined ? { portfolioFileName: d.portfolioFileName } : {}),
+      ...(d.bankName !== undefined ? { bankName: d.bankName } : {}),
+      ...(d.bankAccountNo !== undefined ? { bankAccountNo: d.bankAccountNo } : {}),
+      ...(d.bankAccountHolder !== undefined ? { bankAccountHolder: d.bankAccountHolder } : {}),
+      ...(d.bankbookFileUrl !== undefined ? { bankbookFileUrl: d.bankbookFileUrl } : {}),
+      ...(d.verifyAccount && d.verifyCode && /^\d{6}$/.test(d.verifyCode) ? { bankVerifiedAt: new Date() } : {}),
     },
   });
 

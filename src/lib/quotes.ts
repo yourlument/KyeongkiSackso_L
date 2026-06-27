@@ -83,9 +83,12 @@ export type QuoteDetailItem = {
 
 export type QuoteDetailProposal = {
   id: string;
+  supplierCompanyId: string;
   company: string;
   phone: string;
   totalAmount: string;
+  amount: number;
+  submittedAt: string;
   specSummary: string;
   statusLabel: string;
 };
@@ -94,11 +97,13 @@ export type QuoteDetailData = {
   id: string;
   title: string;
   statusLabel: string;
+  rawStatus: string;
   quoteType: string;
   createdAt: string;
   org: string;
   categoryPath: string;
   budget: string;
+  budgetAmount: number | null;
   deadline: string;
   dueDate: string;
   deliveryCondition: string;
@@ -106,6 +111,8 @@ export type QuoteDetailData = {
   items: QuoteDetailItem[];
   attachments: { name: string }[];
   proposals: QuoteDetailProposal[];
+  awardedResponseId: string | null;
+  paid: boolean;
   isOwner: boolean;
 };
 
@@ -124,6 +131,7 @@ export async function loadQuoteDetail(
         include: { supplierCompany: { select: { name: true, phone: true } } },
         orderBy: { createdAt: "asc" },
       },
+      order: { include: { payments: { select: { status: true } } } },
     },
   });
 
@@ -151,12 +159,20 @@ export async function loadQuoteDetail(
 
   const proposals: QuoteDetailProposal[] = req.responses.map((r) => ({
     id: r.id,
+    supplierCompanyId: r.supplierCompanyId,
     company: r.supplierCompany.name,
     phone: r.supplierCompany.phone ? (decrypt(r.supplierCompany.phone) ?? "-") : "-",
     totalAmount: `${Number(r.totalAmount).toLocaleString("ko-KR")}원`,
+    amount: Number(r.totalAmount),
+    submittedAt: ymd(r.createdAt),
     specSummary: r.specSummary ?? "-",
     statusLabel: RESP_ST[r.status] ?? "접수",
   }));
+
+  const paid =
+    req.order?.status === "PAID" ||
+    req.order?.status === "COMPLETED" ||
+    (req.order?.payments.some((p) => p.status === "PAID") ?? false);
 
   const deadlineYmd = ymd(req.deadline);
   const deadlineDisplay = req.deadline
@@ -171,6 +187,7 @@ export async function loadQuoteDetail(
     id: req.id,
     title: req.title,
     statusLabel: ST[req.status] ?? "마감",
+    rawStatus: req.status,
     quoteType: req.quoteType ? (QT[req.quoteType] ?? req.quoteType) : "-",
     createdAt: ymd(req.createdAt),
     org,
@@ -180,6 +197,7 @@ export async function loadQuoteDetail(
       : req.budget != null
         ? `${Number(req.budget).toLocaleString("ko-KR")}원`
         : "-",
+    budgetAmount: req.budgetTbd ? null : req.budget != null ? Number(req.budget) : null,
     deadline: deadlineDisplay,
     dueDate: ymd(req.dueDate),
     deliveryCondition: req.deliveryCondition ?? "-",
@@ -187,6 +205,8 @@ export async function loadQuoteDetail(
     items,
     attachments: req.attachments.map((a) => ({ name: a.fileName })),
     proposals,
+    awardedResponseId: req.awardedResponseId,
+    paid,
     isOwner: !!viewerId && req.officialId === viewerId,
   };
 }

@@ -38,6 +38,7 @@ const COL_WIDTHS = ["229px", "149px", "167px", "157px", "127px", "258px"];
 export function ProfitView({ data }: { data: AdminProfitData }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("전체");
   const [search, setSearch] = useState("");
 
@@ -57,6 +58,17 @@ export function ProfitView({ data }: { data: AdminProfitData }) {
       body: JSON.stringify({ id, restricted }),
     });
     if (res.ok) startTransition(() => router.refresh());
+  }
+
+  async function confirmPayment(id: string) {
+    if (confirmingId) return;
+    setConfirmingId(id);
+    try {
+      const res = await fetch(`/api/admin/profit/${id}/confirm`, { method: "POST" });
+      if (res.ok) startTransition(() => router.refresh());
+    } finally {
+      setConfirmingId(null);
+    }
   }
 
   return (
@@ -314,7 +326,7 @@ export function ProfitView({ data }: { data: AdminProfitData }) {
                 </td>
                 <td style={{ padding: "14.64px 19.52px" }}>
                   <div style={{ display: "flex", gap: "4.88px" }}>
-                    {c.pay === "미납" && <ActionButton label="결제 확인" bg="#374151" color="#FFFFFF" />}
+                    {c.pay === "미납" && <ActionButton label="결제 확인" bg="#374151" color="#FFFFFF" onClick={() => confirmPayment(c.id)} />}
                     {c.perm === "제한" ? (
                       <ActionButton label="권한 해제" bg="#E5E7EB" color="#374151" onClick={() => setRestrict(c.id, false)} />
                     ) : (

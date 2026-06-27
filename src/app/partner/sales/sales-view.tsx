@@ -18,6 +18,8 @@ export function SalesView({ data }: { data: PartnerSalesData }) {
   const [tab, setTab] = useState<"sales" | "subscription">("sales");
   const [query, setQuery] = useState("");
   const [orderFilter, setOrderFilter] = useState<OrderFilter>("전체");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [openOrder, setOpenOrder] = useState<OrderRow | null>(null);
 
   const filteredOrders = useMemo(() => {
@@ -33,9 +35,10 @@ export function SalesView({ data }: { data: PartnerSalesData }) {
               : orderFilter === "결제완료"
                 ? o.status === "결제완료"
                 : true;
-      return matchQ && matchF;
+      const matchDate = (!fromDate || o.date >= fromDate) && (!toDate || o.date <= toDate);
+      return matchQ && matchF && matchDate;
     });
-  }, [query, orderFilter]);
+  }, [data.orders, query, orderFilter, fromDate, toDate]);
 
   return (
     <div>
@@ -53,7 +56,32 @@ export function SalesView({ data }: { data: PartnerSalesData }) {
         <TabButton active={tab === "subscription"} onClick={() => setTab("subscription")}>이용권 결제 내역</TabButton>
       </div>
 
-      {tab === "sales" ? <SalesTab monthly={data.monthly} query={query} setQuery={setQuery} orderFilter={orderFilter} setOrderFilter={setOrderFilter} orders={filteredOrders} onOpenOrder={setOpenOrder} /> : <SubscriptionTab subscriptions={data.subscriptions} />}
+      {tab === "sales" ? (
+        <SalesTab
+          monthly={data.monthly}
+          query={query}
+          setQuery={setQuery}
+          orderFilter={orderFilter}
+          setOrderFilter={setOrderFilter}
+          fromDate={fromDate}
+          toDate={toDate}
+          setFromDate={setFromDate}
+          setToDate={setToDate}
+          orders={filteredOrders}
+          onOpenOrder={setOpenOrder}
+          totalOrderAmount={data.totalOrderAmount}
+          pendingAmount={data.pendingAmount}
+          completedAmount={data.completedAmount}
+        />
+      ) : (
+        <SubscriptionTab
+          subscriptions={data.subscriptions}
+          subPlanName={data.subPlanName}
+          subPeriod={data.subPeriod}
+          subMonthlyPrice={data.subMonthlyPrice}
+          subCount={data.subCount}
+        />
+      )}
 
       {openOrder && <OrderDetailModal order={openOrder} onClose={() => setOpenOrder(null)} />}
     </div>
@@ -89,17 +117,31 @@ function SalesTab({
   setQuery,
   orderFilter,
   setOrderFilter,
+  fromDate,
+  toDate,
+  setFromDate,
+  setToDate,
   orders,
   onOpenOrder,
   monthly,
+  totalOrderAmount,
+  pendingAmount,
+  completedAmount,
 }: {
   query: string;
   setQuery: (v: string) => void;
   orderFilter: OrderFilter;
   setOrderFilter: (v: OrderFilter) => void;
+  fromDate: string;
+  toDate: string;
+  setFromDate: (v: string) => void;
+  setToDate: (v: string) => void;
   orders: OrderRow[];
   onOpenOrder: (o: OrderRow) => void;
   monthly: MonthlyRow[];
+  totalOrderAmount: string;
+  pendingAmount: string;
+  completedAmount: string;
 }) {
   const MONTHLY_GRID = "134px 175px 107px 158px 188px 164px 152px";
   const ORDER_GRID = "140px 164px 128px minmax(0,1fr) 159px 168px 132px";
@@ -172,9 +214,9 @@ function SalesTab({
       </div>
 
       <div className="flex" style={{ gap: "19.52px", marginBottom: "29.28px" }}>
-        <SummaryCard label="총 주문 금액" value="5,890,000" iconBg="transparent" icon="/icons/sales-card-total.svg" />
-        <SummaryCard label="정산 예정" value="2,500,000" iconBg="#FFFBEB" icon="/icons/sales-card-pending.svg" />
-        <SummaryCard label="완료 금액" value="3,390,000" iconBg="#ECFDF5" icon="/icons/sales-card-done.svg" />
+        <SummaryCard label="총 주문 금액" value={totalOrderAmount} iconBg="transparent" icon="/icons/sales-card-total.svg" />
+        <SummaryCard label="정산 예정" value={pendingAmount} iconBg="#FFFBEB" icon="/icons/sales-card-pending.svg" />
+        <SummaryCard label="완료 금액" value={completedAmount} iconBg="#ECFDF5" icon="/icons/sales-card-done.svg" />
       </div>
 
       <Card style={{ padding: "20.52px", marginBottom: "19.52px" }}>
@@ -192,9 +234,9 @@ function SalesTab({
             />
           </div>
           <div className="flex items-center" style={{ gap: "9.76px" }}>
-            <DateInput />
+            <DateInput value={fromDate} onChange={(v) => setFromDate(v)} label="시작일" />
             <span style={{ fontSize: "13px", fontWeight: 400, lineHeight: "23.4px", letterSpacing: "-0.195px", color: "rgba(29,29,31,0.3)" }}>~</span>
-            <DateInput />
+            <DateInput value={toDate} onChange={(v) => setToDate(v)} label="종료일" />
           </div>
           <div className="relative">
             <select
@@ -273,7 +315,19 @@ function SalesTab({
   );
 }
 
-function SubscriptionTab({ subscriptions }: { subscriptions: SubscriptionRow[] }) {
+function SubscriptionTab({
+  subscriptions,
+  subPlanName,
+  subPeriod,
+  subMonthlyPrice,
+  subCount,
+}: {
+  subscriptions: SubscriptionRow[];
+  subPlanName: string;
+  subPeriod: string;
+  subMonthlyPrice: string;
+  subCount: string;
+}) {
   const GRID = "165px 201px 171px 143px 274px 172px";
 
   return (
@@ -286,14 +340,14 @@ function SubscriptionTab({ subscriptions }: { subscriptions: SubscriptionRow[] }
             </div>
             <div>
               <p style={{ fontSize: "12px", fontWeight: 400, lineHeight: "21.6px", letterSpacing: "-0.18px", color: "rgba(29,29,31,0.4)", margin: 0 }}>현재 이용 중인 플랜</p>
-              <p style={{ fontSize: "16px", fontWeight: 700, lineHeight: "28.8px", letterSpacing: "-0.24px", color: INK, margin: 0 }}>프리미엄 (월간)</p>
-              <p style={{ fontSize: "11px", fontWeight: 400, lineHeight: "19.8px", letterSpacing: "-0.165px", color: "rgba(29,29,31,0.4)", margin: "2.44px 0 0" }}>잔여 기간: 2026.05.08 ~ 2026.06.07</p>
+              <p style={{ fontSize: "16px", fontWeight: 700, lineHeight: "28.8px", letterSpacing: "-0.24px", color: INK, margin: 0 }}>{subPlanName}</p>
+              <p style={{ fontSize: "11px", fontWeight: 400, lineHeight: "19.8px", letterSpacing: "-0.165px", color: "rgba(29,29,31,0.4)", margin: "2.44px 0 0" }}>잔여 기간: {subPeriod}</p>
             </div>
           </div>
           <div className="text-right">
             <p style={{ fontSize: "11px", fontWeight: 400, lineHeight: "19.8px", letterSpacing: "-0.165px", color: "rgba(29,29,31,0.4)", margin: 0 }}>월 이용료</p>
             <p style={{ margin: 0 }}>
-              <span style={{ fontSize: "22px", fontWeight: 700, lineHeight: "22px", letterSpacing: "-0.33px", color: INK }}>299,000</span>
+              <span style={{ fontSize: "22px", fontWeight: 700, lineHeight: "22px", letterSpacing: "-0.33px", color: INK }}>{subMonthlyPrice}</span>
               <span style={{ fontSize: "14px", fontWeight: 600, lineHeight: "25.2px", letterSpacing: "-0.21px", color: "rgba(29,29,31,0.4)", marginLeft: "5px" }}>원</span>
             </p>
           </div>
@@ -303,7 +357,7 @@ function SubscriptionTab({ subscriptions }: { subscriptions: SubscriptionRow[] }
       <div style={{ borderRadius: "19.52px", border: "1px solid rgba(210,210,215,0.2)", background: "#fff", overflow: "hidden", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
         <div className="flex items-center justify-between" style={{ padding: "17.08px 24.4px 18.08px" }}>
           <h3 style={{ fontSize: "13px", fontWeight: 700, lineHeight: "16.25px", letterSpacing: "-0.364px", color: INK, margin: 0 }}>결제 히스토리</h3>
-          <span style={{ fontSize: "11px", fontWeight: 400, lineHeight: "19.8px", letterSpacing: "-0.165px", color: "rgba(29,29,31,0.3)" }}>5건</span>
+          <span style={{ fontSize: "11px", fontWeight: 400, lineHeight: "19.8px", letterSpacing: "-0.165px", color: "rgba(29,29,31,0.3)" }}>{subCount}</span>
         </div>
         <div className="grid" style={{ gridTemplateColumns: GRID, background: "rgba(29,29,31,0.02)", borderBottom: "1px solid rgba(210,210,215,0.1)" }}>
           {["결제 일시", "이용권 종류", "결제 금액", "결제 수단", "이용 기간", ""].map((h, i) => (
@@ -323,7 +377,7 @@ function SubscriptionTab({ subscriptions }: { subscriptions: SubscriptionRow[] }
             <Cell pad="19.52px 24.4px"><span style={{ fontSize: "12px", fontWeight: 400, lineHeight: "21.6px", letterSpacing: "-0.18px", color: "rgba(29,29,31,0.5)" }}>{s.method}</span></Cell>
             <Cell pad="19.52px 24.4px"><span style={{ fontSize: "12px", fontWeight: 400, lineHeight: "21.6px", letterSpacing: "-0.18px", color: "rgba(29,29,31,0.5)" }}>{s.period}</span></Cell>
             <Cell pad="19.52px 24.4px">
-              <button type="button" style={{ alignSelf: "flex-start", width: "fit-content", padding: "8.32px 15.64px", borderRadius: "9.76px", border: "1px solid rgba(210,210,215,0.2)", background: "#fff", fontSize: "12px", fontWeight: 400, lineHeight: "21.6px", letterSpacing: "-0.24px", color: "rgba(29,29,31,0.4)", cursor: "pointer" }}>
+              <button type="button" onClick={() => window.open(`/api/partner/subscription/receipt/${s.id}`, "_blank")} style={{ alignSelf: "flex-start", width: "fit-content", padding: "8.32px 15.64px", borderRadius: "9.76px", border: "1px solid rgba(210,210,215,0.2)", background: "#fff", fontSize: "12px", fontWeight: 400, lineHeight: "21.6px", letterSpacing: "-0.24px", color: "rgba(29,29,31,0.4)", cursor: "pointer" }}>
                 영수증
               </button>
             </Cell>
@@ -335,10 +389,8 @@ function SubscriptionTab({ subscriptions }: { subscriptions: SubscriptionRow[] }
 }
 
 function OrderDetailModal({ order, onClose }: { order: OrderRow; onClose: () => void }) {
-  const unitPrice = order.id === "ORD-2026-101" ? "45,000" : "";
-  const qty = order.product.match(/(\d+)개$/)?.[1] ?? "";
-  const productName = order.product.replace(/\s\d+개$/, "");
-  const amountWon = `${order.amount}원`;
+  const d = order.detail;
+  const totalWon = `${order.amount}원`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ padding: "19.52px" }}>
@@ -366,7 +418,7 @@ function OrderDetailModal({ order, onClose }: { order: OrderRow; onClose: () => 
           <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "19.52px" }}>
             <SummaryField label="주문번호" value={order.no} valueSize="12px" valueWeight={400} />
             <SummaryField label="결제 일시" value={order.date} valueSize="13px" valueWeight={400} />
-            <SummaryField label="결제 수단" value="카드결제" valueSize="13px" valueWeight={400} />
+            <SummaryField label="결제 수단" value={d.payMethod} valueSize="13px" valueWeight={400} />
             <div>
               <p style={{ fontSize: "11px", fontWeight: 500, lineHeight: "19.8px", letterSpacing: "0.275px", color: "rgba(29,29,31,0.4)", margin: "0 0 4.88px" }}>주문 상태</p>
               <OrderStatusBadge status={order.status} />
@@ -375,52 +427,52 @@ function OrderDetailModal({ order, onClose }: { order: OrderRow; onClose: () => 
 
           <Section title="주문 품목">
             <div style={{ borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.2)", overflow: "hidden" }}>
-              <div className="flex items-center justify-between" style={{ padding: "14.64px 19.52px 15.64px", borderBottom: "1px solid rgba(210,210,215,0.1)" }}>
-                <div>
-                  <p style={{ fontSize: "13px", fontWeight: 500, lineHeight: "23.4px", letterSpacing: "-0.195px", color: INK, margin: 0 }}>{productName}</p>
-                  <p style={{ fontSize: "11px", fontWeight: 400, lineHeight: "19.8px", letterSpacing: "-0.165px", color: "rgba(29,29,31,0.4)", margin: 0 }}>
-                    {qty}개{unitPrice && ` · 단가 ${unitPrice}원`}
-                  </p>
+              {d.items.map((it, i) => (
+                <div key={i} className="flex items-center justify-between" style={{ padding: "14.64px 19.52px 15.64px", borderBottom: "1px solid rgba(210,210,215,0.1)" }}>
+                  <div>
+                    <p style={{ fontSize: "13px", fontWeight: 500, lineHeight: "23.4px", letterSpacing: "-0.195px", color: INK, margin: 0 }}>{it.name}</p>
+                    <p style={{ fontSize: "11px", fontWeight: 400, lineHeight: "19.8px", letterSpacing: "-0.165px", color: "rgba(29,29,31,0.4)", margin: 0 }}>{it.spec}</p>
+                  </div>
+                  <span style={{ fontSize: "13px", fontWeight: 700, lineHeight: "23.4px", letterSpacing: "-0.195px", color: INK }}>{it.amount}</span>
                 </div>
-                <span style={{ fontSize: "13px", fontWeight: 700, lineHeight: "23.4px", letterSpacing: "-0.195px", color: INK }}>{amountWon}</span>
-              </div>
+              ))}
               <div className="flex items-center justify-between" style={{ padding: "14.64px 19.52px", background: "rgba(30,58,95,0.03)" }}>
                 <span style={{ fontSize: "13px", fontWeight: 700, lineHeight: "23.4px", letterSpacing: "-0.195px", color: INK }}>합계</span>
-                <span style={{ fontSize: "15px", fontWeight: 700, lineHeight: "27px", letterSpacing: "-0.225px", color: INK }}>{amountWon}</span>
+                <span style={{ fontSize: "15px", fontWeight: 700, lineHeight: "27px", letterSpacing: "-0.225px", color: INK }}>{totalWon}</span>
               </div>
             </div>
           </Section>
 
           <Section
             title="세금계산서 발행 정보"
-            trailing={<StatusBadge bg="#FFFBEB" border="#FDE68A" color="#B45309">발행 요청</StatusBadge>}
+            trailing={<StatusBadge bg="#FFFBEB" border="#FDE68A" color="#B45309">{d.taxBadge}</StatusBadge>}
           >
             <InfoBox>
-              <InfoGridField label="기관명(상호)" value="화성시청" />
-              <InfoGridField label="사업자등록번호" value="134-83-00001" />
-              <InfoGridField label="대표자(기관장)" value="홍길동" />
-              <InfoGridField label="수신 이메일" value="tax@hwaseong.go.kr" />
-              <InfoGridField label="사업장 주소" value="경기도 화성시 중앙로 100 화성시청" full />
+              <InfoGridField label="기관명(상호)" value={d.taxOrgName} />
+              <InfoGridField label="사업자등록번호" value={d.taxBizNo} />
+              <InfoGridField label="대표자(기관장)" value={d.taxCeo} />
+              <InfoGridField label="수신 이메일" value={d.taxEmail} />
+              <InfoGridField label="사업장 주소" value={d.taxAddress} full />
             </InfoBox>
           </Section>
 
           <Section title="납품 정보">
             <InfoBox>
-              <InfoGridField label="납품기한" value="2026-05-25" />
-              <InfoGridField label="납품일" value="-" />
-              <InfoGridField label="납품장소" value="경기도 화성시 향남로 45 시청본관 도로과" full />
-              <InfoGridField label="담당자 연락처" value="010-1234-5678" />
+              <InfoGridField label="납품기한" value={d.deliveryDeadline} />
+              <InfoGridField label="납품일" value={d.deliveredDate} />
+              <InfoGridField label="납품장소" value={d.deliveryPlace} full />
+              <InfoGridField label="담당자 연락처" value={d.deliveryContact} />
             </InfoBox>
           </Section>
 
           <Section title="수령인 / 배송 정보">
             <InfoBox>
-              <InfoGridField label="수령인/담당자" value="김과장" />
-              <InfoGridField label="연락처" value="010-1234-5678" />
-              <InfoGridField label="소속 기관" value="화성시청" />
-              <InfoGridField label="소속 부서" value="도로관리과" />
-              <InfoGridField label="배송지 주소" value="경기도 화성시 향남로 45 시청본관" full />
-              <InfoGridField label="배송 메모" value="출고 전 연락 부탁드립니다" full />
+              <InfoGridField label="수령인/담당자" value={d.recipientName} />
+              <InfoGridField label="연락처" value={d.recipientPhone} />
+              <InfoGridField label="소속 기관" value={d.recipientOrg} />
+              <InfoGridField label="소속 부서" value={d.recipientDept} />
+              <InfoGridField label="배송지 주소" value={d.recipientAddress} full />
+              <InfoGridField label="배송 메모" value={d.recipientMemo} full />
             </InfoBox>
           </Section>
 
@@ -428,8 +480,8 @@ function OrderDetailModal({ order, onClose }: { order: OrderRow; onClose: () => 
             <p style={{ fontSize: "11px", fontWeight: 600, lineHeight: "19.8px", letterSpacing: "0.275px", color: "rgba(29,29,31,0.4)", margin: "0 0 9.76px" }}>증빙 서류 출력</p>
             <p style={{ fontSize: "11px", fontWeight: 400, lineHeight: "19.8px", letterSpacing: "-0.165px", color: "rgba(29,29,31,0.3)", margin: "0 0 14.64px" }}>클릭 시 새 창에서 열립니다.</p>
             <div className="flex" style={{ gap: "9.76px" }}>
-              <DocButton>구매확인서</DocButton>
-              <DocButton>매출 전표</DocButton>
+              <DocButton onClick={() => window.open(`/api/orders/${order.id}/document?type=purchase`, "_blank")}>구매확인서</DocButton>
+              <DocButton onClick={() => window.open(`/api/orders/${order.id}/document?type=sales`, "_blank")}>매출 전표</DocButton>
               <DocButton disabled>세금 계산서 🔒</DocButton>
             </div>
           </div>
@@ -500,11 +552,19 @@ function SummaryCard({ label, value, iconBg, icon }: { label: string; value: str
   );
 }
 
-function DateInput() {
+function DateInput({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+  const display = value ? value.replace(/-/g, ". ") : "-/-/-";
   return (
-    <div className="flex items-center justify-between" style={{ width: "143px", height: "51px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.3)", background: "#fff", padding: "0 15.64px" }}>
-      <span style={{ fontSize: "13px", fontWeight: 400, lineHeight: "22.75px", letterSpacing: "-0.293px", color: INK }}>-/-/-</span>
+    <div className="relative flex items-center justify-between" style={{ width: "143px", height: "51px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.3)", background: "#fff", padding: "0 15.64px" }}>
+      <span style={{ fontSize: "13px", fontWeight: 400, lineHeight: "22.75px", letterSpacing: "-0.293px", color: value ? INK : "rgba(29,29,31,0.4)" }}>{display}</span>
       <img src="/icons/sales-date.svg" alt="" width={13} height={14} aria-hidden="true" />
+      <input
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={label}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, border: "none", margin: 0, padding: 0, cursor: "pointer" }}
+      />
     </div>
   );
 }
@@ -549,11 +609,12 @@ function InfoGridField({ label, value, full }: { label: string; value: string; f
   );
 }
 
-function DocButton({ children, disabled }: { children: React.ReactNode; disabled?: boolean }) {
+function DocButton({ children, disabled, onClick }: { children: React.ReactNode; disabled?: boolean; onClick?: () => void }) {
   return (
     <button
       type="button"
       disabled={disabled}
+      onClick={onClick}
       style={{
         flex: 1,
         padding: "13.2px 1px",

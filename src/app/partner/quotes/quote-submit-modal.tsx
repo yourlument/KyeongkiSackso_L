@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import type { AnnouncementRow, ProductRequest } from "./quotes-data";
-import { CloseIcon, ClipIcon, CalendarIcon } from "./quotes-icons";
+import { CloseIcon, ClipIcon } from "./quotes-icons";
+import { uploadFile } from "@/lib/upload-client";
+
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const ALLOWED_EXT = [".pdf", ".xls", ".xlsx", ".doc", ".docx", ".hwp"];
 
 const NAVY = "#1E3A5F";
 const LABEL = "#6B7280";
@@ -15,8 +19,36 @@ export function QuoteSubmitModal({ target, onClose, onSubmitted }: { target: Sub
   const [amount, setAmount] = useState("");
   const [spec, setSpec] = useState("");
   const [content, setContent] = useState("");
+  const [deliveryDate, setDeliveryDate] = useState("");
+  const [attachments, setAttachments] = useState<{ url: string; name: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const canSubmit = amount.trim() !== "" && spec.trim() !== "" && !submitting;
+  const [fileError, setFileError] = useState("");
+  const canSubmit = amount.trim() !== "" && spec.trim() !== "" && !submitting && !uploading;
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+    if (!ALLOWED_EXT.includes(ext)) {
+      setFileError("PDF·엑셀·워드·한글 파일만, 최대 10MB");
+      return;
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setFileError("PDF·엑셀·워드·한글 파일만, 최대 10MB");
+      return;
+    }
+    setFileError("");
+    setUploading(true);
+    try {
+      const saved = await uploadFile(file);
+      setAttachments((prev) => [...prev, { url: saved.url, name: saved.name }]);
+    } catch {
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -29,6 +61,8 @@ export function QuoteSubmitModal({ target, onClose, onSubmitted }: { target: Sub
           totalAmount: Number(amount.replace(/[^\d]/g, "")),
           specSummary: spec.trim(),
           memo: content.trim() || null,
+          deliveryDate: deliveryDate || null,
+          attachments,
         }),
       });
       if (res.ok) onSubmitted();
@@ -90,10 +124,13 @@ export function QuoteSubmitModal({ target, onClose, onSubmitted }: { target: Sub
           </Field>
 
           <Field label="납품 가능일">
-            <div className="flex items-center justify-between" style={{ borderRadius: "9.76px", border: "1px solid #E5E7EB", background: "#fff", padding: "13.2px 15.64px" }}>
-              <span style={{ fontSize: "17.08px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "24.4px", color: "#1D1D1F" }}>-/-/-</span>
-              <CalendarIcon />
-            </div>
+            <input
+              type="date"
+              value={deliveryDate}
+              onChange={(e) => setDeliveryDate(e.target.value)}
+              className="w-full"
+              style={{ borderRadius: "9.76px", border: "1px solid #E5E7EB", background: "#fff", padding: "13.2px 15.64px", fontSize: "17.08px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "24.4px", color: "#1D1D1F", outline: "none" }}
+            />
           </Field>
 
           <Field label="견적 내용">
@@ -111,10 +148,18 @@ export function QuoteSubmitModal({ target, onClose, onSubmitted }: { target: Sub
             <label className="flex items-center cursor-pointer" style={{ gap: "9.76px", borderRadius: "9.76px", border: "1px solid #E5E7EB", background: "#fff", padding: "13.2px 15.64px" }}>
               <ClipIcon />
               <span style={{ fontSize: "17.08px", fontWeight: 400, letterSpacing: "-0.2562px", lineHeight: "24.4px", color: "#6B7280" }}>PDF, 엑셀, 워드, 한글 파일 첨부</span>
-              <input type="file" accept=".pdf,.xls,.xlsx,.doc,.docx,.hwp" className="hidden" />
+              <input type="file" accept=".pdf,.xls,.xlsx,.doc,.docx,.hwp" className="hidden" onChange={handleFile} disabled={uploading} />
             </label>
-            <p style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#9CA3AF", margin: "4.88px 0 0" }}>
-              최대 10MB, PDF/엑셀/워드/한글 파일만 업로드 가능합니다.
+            {attachments.map((a, i) => (
+              <div key={i} className="flex items-center justify-between" style={{ gap: "9.76px", marginTop: "7.32px", borderRadius: "9.76px", border: "1px solid #E5E7EB", background: "rgba(29,29,31,0.02)", padding: "9.76px 15.64px" }}>
+                <span style={{ fontSize: "14.64px", fontWeight: 400, letterSpacing: "-0.2196px", lineHeight: "21.96px", color: "#1D1D1F", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</span>
+                <button type="button" aria-label="삭제" onClick={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))} style={{ border: "none", background: "none", cursor: "pointer", padding: 0, display: "inline-flex" }}>
+                  <CloseIcon />
+                </button>
+              </div>
+            ))}
+            <p style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: fileError ? "#EF4444" : "#9CA3AF", margin: "4.88px 0 0" }}>
+              {fileError || "최대 10MB, PDF/엑셀/워드/한글 파일만 업로드 가능합니다."}
             </p>
           </Field>
 

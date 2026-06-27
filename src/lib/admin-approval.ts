@@ -43,7 +43,7 @@ export type MemberDetailData = {
   ceo: string;
   category: string;
   region: string;
-  docs: string[];
+  docs: { name: string; fileUrl: string }[];
   full?: MemberFullData;
 };
 
@@ -62,6 +62,10 @@ export type CertRow = {
   kind: string;
   date: string;
   status: CertStatus;
+  fileUrl: string;
+  fileName: string;
+  reviewedAt: string;
+  rejectReason: string;
 };
 
 export type AdminApprovalData = { members: MemberRow[]; certs: CertRow[] };
@@ -82,8 +86,8 @@ export async function loadAdminApproval(): Promise<AdminApprovalData> {
   ]);
 
   const members: MemberRow[] = companies.map((c) => {
-    const docs: string[] = [];
-    if (c.businessLicenseFileUrl) docs.push("사업자등록증");
+    const docs: { name: string; fileUrl: string }[] = [];
+    if (c.businessLicenseFileUrl) docs.push({ name: "사업자등록증", fileUrl: c.businessLicenseFileUrl });
     const hasFull = !!(c.managerName || c.corporateRegistrationNo || c.bankName);
     return {
       id: c.id,
@@ -125,6 +129,10 @@ export async function loadAdminApproval(): Promise<AdminApprovalData> {
     kind: c.name,
     date: ymd(c.submittedAt),
     status: CERT_ST[c.status] ?? "검토중",
+    fileUrl: c.fileUrl ?? "",
+    fileName: c.fileName ?? "",
+    reviewedAt: ymd(c.reviewedAt),
+    rejectReason: c.rejectReason ?? "",
   }));
 
   return { members, certs: certRows };

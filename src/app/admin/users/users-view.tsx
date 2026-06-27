@@ -737,23 +737,41 @@ function SupplierDetailModal({
             >
               {s.licenseFileName}
             </span>
-            <button
-              type="button"
-              style={{
-                background: "transparent",
-                border: "none",
-                padding: 0,
-                fontSize: "12px",
-                fontWeight: 500,
-                letterSpacing: "-0.2928px",
-                lineHeight: "21px",
-                color: "#1E3A5F",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              파일 보기
-            </button>
+            {s.licenseFileUrl ? (
+              <a
+                href={s.licenseFileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  padding: 0,
+                  fontSize: "12px",
+                  fontWeight: 500,
+                  letterSpacing: "-0.2928px",
+                  lineHeight: "21px",
+                  color: "#1E3A5F",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  textDecoration: "none",
+                }}
+              >
+                파일 보기
+              </a>
+            ) : (
+              <span
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 500,
+                  letterSpacing: "-0.2928px",
+                  lineHeight: "21px",
+                  color: "rgba(29,29,31,0.3)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                파일 보기
+              </span>
+            )}
           </div>
         </div>
 

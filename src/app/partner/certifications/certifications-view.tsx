@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { CertRow, CertStatus } from "@/lib/partner-certifications";
+import { uploadFile } from "@/lib/upload-client";
 import {
   AwardIcon,
   PlusIcon,
@@ -281,21 +282,30 @@ function SubmitModal({ onClose, onSubmitted }: { onClose: () => void; onSubmitte
   const [fileName, setFileName] = useState("");
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
   const canSubmit = name.trim() !== "" && !!fileUrl && !submitting;
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
+    e.target.value = "";
+    setFileError(null);
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append("file", f);
-      const res = await fetch("/api/uploads", { method: "POST", body: fd });
-      const data = await res.json();
-      if (res.ok && data.url) { setFileUrl(data.url); setFileName(f.name); }
+      const saved = await uploadFile(f);
+      setFileUrl(saved.url);
+      setFileName(f.name);
+    } catch {
+      setFileError("파일 업로드에 실패했습니다. 다시 시도해 주세요.");
     } finally {
       setUploading(false);
     }
+  }
+
+  function clearFile() {
+    setFileUrl(null);
+    setFileName("");
+    setFileError(null);
   }
 
   async function submit() {
@@ -440,10 +450,21 @@ function SubmitModal({ onClose, onSubmitted }: { onClose: () => void; onSubmitte
                   <UploadIcon />
                 </div>
               </div>
-              <p style={{ margin: 0, fontSize: "13px", fontWeight: 500, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.6)" }}>{fileName || (uploading ? "업로드 중…" : "클릭하여 파일 선택")}</p>
+              <p style={{ margin: 0, fontSize: "13px", fontWeight: 500, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.6)" }}>{uploading ? "업로드 중…" : fileName ? "변경" : "클릭하여 파일 선택"}</p>
               <p style={{ margin: "2.44px 0 0", fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)" }}>PDF, JPG, PNG 지원</p>
             </button>
             <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,image/*" onChange={onFile} style={{ display: "none" }} />
+            {fileName && fileUrl && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "9.76px", marginTop: "7.32px", borderRadius: "9.76px", border: "1px solid #E5E7EB", background: "rgba(29,29,31,0.02)", padding: "9.76px 15.64px" }}>
+                <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: INK, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fileName}</span>
+                <button type="button" aria-label="파일 삭제" onClick={clearFile} style={{ border: "none", background: "none", cursor: "pointer", padding: 0, display: "inline-flex", flexShrink: 0 }}>
+                  <CloseIcon />
+                </button>
+              </div>
+            )}
+            {fileError && (
+              <p style={{ margin: "4.88px 0 0", fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "#EF4444" }}>{fileError}</p>
+            )}
           </div>
 
           <div style={{ display: "flex", gap: "14.64px", marginTop: "24.4px" }}>

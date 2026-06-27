@@ -19,6 +19,7 @@ const ST: Record<string, OrderStatus> = {
   SHIPPING: "배송중",
   DELIVERED: "납품완료",
   COMPLETED: "납품완료",
+  CANCELLED: "취소",
 };
 
 export type PartnerOrdersData = {
@@ -29,13 +30,12 @@ export type PartnerOrdersData = {
 export async function loadPartnerOrders(companyId: string): Promise<PartnerOrdersData> {
   const orders = await prisma.order.findMany({
     where: {
-      status: { not: "CANCELLED" },
-      items: { some: { product: { supplierCompanyId: companyId } } },
+      items: { some: { OR: [{ supplierCompanyId: companyId }, { product: { supplierCompanyId: companyId } }] } },
     },
     orderBy: { createdAt: "desc" },
     include: {
       items: {
-        where: { product: { supplierCompanyId: companyId } },
+        where: { OR: [{ supplierCompanyId: companyId }, { product: { supplierCompanyId: companyId } }] },
         select: { name: true, quantity: true, product: { select: { unit: true } } },
       },
       buyer: { select: { organization: { select: { name: true } } } },
@@ -74,7 +74,7 @@ const dash = (v: string | null | undefined) => (v && v.trim() ? v : "-");
 
 export async function loadPartnerOrderDetail(companyId: string, orderNo: string): Promise<OrderDetail | null> {
   const o = await prisma.order.findFirst({
-    where: { orderNo, items: { some: { product: { supplierCompanyId: companyId } } } },
+    where: { orderNo, items: { some: { OR: [{ supplierCompanyId: companyId }, { product: { supplierCompanyId: companyId } }] } } },
     include: {
       items: { select: { name: true, spec: true, quantity: true, unitPrice: true, amount: true, product: { select: { unit: true } } } },
       payments: { orderBy: { createdAt: "desc" }, take: 1 },
@@ -88,10 +88,12 @@ export async function loadPartnerOrderDetail(companyId: string, orderNo: string)
   const recAddr = [o.deliveryAddress, o.deliveryAddressDetail].filter(Boolean).join(" ");
 
   return {
+    id: o.id,
     orderNo: o.orderNo,
     payDate: ymd(pay?.paidAt ?? o.createdAt),
     payMethod: dash(pay?.method),
     status: ST[o.status] ?? "결제완료",
+    taxInvoiceStatus: o.taxInvoiceStatus,
     items: o.items.map((it) => ({
       name: it.name,
       spec: `${it.quantity}${it.product?.unit ?? "개"} · 단가 ${won(it.unitPrice)}`,

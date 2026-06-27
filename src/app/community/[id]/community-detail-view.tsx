@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { CommunityDetailPost, CommunityDetailComment } from "@/lib/community";
+import { VideoEmbed } from "@/components/video-embed";
 
 const NAVY = "#1E3A5F";
 const INK = "#1D1D1F";
@@ -43,9 +44,7 @@ export function CommunityDetailView({ post, viewer }: { post: CommunityDetailPos
         </div>
 
         {post.videoUrl && (
-          <div style={{ marginTop: "24.4px", borderRadius: "19.52px", overflow: "hidden", background: "#000", aspectRatio: "16 / 9" }}>
-            <iframe src={post.videoUrl} title="동영상" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen style={{ width: "100%", height: "100%", border: "none", display: "block" }} />
-          </div>
+          <VideoEmbed url={post.videoUrl} style={{ marginTop: "24.4px", borderRadius: "19.52px", overflow: "hidden", background: "#000", aspectRatio: "16 / 9" }} />
         )}
 
         <p style={{ fontSize: "14px", fontWeight: 400, lineHeight: "22.75px", letterSpacing: "-0.21px", color: "rgba(29,29,31,0.7)", margin: "24.4px 0 0", whiteSpace: "pre-wrap" }}>{post.summary}</p>
@@ -57,7 +56,7 @@ export function CommunityDetailView({ post, viewer }: { post: CommunityDetailPos
             </p>
             <div className="flex flex-col" style={{ gap: "7.32px" }}>
               {post.attachments.map((f) => (
-                <div key={f.name} className="flex items-center justify-between" style={{ borderRadius: "14.64px", background: "#fff", border: "1px solid rgba(210,210,215,0.1)", padding: "15.64px 20.52px" }}>
+                <a key={f.name} href={f.url} download target="_blank" rel="noreferrer" className="flex items-center justify-between" style={{ borderRadius: "14.64px", background: "#fff", border: "1px solid rgba(210,210,215,0.1)", padding: "15.64px 20.52px", textDecoration: "none" }}>
                   <div className="flex items-center" style={{ gap: "14.64px", minWidth: 0 }}>
                     <span className="flex items-center justify-center" style={{ width: "44px", height: "44px", borderRadius: "9.76px", background: "#F5F5F7", flexShrink: 0 }}><FileIcon /></span>
                     <div style={{ minWidth: 0 }}>
@@ -66,7 +65,7 @@ export function CommunityDetailView({ post, viewer }: { post: CommunityDetailPos
                     </div>
                   </div>
                   <DownloadIcon />
-                </div>
+                </a>
               ))}
             </div>
           </div>

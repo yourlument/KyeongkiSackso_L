@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { Attachment, NewsDetail, NewsItem } from "@/lib/news";
+import { VideoEmbed } from "@/components/video-embed";
 import {
   CrumbBackIcon,
   ClipHeaderIcon,
@@ -76,16 +77,12 @@ export function NewsDetailView({
       </div>
 
       <div className="mx-auto w-full max-w-[937px]" style={{ padding: "48.8px 39.04px" }}>
-        <div style={{ background: "#000000", borderRadius: "19.52px", marginBottom: "39.04px" }}>
-          <div
-            className="flex items-center justify-center"
-            style={{ background: "#FFFFFF", border: "1px solid #000000", borderRadius: "19.52px", aspectRatio: "779 / 438", width: "100%" }}
-          >
-            <span style={{ fontSize: "64px", fontWeight: 300, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "#000000", textAlign: "center" }}>
-              동영상 미디어 플레이어
-            </span>
-          </div>
-        </div>
+        {detail.videoUrl && (
+          <VideoEmbed
+            url={detail.videoUrl}
+            style={{ borderRadius: "19.52px", overflow: "hidden", aspectRatio: "779 / 438", width: "100%", marginBottom: "39.04px" }}
+          />
+        )}
 
         <p style={{ fontSize: "15px", fontWeight: 400, letterSpacing: "-0.225px", lineHeight: "27.75px", color: "rgba(29,29,31,0.75)", whiteSpace: "pre-wrap", margin: 0 }}>
           {detail.body}
@@ -139,10 +136,13 @@ export function NewsDetailView({
 
 function AttachmentRow({ att }: { att: Attachment }) {
   return (
-    <button
-      type="button"
+    <a
+      href={att.url}
+      download
+      target="_blank"
+      rel="noopener noreferrer"
       className="flex items-center justify-between transition-colors hover:bg-[rgba(29,29,31,0.02)]"
-      style={{ background: "#FFFFFF", border: "1px solid rgba(210,210,215,0.1)", borderRadius: "14.64px", padding: "15.64px 20.52px", width: "100%", cursor: "pointer", textAlign: "left" }}
+      style={{ background: "#FFFFFF", border: "1px solid rgba(210,210,215,0.1)", borderRadius: "14.64px", padding: "15.64px 20.52px", width: "100%", cursor: "pointer", textDecoration: "none" }}
     >
       <span className="flex min-w-0 items-center" style={{ gap: "14.64px" }}>
         <span
@@ -163,7 +163,7 @@ function AttachmentRow({ att }: { att: Attachment }) {
       <span className="flex shrink-0 items-center justify-center" style={{ width: "39px", height: "39px" }}>
         <DownloadIcon />
       </span>
-    </button>
+    </a>
   );
 }
 

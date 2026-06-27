@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useState, useRef, type CSSProperties, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import type { PartnerProfileData } from "@/lib/partner-profile";
+import { uploadFile } from "@/lib/upload-client";
 import {
   AlertTriangleIcon,
   TabProfileIcon,
@@ -104,7 +105,16 @@ export function PartnerProfileView({ data }: { data: PartnerProfileData }) {
         <AccountStep2Modal
           onClose={() => setModalStep(0)}
           onBack={() => setModalStep(1)}
-          onConfirm={() => { setVerified(true); setModalStep(0); }}
+          onConfirm={async (code) => {
+            await fetch("/api/partner/profile", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ verifyAccount: true, verifyCode: code }),
+            });
+            setVerified(true);
+            setModalStep(0);
+            router.refresh();
+          }}
         />
       )}
     </div>
@@ -209,6 +219,9 @@ function ProfileTab({ data, onSaved }: { data: PartnerProfileData; onSaved: () =
   const [performances, setPerformances] = useState<Performance[]>(data.performances);
   const [equipments, setEquipments] = useState<Equipment[]>(data.equipments);
   const [saving, setSaving] = useState(false);
+  const [portfolioFileName, setPortfolioFileName] = useState<string | null>(null);
+  const [portfolioUploading, setPortfolioUploading] = useState(false);
+  const portfolioRef = useRef<HTMLInputElement>(null);
 
   const setPerf = (i: number, patch: Partial<Performance>) => setPerformances(performances.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
   const addPerf = () => setPerformances([...performances, { label: `실적 ${performances.length + 1}`, project: "", client: "", year: "", amount: "" }]);
@@ -216,6 +229,24 @@ function ProfileTab({ data, onSaved }: { data: PartnerProfileData; onSaved: () =
   const setEquip = (i: number, patch: Partial<Equipment>) => setEquipments(equipments.map((e, idx) => (idx === i ? { ...e, ...patch } : e)));
   const addEquip = () => setEquipments([...equipments, { name: "", quantity: "" }]);
   const removeEquip = (i: number) => setEquipments(equipments.filter((_, idx) => idx !== i));
+
+  async function onPortfolioFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPortfolioUploading(true);
+    try {
+      const result = await uploadFile(file);
+      setPortfolioFileName(result.name);
+      await fetch("/api/partner/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ portfolioFileName: result.name }),
+      });
+    } finally {
+      setPortfolioUploading(false);
+      e.target.value = "";
+    }
+  }
 
   async function save() {
     if (saving) return;
@@ -307,15 +338,25 @@ function ProfileTab({ data, onSaved }: { data: PartnerProfileData; onSaved: () =
         <div style={{ marginTop: "24.4px" }}>
           <div className="flex items-center justify-between" style={{ marginBottom: "9.76px" }}>
             <label style={LABEL}>포트폴리오 업로드</label>
-            <span style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)" }}>총 0개</span>
+            <span style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)" }}>총 {portfolioFileName ? 1 : 0}개</span>
           </div>
-          <div className="flex flex-col items-center justify-center" style={{ padding: "26.4px", borderRadius: "14.64px", border: "2px dashed rgba(210,210,215,0.3)" }}>
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => portfolioRef.current?.click()}
+            onKeyDown={(e) => e.key === "Enter" && portfolioRef.current?.click()}
+            className="flex flex-col items-center justify-center"
+            style={{ padding: "26.4px", borderRadius: "14.64px", border: "2px dashed rgba(210,210,215,0.3)", cursor: "pointer" }}
+          >
             <div className="flex items-center justify-center" style={{ width: "49px", height: "49px", borderRadius: "14.64px", background: "rgba(30,58,95,0.05)", marginBottom: "9.76px" }}>
               <UploadIcon />
             </div>
-            <p style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.5)", margin: 0 }}>클릭하여 파일 추가</p>
+            <p style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.5)", margin: 0 }}>
+              {portfolioUploading ? "업로드 중…" : portfolioFileName ? portfolioFileName : "클릭하여 파일 추가"}
+            </p>
             <p style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)", margin: "2.44px 0 0" }}>PDF, 이미지 파일</p>
           </div>
+          <input ref={portfolioRef} type="file" accept=".pdf,image/*" onChange={onPortfolioFile} style={{ display: "none" }} />
         </div>
       </div>
 
@@ -472,7 +513,54 @@ function ModalShell({ width, height, onClose, children }: { width: number; heigh
   );
 }
 
+const BANK_OPTIONS = ["국민은행", "신한은행", "우리은행", "하나은행", "농협은행", "기업은행", "카카오뱅크", "케이뱅크", "토스뱅크", "부산은행", "대구은행", "경남은행", "광주은행", "전북은행", "제주은행", "새마을금고", "우체국"];
+
 function AccountStep1Modal({ onClose, onNext }: { onClose: () => void; onNext: () => void }) {
+  const [bankName, setBankName] = useState("");
+  const [bankAccountNo, setBankAccountNo] = useState("");
+  const [bankAccountHolder, setBankAccountHolder] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [bankbookFileName, setBankbookFileName] = useState<string | null>(null);
+  const [bankbookFileUrl, setBankbookFileUrl] = useState<string | null>(null);
+  const [bankbookUploading, setBankbookUploading] = useState(false);
+  const copyRef = useRef<HTMLInputElement>(null);
+
+  const canSubmit = bankName && bankAccountNo.trim() && bankAccountHolder.trim() && !saving;
+
+  async function onBankbookFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBankbookUploading(true);
+    try {
+      const result = await uploadFile(file);
+      setBankbookFileName(result.name);
+      setBankbookFileUrl(result.url);
+    } finally {
+      setBankbookUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  async function handleNext() {
+    if (!canSubmit) return;
+    setSaving(true);
+    try {
+      await fetch("/api/partner/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bankName,
+          bankAccountNo: bankAccountNo.trim(),
+          bankAccountHolder: bankAccountHolder.trim(),
+          ...(bankbookFileUrl ? { bankbookFileUrl } : {}),
+        }),
+      });
+      onNext();
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <ModalShell width={547} onClose={onClose}>
       <div style={{ padding: "29.28px" }}>
@@ -482,34 +570,67 @@ function AccountStep1Modal({ onClose, onNext }: { onClose: () => void; onNext: (
 
         <div style={{ marginTop: "19.52px" }}>
           <FieldLabel>정산 은행 *</FieldLabel>
-          <div className="flex items-center justify-between" style={{ padding: "13.2px 15.64px", borderRadius: "14.64px", background: "#FFFFFF", border: "1px solid rgba(210,210,215,0.3)" }}>
-            <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "19px", color: INK }}>은행 선택</span>
-            <SelectChevronIcon />
+          <div style={{ position: "relative" }}>
+            <select
+              value={bankName}
+              onChange={(e) => setBankName(e.target.value)}
+              className="profile-input"
+              style={{ ...INPUT_BOX, padding: "13.2px 15.64px", paddingRight: "40px", appearance: "none", cursor: "pointer" }}
+            >
+              <option value="">은행 선택</option>
+              {BANK_OPTIONS.map((b) => <option key={b} value={b}>{b}</option>)}
+            </select>
+            <span style={{ position: "absolute", right: "15.64px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><SelectChevronIcon /></span>
           </div>
         </div>
 
         <div style={{ marginTop: "19.52px" }}>
           <FieldLabel>정산 계좌번호 *</FieldLabel>
-          <input className="profile-input" placeholder="숫자만 입력" inputMode="numeric" style={{ ...INPUT_BOX, padding: "13.1875px 15.64px" }} />
+          <input
+            className="profile-input"
+            value={bankAccountNo}
+            onChange={(e) => setBankAccountNo(e.target.value.replace(/\D/g, ""))}
+            placeholder="숫자만 입력"
+            inputMode="numeric"
+            style={{ ...INPUT_BOX, padding: "13.1875px 15.64px" }}
+          />
         </div>
 
         <div style={{ marginTop: "19.52px" }}>
           <FieldLabel>예금주 성함 *</FieldLabel>
-          <input className="profile-input" placeholder="계좌 명의인 실명" style={{ ...INPUT_BOX, padding: "13.1875px 15.64px" }} />
+          <input
+            className="profile-input"
+            value={bankAccountHolder}
+            onChange={(e) => setBankAccountHolder(e.target.value)}
+            placeholder="계좌 명의인 실명"
+            style={{ ...INPUT_BOX, padding: "13.1875px 15.64px" }}
+          />
         </div>
 
         <div style={{ marginTop: "19.52px" }}>
           <FieldLabel>통장 사본 첨부</FieldLabel>
-          <div className="flex flex-col items-center justify-center" style={{ padding: "21.52px", borderRadius: "14.64px", border: "2px dashed rgba(210,210,215,0.3)" }}>
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => copyRef.current?.click()}
+            onKeyDown={(e) => e.key === "Enter" && copyRef.current?.click()}
+            className="flex flex-col items-center justify-center"
+            style={{ padding: "21.52px", borderRadius: "14.64px", border: "2px dashed rgba(210,210,215,0.3)", cursor: "pointer" }}
+          >
             <div className="flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "9.76px", background: "rgba(30,58,95,0.05)", marginBottom: "7.32px" }}>
               <ModalUploadIcon />
             </div>
-            <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)", margin: 0 }}>클릭하여 통장 사본 첨부</p>
+            <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)", margin: 0 }}>{bankbookUploading ? "업로드 중…" : bankbookFileName ? bankbookFileName : "클릭하여 통장 사본 첨부"}</p>
             <p style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "rgba(29,29,31,0.25)", margin: "2.44px 0 0" }}>PDF, JPG, PNG 지원</p>
           </div>
+          <input ref={copyRef} type="file" accept=".pdf,.jpg,.jpeg,.png,image/*" onChange={onBankbookFile} style={{ display: "none" }} />
         </div>
 
-        <button onClick={onNext} style={{ width: "100%", padding: "14.64px 0", borderRadius: "14.64px", background: NAVY, color: "#FFFFFF", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "22.75px", border: "none", cursor: "pointer", marginTop: "19.52px" }}>
+        <button
+          onClick={handleNext}
+          disabled={!canSubmit}
+          style={{ width: "100%", padding: "14.64px 0", borderRadius: "14.64px", background: canSubmit ? NAVY : "rgba(30,58,95,0.4)", color: "#FFFFFF", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "22.75px", border: "none", cursor: canSubmit ? "pointer" : "default", marginTop: "19.52px" }}
+        >
           인증 번호 발송 (1원 송금)
         </button>
       </div>
@@ -517,9 +638,20 @@ function AccountStep1Modal({ onClose, onNext }: { onClose: () => void; onNext: (
   );
 }
 
-function AccountStep2Modal({ onClose, onBack, onConfirm }: { onClose: () => void; onBack: () => void; onConfirm: () => void }) {
+function AccountStep2Modal({ onClose, onBack, onConfirm }: { onClose: () => void; onBack: () => void; onConfirm: (code: string) => Promise<void> | void }) {
   const [code, setCode] = useState("");
-  const enabled = code.length === 6;
+  const [saving, setSaving] = useState(false);
+  const enabled = code.length === 6 && !saving;
+
+  async function handleConfirm() {
+    if (!enabled) return;
+    setSaving(true);
+    try {
+      await onConfirm(code);
+    } finally {
+      setSaving(false);
+    }
+  }
   return (
     <ModalShell width={547} onClose={onClose}>
       <div style={{ padding: "29.28px" }}>
@@ -549,7 +681,7 @@ function AccountStep2Modal({ onClose, onBack, onConfirm }: { onClose: () => void
             이전
           </button>
           <button
-            onClick={onConfirm}
+            onClick={handleConfirm}
             disabled={!enabled}
             style={{ flex: "1 1 0", padding: "12.2px 0", borderRadius: "14.64px", background: enabled ? NAVY : "rgba(30,58,95,0.4)", border: "none", color: enabled ? "#FFFFFF" : "rgba(255,255,255,0.16)", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "22.75px", cursor: enabled ? "pointer" : "not-allowed" }}
           >
