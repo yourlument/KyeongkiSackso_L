@@ -689,16 +689,17 @@ function KVStatusProduct({ label, status }: { label: string; status: ProductQuot
 }
 
 function DemandTab({ posts }: { posts: MyDemandPost[] }) {
+  const router = useRouter();
   return (
     <Panel>
       <PanelHead title="수요 게시판 글" />
       <div style={{ padding: "0 29.28px 8px" }}>
         {posts.map((p, i) => (
           <div key={i} className="flex items-start justify-between" style={{ gap: "16px", padding: "20px 0", borderTop: i === 0 ? "none" : `1px solid rgba(210,210,215,0.1)` }}>
-            <div style={{ minWidth: 0 }}>
+            <button type="button" onClick={() => router.push(`/community/${p.id}`)} style={{ minWidth: 0, background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}>
               <p style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.195px", lineHeight: "21px", color: INK, margin: 0 }}>{p.title}</p>
               <p style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)", margin: "8px 0 0" }}>{p.meta}</p>
-            </div>
+            </button>
             <Pill t={GREEN_BADGE}>{p.status}</Pill>
           </div>
         ))}
@@ -1076,6 +1077,7 @@ function SupplierView({ data }: { data: MyPageData }) {
 }
 
 function DemandAnswerTab({ answers }: { answers: MyDemandAnswer[] }) {
+  const router = useRouter();
   return (
     <Panel>
       <PanelHead title="수요 게시판 답변 내역" />
@@ -1084,8 +1086,10 @@ function DemandAnswerTab({ answers }: { answers: MyDemandAnswer[] }) {
           <div key={i} style={{ padding: "20px 0", borderTop: i === 0 ? "none" : `1px solid rgba(210,210,215,0.1)` }}>
             <div className="flex items-start justify-between" style={{ gap: "16px" }}>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <p style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.195px", lineHeight: "21px", color: INK, margin: 0 }}>{a.title}</p>
-                <p style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)", margin: "8px 0 0" }}>{a.meta}</p>
+                <button type="button" onClick={() => router.push(`/community/${a.id}`)} style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", display: "block" }}>
+                  <p style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.195px", lineHeight: "21px", color: INK, margin: 0 }}>{a.title}</p>
+                  <p style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)", margin: "8px 0 0" }}>{a.meta}</p>
+                </button>
                 <div style={{ marginTop: "16px", borderRadius: "14.64px", background: "rgba(30,58,95,0.02)", border: `1px solid rgba(210,210,215,0.15)`, padding: "18.08px" }}>
                   <div className="flex items-center" style={{ gap: "7.32px" }}>
                     <CompanyAvatarIcon />

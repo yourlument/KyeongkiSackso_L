@@ -13,6 +13,7 @@ const bodySchema = z.object({
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const claims = await getSessionClaims();
   if (!claims) return NextResponse.json({ error: "로그인이 필요합니다" }, { status: 401 });
+  if (claims.role === "SUPPLIER") return NextResponse.json({ error: "공급업체 계정은 정보공유 기능을 이용할 수 없습니다" }, { status: 403 });
 
   const { id } = await params;
   const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));

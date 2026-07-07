@@ -11,7 +11,7 @@ export async function seedOrders(prisma: PrismaClient, ctx: SeedCtx): Promise<st
     where: { businessRegistrationNo: encryptLookup("Organization", "businessRegistrationNo", "123-45-67890") },
   });
   const findCompany = (bizNo: string) =>
-    prisma.supplierCompany.findUnique({
+    prisma.supplierCompany.findFirst({
       where: { businessRegistrationNo: encryptLookup("SupplierCompany", "businessRegistrationNo", bizNo) },
     });
   const ggBuild = await findCompany("123-45-67890");

@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { uploadFile } from "@/lib/upload-client";
+import { RichEditor } from "@/app/community/new/rich-editor";
 import type { AdminBoardData, PostRow, NewsRow } from "@/lib/admin-board";
 
 const PAGE_SIZE = 10;
@@ -508,36 +510,38 @@ export function BoardView({ data }: { data: AdminBoardData }) {
             {rows.map((p, ri) => (
               <tr key={p.id} style={{ borderTop: ri === 0 ? "none" : "1px solid rgba(210,210,215,0.1)" }}>
                 <td style={{ padding: cellPad, verticalAlign: "middle" }}>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: "14.64px",
-                      fontWeight: 500,
-                      letterSpacing: "-0.2196px",
-                      lineHeight: "19.52px",
-                      color: "#1D1D1F",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {p.title}
-                  </p>
-                  <p
-                    style={{
-                      margin: "2.44px 0 0",
-                      fontSize: "10px",
-                      fontWeight: 400,
-                      letterSpacing: "-0.15px",
-                      lineHeight: "18px",
-                      color: "rgba(29,29,31,0.4)",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {p.excerpt}
-                  </p>
+                  <Link href={`/info/${p.id}`} style={{ display: "block", textDecoration: "none", cursor: "pointer" }}>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: "14.64px",
+                        fontWeight: 500,
+                        letterSpacing: "-0.2196px",
+                        lineHeight: "19.52px",
+                        color: "#1D1D1F",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {p.title}
+                    </p>
+                    <p
+                      style={{
+                        margin: "2.44px 0 0",
+                        fontSize: "10px",
+                        fontWeight: 400,
+                        letterSpacing: "-0.15px",
+                        lineHeight: "18px",
+                        color: "rgba(29,29,31,0.4)",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {p.excerpt}
+                    </p>
+                  </Link>
                 </td>
                 <td style={tdNumStyle}>{p.boardLabel}</td>
                 <td style={tdNumStyle}>{p.authorName}</td>
@@ -842,9 +846,13 @@ function NewsView({ news, kpis, onEdit }: { news: NewsRow[]; kpis: AdminBoardDat
                         <PinSmallIcon />
                       </span>
                     )}
-                    <p
+                    <Link
+                      href={`/news/${p.id}`}
                       style={{
                         margin: 0,
+                        minWidth: 0,
+                        textDecoration: "none",
+                        cursor: "pointer",
                         fontSize: "14.64px",
                         fontWeight: 500,
                         letterSpacing: "-0.2196px",
@@ -856,7 +864,7 @@ function NewsView({ news, kpis, onEdit }: { news: NewsRow[]; kpis: AdminBoardDat
                       }}
                     >
                       {p.title}
-                    </p>
+                    </Link>
                   </div>
                 </td>
                 <td style={newsTdStyle}>{p.authorName}</td>
@@ -1027,6 +1035,7 @@ function NewsComposeView({ editId, onBack }: { editId: string | null; onBack: ()
   const [uploading, setUploading] = useState(false);
   const [videoMode, setVideoMode] = useState<"url" | "file">("url");
   const [videoUploading, setVideoUploading] = useState(false);
+  const [loaded, setLoaded] = useState(!editId);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
@@ -1049,6 +1058,7 @@ function NewsComposeView({ editId, onBack }: { editId: string | null; onBack: ()
           ? d.attachments.map((a: AttachmentItem) => ({ fileName: a.fileName, fileUrl: a.fileUrl, fileSize: a.fileSize ?? 0 }))
           : [],
       );
+      setLoaded(true);
     })();
     return () => {
       active = false;
@@ -1219,19 +1229,17 @@ function NewsComposeView({ editId, onBack }: { editId: string | null; onBack: ()
           {"내용 ​"}
           <span style={{ color: "#F87171" }}>*</span>
         </p>
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="내용을 입력하세요"
-          className="placeholder:font-medium placeholder:text-[rgba(29,29,31,0.3)]"
-          style={{
-            ...inputStyle,
-            height: "495px",
-            padding: "16px 20.52px",
-            resize: "vertical",
-            lineHeight: "1.7",
-          }}
-        />
+        {loaded ? (
+          <RichEditor
+            key={editId ?? "new"}
+            initialHTML={content}
+            onChange={setContent}
+            placeholder="내용을 입력하세요"
+            minHeight={495}
+          />
+        ) : (
+          <div style={{ ...inputStyle, height: "551px", borderRadius: "14.64px" }} />
+        )}
       </div>
 
       <div className="flex" style={{ gap: "14.64px", marginTop: "24.4px" }}>

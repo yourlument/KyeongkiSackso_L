@@ -105,7 +105,7 @@ model SupplierCompany {
   id                     String         @id @default(cuid())
   name                   String
   representativeName     String         @map("representative_name")
-  businessRegistrationNo String         @unique @map("business_registration_no")
+  businessRegistrationNo String         @map("business_registration_no")
   businessLicenseFileUrl String?        @map("business_license_file_url")
   corporateRegistrationNo String?       @map("corporate_registration_no")
   businessType           String?        @map("business_type")
@@ -215,6 +215,7 @@ enum TermType {
   PRIVACY
   SUPPLIER
   MARKETING
+  CONSENT
 }
 
 model Term {
@@ -224,6 +225,7 @@ model Term {
   title     String
   summary   String?
   content   String
+  contentHtml String?           @map("content_html")
   required  Boolean             @default(true)
   isActive  Boolean             @default(true) @map("is_active")
   agreements UserTermAgreement[]
@@ -280,6 +282,9 @@ model Category {
   itemType CategoryItemType? @map("item_type")
 
   sortOrder Int @default(0) @map("sort_order")
+
+  naraQuery    String? @map("nara_query")
+  naraDtilCode String? @map("nara_dtil_code")
 
   @@index([parentId])
   @@index([level])
@@ -382,6 +387,24 @@ model NaraItem {
   category String?
 
   @@map("nara_items")
+}
+
+model NaraItemCategory {
+  categoryId String   @map("category_id")
+  npsCode    String   @map("nps_code")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@id([categoryId, npsCode])
+  @@index([categoryId])
+  @@map("nara_item_categories")
+}
+
+model NaraCategorySync {
+  categoryId String   @id @map("category_id")
+  syncedAt   DateTime @updatedAt @map("synced_at")
+  itemCount  Int      @default(0) @map("item_count")
+
+  @@map("nara_category_syncs")
 }
 
 model Cart {

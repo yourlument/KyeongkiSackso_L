@@ -16,8 +16,8 @@ type Tab = "전체" | NewsCategory;
 const TABS: Tab[] = ["전체", "공지", "이벤트"];
 const NEWS_PER_PAGE = 10;
 
-export function NewsView({ allNews, tabCounts }: { allNews: NewsItem[]; tabCounts: { 전체: number; 공지: number; 이벤트: number } }) {
-  const [tab, setTab] = useState<Tab>("전체");
+export function NewsView({ allNews, tabCounts, initialTab }: { allNews: NewsItem[]; tabCounts: { 전체: number; 공지: number; 이벤트: number }; initialTab?: Tab }) {
+  const [tab, setTab] = useState<Tab>(initialTab ?? "전체");
   const [page, setPage] = useState(1);
 
   const items = allNews.filter((n) => tab === "전체" || n.category === tab);

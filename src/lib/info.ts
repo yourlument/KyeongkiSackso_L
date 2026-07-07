@@ -70,7 +70,7 @@ export async function loadInfo(
     category: p.category ?? "기타",
     date: ymd(p.createdAt),
     title: p.title,
-    excerpt: p.content.slice(0, 120).replace(/\n/g, " "),
+    excerpt: p.content.replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").replace(/\s+/g, " ").trim().slice(0, 120),
     author: "익명",
     comments: p._count.comments,
     views: p.views,

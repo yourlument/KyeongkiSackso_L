@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import DOMPurify from "isomorphic-dompurify";
 import { prisma } from "@/lib/db";
 import { getSessionClaims } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
+
+function safeVideoUrl(u?: string): string | null {
+  const t = u?.trim();
+  if (!t) return null;
+  return /^https?:\/\//i.test(t) || t.startsWith("/") ? t : null;
+}
 
 const input = z.object({
   type: z.enum(["NOTICE", "EVENT"]),
@@ -31,11 +38,11 @@ export async function POST(req: Request) {
     data: {
       type,
       title,
-      content,
+      content: DOMPurify.sanitize(content),
       status,
       isPinned,
       authorName: "KORLINK 관리자",
-      videoUrl: videoUrl?.trim() ? videoUrl.trim() : null,
+      videoUrl: safeVideoUrl(videoUrl),
       attachments: attachments?.length
         ? { create: attachments.map((a) => ({ fileName: a.fileName, fileUrl: a.fileUrl, fileSize: a.fileSize ?? null })) }
         : undefined,

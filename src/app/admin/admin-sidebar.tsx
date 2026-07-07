@@ -19,6 +19,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { label: "종합 대시보드", href: "/admin/dashboard", icon: (a) => <GridIcon active={a} /> },
       { label: "콘텐츠 검수", href: "/admin/contents", icon: (a) => <DocIcon active={a} /> },
+      { label: "약관 관리", href: "/admin/terms", icon: (a) => <TermsIcon active={a} /> },
       { label: "결제 관제", href: "/admin/payment", icon: (a) => <CardIcon active={a} /> },
       { label: "수익 관리", href: "/admin/profit", icon: (a) => <TargetIcon active={a} /> },
     ],
@@ -226,6 +227,15 @@ function AlertIcon({ active }: { active: boolean }) {
         d="M9.62014 2.38023L16.4889 14.4246C16.5849 14.5901 16.6065 14.7702 16.5537 14.9648C16.5009 15.1595 16.3881 15.3103 16.2153 15.4174C16.1097 15.4855 15.9897 15.5196 15.8553 15.5196H2.14654C1.94494 15.5196 1.77454 15.4466 1.63534 15.3006C1.49614 15.1546 1.42654 14.9843 1.42654 14.7896C1.42654 14.6534 1.45534 14.5317 1.51294 14.4246L8.38174 2.38023C8.47774 2.20504 8.62174 2.09068 8.81374 2.03715C9.00574 1.98362 9.18814 2.00552 9.36094 2.10284C9.47614 2.17097 9.56254 2.26344 9.62014 2.38023ZM3.38494 14.0597H14.6169L9.00094 4.20514L3.38494 14.0597ZM8.28094 11.8698H9.72094V13.3297H8.28094V11.8698ZM8.28094 6.76002H9.72094V10.4098H8.28094V6.76002Z"
         fill={navFill(active)}
       />
+    </svg>
+  );
+}
+
+function TermsIcon({ active }: { active: boolean }) {
+  return (
+    <svg {...SQ} viewBox="0 0 24 24" fill="none" stroke={navFill(active)} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden xmlns="http://www.w3.org/2000/svg">
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+      <path d="M14 3v5h5M9 13h6M9 17h6" />
     </svg>
   );
 }

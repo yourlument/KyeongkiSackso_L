@@ -38,9 +38,9 @@ export type MyInquiryRow = {
   status: "접수" | "처리중" | "완료";
   thread?: { question: string; answer: { meta: string; body: string } };
 };
-export type MyDemandPost = { title: string; meta: string; status: "진행중" };
+export type MyDemandPost = { id: string; title: string; meta: string; status: "진행중" };
 export type MyInfoPost = { id: string; title: string; meta: string };
-export type MyDemandAnswer = { title: string; meta: string; supplier: string; answerDate: string; answer: string; status: "진행중" };
+export type MyDemandAnswer = { id: string; title: string; meta: string; supplier: string; answerDate: string; answer: string; status: "진행중" };
 export type MyBasicInfo = { email: string; org: string; dept: string; deptPhone: string };
 export type MySupplierField = { label: string; value: string };
 
@@ -110,7 +110,7 @@ export async function loadMyPage(userId: string, isSupplier: boolean): Promise<M
       where: { authorId: userId, parentId: null, post: { boardType: "DEMAND" } },
       orderBy: { createdAt: "desc" }, take: 20,
       include: {
-        post: { select: { title: true, category: true, createdAt: true, views: true, _count: { select: { comments: true } } } },
+        post: { select: { id: true, title: true, category: true, createdAt: true, views: true, _count: { select: { comments: true } } } },
       },
     }),
     isSupplier
@@ -306,6 +306,7 @@ export async function loadMyPage(userId: string, isSupplier: boolean): Promise<M
     supplierName,
 
     demandPosts: demandRows.map((p) => ({
+      id: p.id,
       title: p.title,
       meta: `${p.category ?? "-"} · ${ymd(p.createdAt)} · 답변 ${p._count.comments}개 · 조회 ${p.views}`,
       status: "진행중" as const,
@@ -341,6 +342,7 @@ export async function loadMyPage(userId: string, isSupplier: boolean): Promise<M
     ].sort((a, b) => b.date.localeCompare(a.date)),
 
     demandAnswers: answerRows.map((c) => ({
+      id: c.post.id,
       title: c.post.title,
       meta: `${c.post.category ?? "-"} · ${ymd(c.post.createdAt)} · 답변 ${c.post._count.comments}개 · 조회 ${c.post.views}`,
       supplier: supplierName,

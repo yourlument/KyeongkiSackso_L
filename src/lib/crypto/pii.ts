@@ -28,13 +28,18 @@ export function encrypt(plain: string, deterministic = false): string {
 export function decrypt(value: string | null | undefined): string | null | undefined {
   if (value == null) return value;
   if (!isEncrypted(value)) return value;
-  const raw = Buffer.from(value.slice(PREFIX.length), "base64");
-  const iv = raw.subarray(0, 12);
-  const tag = raw.subarray(12, 28);
-  const ct = raw.subarray(28);
-  const decipher = crypto.createDecipheriv("aes-256-gcm", key(), iv);
-  decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(ct), decipher.final()]).toString("utf8");
+  const k = key();
+  try {
+    const raw = Buffer.from(value.slice(PREFIX.length), "base64");
+    const iv = raw.subarray(0, 12);
+    const tag = raw.subarray(12, 28);
+    const ct = raw.subarray(28);
+    const decipher = crypto.createDecipheriv("aes-256-gcm", k, iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(ct), decipher.final()]).toString("utf8");
+  } catch {
+    return null;
+  }
 }
 
 export type FieldMode = "det" | "rand";

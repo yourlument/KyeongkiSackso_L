@@ -100,7 +100,7 @@ export async function seedSubscriptions(prisma: PrismaClient, _ctx: SeedCtx): Pr
   let subCount = 0;
 
   for (const s of SUBS) {
-    const company = await prisma.supplierCompany.findUnique({
+    const company = await prisma.supplierCompany.findFirst({
       where: { businessRegistrationNo: encryptLookup("SupplierCompany", "businessRegistrationNo", s.bizNo) },
     });
     if (!company) throw new Error(`seedSubscriptions: 공급사 미존재 — ${s.company} (${s.bizNo}). prisma/seed.ts 선행 실행 필요`);
@@ -140,7 +140,7 @@ export async function seedSubscriptions(prisma: PrismaClient, _ctx: SeedCtx): Pr
     payCount++;
   }
 
-  const restricted = await prisma.supplierCompany.findUnique({
+  const restricted = await prisma.supplierCompany.findFirst({
     where: { businessRegistrationNo: encryptLookup("SupplierCompany", "businessRegistrationNo", "700-01-00008") },
   });
   if (!restricted) throw new Error("seedSubscriptions: 네트웍솔루션(주) 미존재 — prisma/seed.ts 선행 실행 필요");

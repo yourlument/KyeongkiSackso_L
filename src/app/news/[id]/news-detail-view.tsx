@@ -1,8 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import DOMPurify from "isomorphic-dompurify";
 import type { Attachment, NewsDetail, NewsItem } from "@/lib/news";
 import { VideoEmbed } from "@/components/video-embed";
+
+const NEWS_BODY_CSS = `
+.news-body { font-size: 15px; font-weight: 400; letter-spacing: -0.225px; line-height: 27.75px; color: rgba(29,29,31,0.75); overflow-wrap: break-word; word-break: break-word; }
+.news-body img { max-width: 100%; height: auto; }
+.news-body h1 { font-size: 2em; font-weight: 700; margin: 0.4em 0; }
+.news-body h2 { font-size: 1.5em; font-weight: 700; margin: 0.4em 0; }
+.news-body h3 { font-size: 1.17em; font-weight: 700; margin: 0.4em 0; }
+.news-body ul { list-style: disc; padding-left: 1.5em; margin: 0.4em 0; }
+.news-body ol { list-style: decimal; padding-left: 1.5em; margin: 0.4em 0; }
+.news-body a { color: #0071E3; text-decoration: underline; }
+.news-body blockquote { border-left: 4px solid #D2D2D7; padding-left: 1em; margin: 0.4em 0; }
+.news-body p { margin: 0 0 0.6em; }
+.news-body p:last-child { margin-bottom: 0; }
+`;
 import {
   CrumbBackIcon,
   ClipHeaderIcon,
@@ -84,9 +99,8 @@ export function NewsDetailView({
           />
         )}
 
-        <p style={{ fontSize: "15px", fontWeight: 400, letterSpacing: "-0.225px", lineHeight: "27.75px", color: "rgba(29,29,31,0.75)", whiteSpace: "pre-wrap", margin: 0 }}>
-          {detail.body}
-        </p>
+        <style>{NEWS_BODY_CSS}</style>
+        <div className="news-body" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(detail.body) }} />
 
         {detail.attachments.length > 0 && (
           <div style={{ background: "#F5F5F7", border: "1px solid rgba(210,210,215,0.1)", borderRadius: "19.52px", padding: "25.4px", marginTop: "39.04px" }}>

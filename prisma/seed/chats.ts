@@ -24,7 +24,7 @@ async function findQuoteByTitle(prisma: PrismaClient, title: string) {
 export async function seedChats(prisma: PrismaClient, ctx: SeedCtx): Promise<string> {
   let stubQuotes = 0;
 
-  const digitalCompany = await prisma.supplierCompany.findUnique({
+  const digitalCompany = await prisma.supplierCompany.findFirst({
     where: { businessRegistrationNo: encryptLookup("SupplierCompany", "businessRegistrationNo", "211-88-00001") },
     select: { id: true },
   });

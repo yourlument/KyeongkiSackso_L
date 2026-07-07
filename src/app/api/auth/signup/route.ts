@@ -3,11 +3,12 @@ import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/auth/password";
 import { encryptModel, encryptLookup, encField } from "@/lib/crypto/pii";
 import { officialSignupSchema, supplierSignupSchema } from "@/lib/validators/auth";
+import { Prisma } from "@prisma/client";
 import type { TermType } from "@prisma/client";
 
 const REQUIRED_TERMS: Record<"OFFICIAL" | "SUPPLIER", TermType[]> = {
-  OFFICIAL: ["SERVICE", "PRIVACY"],
-  SUPPLIER: ["SERVICE", "PRIVACY", "SUPPLIER"],
+  OFFICIAL: ["SERVICE", "CONSENT"],
+  SUPPLIER: ["SERVICE", "CONSENT", "SUPPLIER"],
 };
 
 async function assertRequiredTermsAgreed(
@@ -53,7 +54,8 @@ export async function POST(req: Request) {
 
   const passwordHash = await hashPassword(data.password);
 
-  if (portal === "OFFICIAL") {
+  try {
+    if (portal === "OFFICIAL") {
     const d = data as import("@/lib/validators/auth").OfficialSignupInput;
     await prisma.$transaction(async (tx) => {
       const org = await tx.organization.upsert({
@@ -126,4 +128,13 @@ export async function POST(req: Request) {
     });
   });
   return NextResponse.json({ autoApproved: false, status: "PENDING" });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      const tgt = String((e.meta as { target?: unknown } | null)?.target ?? "");
+      if (tgt.includes("email")) return NextResponse.json({ message: "이미 가입된 이메일입니다" }, { status: 409 });
+      return NextResponse.json({ message: "이미 등록된 정보입니다" }, { status: 409 });
+    }
+    console.error("signup error", e);
+    return NextResponse.json({ message: "회원가입 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요." }, { status: 500 });
+  }
 }

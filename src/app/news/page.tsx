@@ -6,8 +6,10 @@ import { loadNews } from "@/lib/news";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewsPage() {
-  const { items, tabCounts } = await loadNews();
+export default async function NewsPage({ searchParams }: { searchParams: Promise<{ category?: string }> }) {
+  const [{ items, tabCounts }, params] = await Promise.all([loadNews(), searchParams]);
+  const rawCategory = params.category;
+  const initialTab = rawCategory === "공지" || rawCategory === "이벤트" ? rawCategory : undefined;
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">
@@ -27,7 +29,7 @@ export default async function NewsPage() {
           </div>
         </div>
         <div className="mx-auto w-full max-w-[1249px] px-[48.8px] py-[39.04px]">
-          <NewsView allNews={items} tabCounts={tabCounts} />
+          <NewsView allNews={items} tabCounts={tabCounts} initialTab={initialTab} />
         </div>
       </main>
       <SiteFooter />

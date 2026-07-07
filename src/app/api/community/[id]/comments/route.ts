@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionClaims } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
+import { decrypt } from "@/lib/crypto/pii";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const claims = await getSessionClaims();
@@ -43,9 +44,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     },
   });
 
+  const authorName = decrypt(comment.author.name) ?? comment.author.name;
   const displayName = parentId
-    ? [comment.author.departmentName, comment.author.name].filter(Boolean).join(" ")
-    : (comment.author.supplierCompany?.name ?? comment.author.name);
+    ? [comment.author.departmentName, authorName].filter(Boolean).join(" ")
+    : (comment.author.supplierCompany?.name ?? authorName);
 
   try {
     if (parentId) {

@@ -21,7 +21,7 @@ const SAMPLES: SampleProduct[] = [
 ];
 
 export async function seedPartnerProducts(prisma: PrismaClient, _ctx: SeedCtx): Promise<string> {
-  const company = await prisma.supplierCompany.findUnique({
+  const company = await prisma.supplierCompany.findFirst({
     where: { businessRegistrationNo: encryptLookup("SupplierCompany", "businessRegistrationNo", "211-88-00001") },
   });
   if (!company) throw new Error("[partner-products] 디지털솔루션(주) 211-88-00001 누락 — prisma/seed.ts 먼저 실행 필요");

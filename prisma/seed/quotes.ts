@@ -14,7 +14,7 @@ export async function seedQuotes(prisma: PrismaClient, ctx: SeedCtx): Promise<st
     select: { id: true },
   });
   const findCompany = (bizNo: string) =>
-    prisma.supplierCompany.findUnique({
+    prisma.supplierCompany.findFirst({
       where: { businessRegistrationNo: encryptLookup("SupplierCompany", "businessRegistrationNo", bizNo) },
       select: { id: true },
     });

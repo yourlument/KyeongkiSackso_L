@@ -23,7 +23,7 @@ function mapItem(it: RawItem): NaraResult {
   };
 }
 
-export async function searchNaraLive(q: string): Promise<NaraResult[] | null> {
+async function fetchNara(extra: Record<string, string>, numOfRows: number): Promise<NaraResult[] | null> {
   const key = process.env.NARA_SERVICE_KEY;
   const base = process.env.NARA_API_URL;
   if (!key || !base) return null;
@@ -32,15 +32,11 @@ export async function searchNaraLive(q: string): Promise<NaraResult[] | null> {
     const url = new URL(base);
     url.searchParams.set("serviceKey", key);
     url.searchParams.set("type", "json");
-    url.searchParams.set("numOfRows", "10");
+    url.searchParams.set("numOfRows", String(numOfRows));
     url.searchParams.set("pageNo", "1");
-    if (q) {
-      const t = q.trim();
-      const param = /^\d+$/.test(t) ? "prdctIdntNo" : "krnPrdctNm";
-      url.searchParams.set(param, t);
-    }
+    for (const [k, v] of Object.entries(extra)) url.searchParams.set(k, v);
 
-    const res = await fetch(url, { signal: AbortSignal.timeout(15000), cache: "no-store" });
+    const res = await fetch(url, { signal: AbortSignal.timeout(60000), cache: "no-store" });
     if (!res.ok) return null;
     const data = (await res.json()) as {
       response?: { body?: { items?: { item?: RawItem[] | RawItem } | RawItem[] } };
@@ -60,4 +56,23 @@ export async function searchNaraLive(q: string): Promise<NaraResult[] | null> {
   } catch {
     return null;
   }
+}
+
+export async function searchNaraLive(q: string): Promise<NaraResult[] | null> {
+  const t = q.trim();
+  if (!t) return null;
+  const param = /^\d+$/.test(t) ? "prdctIdntNo" : "krnPrdctNm";
+  return fetchNara({ [param]: t }, 10);
+}
+
+export async function searchNaraByDtil(dtilCode: string, numOfRows = 999): Promise<NaraResult[] | null> {
+  const t = dtilCode.trim();
+  if (!t) return null;
+  return fetchNara({ dtilPrdctClsfcNo: t }, numOfRows);
+}
+
+export async function searchNaraByKeyword(keyword: string, numOfRows = 999): Promise<NaraResult[] | null> {
+  const t = keyword.trim();
+  if (!t) return null;
+  return fetchNara({ krnPrdctNm: t }, numOfRows);
 }

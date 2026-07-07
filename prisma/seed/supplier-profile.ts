@@ -3,7 +3,7 @@ import { encryptLookup } from "../../src/lib/crypto/pii";
 import type { SeedCtx } from "./types";
 
 async function findCompanyByBizNo(prisma: PrismaClient, bizNo: string, label: string) {
-  const company = await prisma.supplierCompany.findUnique({
+  const company = await prisma.supplierCompany.findFirst({
     where: { businessRegistrationNo: encryptLookup("SupplierCompany", "businessRegistrationNo", bizNo) },
   });
   if (!company) throw new Error(`[supplier-profile] 기존 시드 공급사 누락: ${label} (${bizNo}) — prisma/seed.ts 먼저 실행 필요`);

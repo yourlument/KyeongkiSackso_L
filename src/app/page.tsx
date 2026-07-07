@@ -59,8 +59,8 @@ async function getStats() {
 
 async function getNotices() {
   const { items } = await loadNews();
-  const notices = items.slice(0, 2).map((n) => ({ tag: n.category, text: n.title }));
-  const noticeList = items.slice(0, 2).map((n) => ({ date: n.date, text: n.title }));
+  const notices = items.slice(0, 2).map((n) => ({ id: n.id, tag: n.category, text: n.title }));
+  const noticeList = items.slice(0, 2).map((n) => ({ id: n.id, date: n.date, text: n.title }));
   return { notices, noticeList };
 }
 
@@ -208,8 +208,9 @@ export default async function HomePage() {
           <div className="mx-auto max-w-[1249px]">
             <div className="flex flex-wrap gap-[9.76px]">
               {NOTICES.map((n, i) => (
-                <div
+                <Link
                   key={i}
+                  href={`/news/${n.id}`}
                   className="flex w-full items-center gap-[9.76px] rounded-[4.88px] border border-[#E5E7EB] bg-white px-[15.64px] py-[8.32px] md:w-auto"
                 >
                   <span className="flex-none rounded-[4.88px] bg-[#1f2937] px-[7.32px] py-[2.44px] text-[10px] font-medium leading-[18px] tracking-[-0.15px] text-white">
@@ -219,7 +220,7 @@ export default async function HomePage() {
                     {n.text}
                   </span>
                   <img src="/icons/land-notice-chevron.svg" alt="" aria-hidden="true" width={15} height={15} />
-                </div>
+                </Link>
               ))}
             </div>
 
@@ -229,14 +230,14 @@ export default async function HomePage() {
               </span>
               <div className="flex min-w-0 flex-1 flex-col gap-[9.76px]">
                 {NOTICE_LIST.map((n, i) => (
-                  <div key={i} className="flex items-center gap-[9.76px]">
+                  <Link key={i} href={`/news/${n.id}`} className="flex items-center gap-[9.76px]">
                     <span className="flex-none text-[10px] font-normal leading-[18px] tracking-[-0.15px] text-[#9ca3af]">
                       {n.date}
                     </span>
                     <span className="truncate text-[14.64px] font-normal leading-[19.52px] tracking-[-0.2196px] text-[#4b5563]">
                       {n.text}
                     </span>
-                  </div>
+                  </Link>
                 ))}
               </div>
               <Link href="/news" className="flex-none text-[10px] font-normal leading-[17.5px] tracking-[-0.15px] text-[#9ca3af]">

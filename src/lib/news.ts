@@ -86,6 +86,8 @@ export async function loadNewsById(id: string): Promise<{
   });
   if (!n || n.status !== "PUBLISHED") return null;
 
+  await prisma.news.update({ where: { id }, data: { views: { increment: 1 } } });
+
   const all = await prisma.news.findMany({
     where: { status: "PUBLISHED" },
     orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
@@ -100,7 +102,7 @@ export async function loadNewsById(id: string): Promise<{
     item: toItem({ ...n, attachments: n.attachments.map((a) => ({ id: a.id })) }),
     detail: {
       author: n.authorName ?? "KORLINK 관리자",
-      views: n.views,
+      views: n.views + 1,
       body: n.content,
       attachments: n.attachments.map((a) => ({
         name: a.fileName,

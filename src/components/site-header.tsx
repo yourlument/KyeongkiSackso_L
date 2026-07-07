@@ -27,6 +27,7 @@ const NAV_SUPPLIER = [
 export function SiteHeader({ variant = "official" }: { variant?: "official" | "supplier" } = {}) {
   const router = useRouter();
   const [notiOpen, setNotiOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [auth, setAuth] = useState<Auth | null>(null);
   const [notis, setNotis] = useState<NotiItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -128,6 +129,18 @@ export function SiteHeader({ variant = "official" }: { variant?: "official" | "s
     };
   }, [notiOpen]);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onKeyDown(e: KeyboardEvent) { if (e.key === "Escape") setMenuOpen(false); }
+    function onResize() { if (window.innerWidth >= 1024) setMenuOpen(false); }
+    document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [menuOpen]);
+
   function handleOpenSettings() {
     setNotiOpen(false);
     router.push("/mypage");
@@ -166,7 +179,8 @@ export function SiteHeader({ variant = "official" }: { variant?: "official" | "s
 
   const supplier = variant === "supplier";
   const loggedIn = auth?.authenticated === true;
-  const nav = supplier
+  const isSupplierRole = auth?.role === "SUPPLIER";
+  const nav = supplier || isSupplierRole
     ? NAV_SUPPLIER
     : loggedIn
       ? [...NAV_BASE, NAV_INFO, NAV_NEWS]
@@ -191,7 +205,7 @@ export function SiteHeader({ variant = "official" }: { variant?: "official" | "s
           ))}
         </nav>
 
-        <div className="flex items-center gap-[9.76px]">
+        <div className="hidden items-center gap-[9.76px] lg:flex">
           {supplier ? (
             <span className="text-[14px] font-normal tracking-[-0.21px] text-ink/60">공급업체</span>
           ) : auth?.role === "SUPPLIER" ? (
@@ -263,7 +277,102 @@ export function SiteHeader({ variant = "official" }: { variant?: "official" | "s
             </Link>
           )}
         </div>
+
+        <button
+          type="button"
+          aria-label="메뉴"
+          aria-haspopup="true"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((v) => !v)}
+          className="flex h-[24.39px] w-[39.03px] items-center justify-center p-0 text-ink/70 lg:hidden"
+        >
+          {menuOpen ? <CloseIcon /> : <MenuIcon />}
+        </button>
       </div>
+
+      {menuOpen && (
+        <>
+          <button
+            type="button"
+            aria-label="메뉴 닫기"
+            tabIndex={-1}
+            onClick={() => setMenuOpen(false)}
+            className="fixed inset-x-0 bottom-0 top-[61px] z-30 cursor-default border-none bg-transparent lg:hidden"
+          />
+          <div
+            className="absolute left-0 right-0 top-[61px] z-40 bg-white lg:hidden"
+            style={{ boxShadow: "0 8px 24px rgba(0,0,0,0.08)" }}
+          >
+            <nav className="flex flex-col" style={{ padding: "19.52px 29.28px" }}>
+              {nav.map((item, idx) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMenuOpen(false)}
+                  className="transition-colors hover:bg-field"
+                  style={{ marginTop: idx === 0 ? 0 : "4.88px", padding: "12.2px 19.52px", borderRadius: "9.76px", fontSize: "15px", fontWeight: 500, lineHeight: "27px", letterSpacing: "-0.225px", color: "rgba(29,29,31,0.7)" }}
+                >
+                  {item.label}
+                </Link>
+              ))}
+              {!supplier && (
+                <div className="flex flex-col" style={{ marginTop: "4.88px", paddingTop: "10.76px", borderTop: "1px solid rgba(210,210,215,0.4)" }}>
+                  {isSupplierRole ? (
+                    <Link
+                      href="/partner"
+                      onClick={() => setMenuOpen(false)}
+                      className="transition-colors hover:bg-field"
+                      style={{ padding: "12.2px 19.52px", borderRadius: "9.76px", fontSize: "14px", fontWeight: 400, lineHeight: "24.5px", letterSpacing: "-0.21px", color: "rgba(29,29,31,0.5)" }}
+                    >
+                      관리 화면으로 이동
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/cart"
+                      onClick={() => setMenuOpen(false)}
+                      className="transition-colors hover:bg-field"
+                      style={{ padding: "12.2px 19.52px", borderRadius: "9.76px", fontSize: "14px", fontWeight: 400, lineHeight: "24.5px", letterSpacing: "-0.21px", color: "rgba(29,29,31,0.5)" }}
+                    >
+                      장바구니
+                    </Link>
+                  )}
+                </div>
+              )}
+              <div className="flex flex-col" style={{ marginTop: "4.88px", paddingTop: "10.76px", borderTop: "1px solid rgba(210,210,215,0.4)" }}>
+                {supplier || loggedIn ? (
+                  <>
+                    <Link
+                      href="/mypage"
+                      onClick={() => setMenuOpen(false)}
+                      className="transition-colors hover:bg-field"
+                      style={{ padding: "12.2px 19.52px", borderRadius: "9.76px", fontSize: "14px", fontWeight: 400, lineHeight: "24.5px", letterSpacing: "-0.21px", color: "rgba(29,29,31,0.5)" }}
+                    >
+                      마이페이지
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => { setMenuOpen(false); handleLogout(); }}
+                      className="transition-colors hover:bg-field"
+                      style={{ marginTop: "4.88px", padding: "12.2px 19.52px", borderRadius: "9.76px", fontSize: "14px", fontWeight: 400, lineHeight: "24.5px", letterSpacing: "-0.21px", color: "rgba(29,29,31,0.5)", textAlign: "left", width: "100%", background: "none", border: "none", cursor: "pointer" }}
+                    >
+                      로그아웃
+                    </button>
+                  </>
+                ) : (
+                  <Link
+                    href="/login"
+                    onClick={() => setMenuOpen(false)}
+                    className="transition-colors hover:bg-field"
+                    style={{ padding: "12.2px 19.52px", borderRadius: "9.76px", fontSize: "14px", fontWeight: 400, lineHeight: "24.5px", letterSpacing: "-0.21px", color: "rgba(29,29,31,0.5)" }}
+                  >
+                    로그인
+                  </Link>
+                )}
+              </div>
+            </nav>
+          </div>
+        </>
+      )}
     </header>
   );
 }
@@ -288,6 +397,22 @@ function LogoutIcon() {
         fill="#1D1D1F"
         fillOpacity="0.6"
       />
+    </svg>
+  );
+}
+
+function MenuIcon() {
+  return (
+    <svg width={19.2} height={17.28} viewBox="11.2422 9.76058 16.2337 14.63542" fill="none" aria-hidden xmlns="http://www.w3.org/2000/svg">
+      <path d="M11.2422 9.76058H27.4759V11.59H11.2422V9.76058ZM16.6534 16.1636H27.4759V17.993H16.6534V16.1636ZM11.2422 22.5666H27.4759V24.396H11.2422V22.5666Z" fill="#1D1D1F" fillOpacity="0.7" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" aria-hidden xmlns="http://www.w3.org/2000/svg">
+      <path d="M6 6L18 18M18 6L6 18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }

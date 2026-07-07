@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { FooterLogo } from "@/components/footer-logo";
+import { TermContent } from "@/components/term-content";
 
 const PORTAL_OFFICIAL = [
   { label: "물품 검색", href: "/search" },
@@ -24,6 +25,7 @@ type Term = {
   title: string;
   summary: string;
   content: string;
+  contentHtml?: string | null;
   required: boolean;
 };
 
@@ -53,7 +55,6 @@ function LinkList({ items }: { items: { label: string; href: string }[] }) {
 }
 
 function TermDetailModal({ term, onClose }: { term: Term; onClose: () => void }) {
-  const lines = term.content.split("\n");
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-[19.52px] backdrop-blur-[2px]"
@@ -85,17 +86,7 @@ function TermDetailModal({ term, onClose }: { term: Term; onClose: () => void })
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-[29.28px] py-[24.4px]">
-          {lines.map((ln, i) =>
-            /^제\d+조/.test(ln) ? (
-              <p key={i} className="mb-1 mt-4 text-[16px] font-bold tracking-[-0.448px] text-ink first:mt-0">
-                {ln}
-              </p>
-            ) : (
-              <p key={i} className="mb-1 text-[14px] leading-[25.2px] tracking-[-0.195px] text-ink/70">
-                {ln}
-              </p>
-            ),
-          )}
+          <TermContent content={term.content} contentHtml={term.contentHtml} />
         </div>
         <div className="border-t border-line/20 bg-[#FAFAFA] px-[29.28px] pb-[19.52px] pt-[20.52px]">
           <button
@@ -114,6 +105,18 @@ function TermDetailModal({ term, onClose }: { term: Term; onClose: () => void })
 export function SiteFooter() {
   const [activeTerm, setActiveTerm] = useState<Term | null>(null);
   const [terms, setTerms] = useState<Term[]>([]);
+  const [role, setRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { role?: string | null }) => { if (alive) setRole(d?.role ?? null); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const officialLinks = role === "SUPPLIER" ? PORTAL_OFFICIAL.filter((l) => l.href !== "/info") : PORTAL_OFFICIAL;
 
   async function openTerm(type: "SERVICE" | "PRIVACY") {
     let loaded = terms;
@@ -146,7 +149,7 @@ export function SiteFooter() {
 
           <div className="w-full md:w-[299px]">
             <ColumnHeading>공무원 포털</ColumnHeading>
-            <LinkList items={PORTAL_OFFICIAL} />
+            <LinkList items={officialLinks} />
           </div>
 
           <div className="w-full md:w-[299px]">
@@ -184,16 +187,11 @@ export function SiteFooter() {
                 <span className="whitespace-nowrap font-medium text-ink/60">(주) KORLINK</span>
                 <span className="mx-[10px] font-normal text-line">|</span>
                 <span className="font-normal text-ink/40">
-                  Copyright © 2013 KYUNG KEE COLOR CO., LTD All Rights Reserved.
+                  Copyright © 2026 KORLINK CO., LTD All Rights Reserved.
                 </span>
               </p>
               <p className="pt-[7.32px] text-[12px] font-normal leading-[21.6px] tracking-[-0.18px] text-ink/40">
-                본사 및 공장: 부산광역시 사하구 을숙도대로 526(신평동) / Tel: 051-291-0265~7 / Fax:
-                051-203-0178
-              </p>
-              <p className="pt-[7.32px] text-[12px] font-normal leading-[21.6px] tracking-[-0.18px] text-ink/40">
-                서울사무소: 경기도 수원시 팔달구 효원로 308번길 58-9 112호(인계동, 트윈파크A동) / Tel:
-                031-421-1081~3
+                본사 : 부산광역시 사하구 을숙도대로526
               </p>
             </div>
             <nav className="flex items-center gap-[19.52px]">

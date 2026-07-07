@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { uploadFile } from "@/lib/upload-client";
+import type { NaraResult } from "@/lib/nara";
 
 export type OfficialInfo = {
   organizationName: string | null;
@@ -44,37 +46,9 @@ const emptyItem = (): ItemRow => ({ name: "", qty: "", unit: "EA(개)", spec: ""
 
 const UNIT_OPTIONS = ["EA(개)", "SET(세트)", "BOX(박스)", "㎥", "㎡", "m", "kg", "ton", "L"];
 
-type SubCat = { name: string; subs: string[] };
-type TopCat = { name: string; subs: SubCat[] };
-const CATEGORY_TREE: TopCat[] = [
-  {
-    name: "도로교통 및 토목 분야",
-    subs: [
-      {
-        name: "도로 건설 및 유지보수",
-        subs: [
-          "도로포장재(레미콘, 아스콘, 시멘트, 콘크리트)",
-          "도로용 도료(차선도색용 페인트)",
-          "그레이팅",
-          "맨홀",
-          "토목용보강재",
-          "석재",
-          "토목자재",
-          "도로 보수 공사 서비스",
-          "유지보수 대행 서비스",
-        ],
-      },
-      { name: "교통 안전 및 관제", subs: [] },
-      { name: "운송 및 특수 차량", subs: [] },
-    ],
-  },
-  { name: "건축시설 및 전기/설비 분야", subs: [] },
-  { name: "일반행정 및 교육/지원 분야", subs: [] },
-  { name: "재난안전 및 소방/보건 분야", subs: [] },
-  { name: "정보통신 및 디지털/4차산업 분야", subs: [] },
-  { name: "환경/산림 및 조경/청소 분야", subs: [] },
-  { name: "복지/식품 및 문화/관광 분야", subs: [] },
-];
+type LeafCat = { id: string; code: string; name: string; itemType: string };
+type MidCat = { id: string; code: string; name: string; children: LeafCat[] };
+type TopCat = { id: string; code: string; name: string; children: MidCat[] };
 
 export function QuoteRegisterModal({ onClose, official }: { onClose: () => void; official?: OfficialInfo }) {
   const router = useRouter();
@@ -99,10 +73,38 @@ export function QuoteRegisterModal({ onClose, official }: { onClose: () => void;
 
   const isGoods = type === "물품 견적";
 
+  const [categories, setCategories] = useState<TopCat[]>([]);
+  useEffect(() => {
+    const ac = new AbortController();
+    fetch(`/api/categories`, { signal: ac.signal })
+      .then((r) => r.json())
+      .then((d: { categories?: TopCat[] }) => setCategories(d.categories ?? []))
+      .catch(() => {});
+    return () => ac.abort();
+  }, []);
+
+  const [npsCode, setNpsCode] = useState("");
+  const [naraOpen, setNaraOpen] = useState(false);
+  const [naraResults, setNaraResults] = useState<NaraResult[]>([]);
+  const [naraLoading, setNaraLoading] = useState(false);
+  useEffect(() => {
+    if (!naraOpen) return;
+    const ac = new AbortController();
+    setNaraLoading(true);
+    const t = setTimeout(() => {
+      fetch(`/api/nara?q=${encodeURIComponent(npsCode)}`, { signal: ac.signal })
+        .then((r) => r.json())
+        .then((d: { results: NaraResult[] }) => setNaraResults(d.results ?? []))
+        .catch(() => {})
+        .finally(() => { if (!ac.signal.aborted) setNaraLoading(false); });
+    }, 300);
+    return () => { clearTimeout(t); ac.abort(); };
+  }, [naraOpen, npsCode]);
+
   const [tried1, setTried1] = useState(false);
-  const _top = CATEGORY_TREE.find((c) => c.name === cat1);
-  const _mid = _top?.subs.find((s) => s.name === cat2);
-  const catOk = !!cat1 && (!_top?.subs.length || !!cat2) && (!_mid?.subs.length || !!cat3);
+  const _top = categories.find((c) => c.name === cat1);
+  const _mid = _top?.children.find((s) => s.name === cat2);
+  const catOk = !!cat1 && (!_top?.children.length || !!cat2) && (!_mid?.children.length || !!cat3);
   const errTitle = !title.trim();
   const errDeadline = !deadline;
   const errBudget = !budgetTbd && !budget.trim();
@@ -117,15 +119,6 @@ export function QuoteRegisterModal({ onClose, official }: { onClose: () => void;
     setTried1(true);
     if (step1Errors.length === 0) setStep(2);
   }
-  const npsCode = (() => {
-    if (!catOk || !cat1) return "";
-    const i1 = CATEGORY_TREE.findIndex((c) => c.name === cat1);
-    const i2 = _top?.subs.findIndex((s) => s.name === cat2) ?? -1;
-    const i3 = _mid?.subs.findIndex((s) => s === cat3) ?? -1;
-    const pad = (n: number) => String(Math.max(0, n) + 1).padStart(2, "0");
-    return `${pad(i1)}${pad(i2)}${pad(i3)}000000`;
-  })();
-
   function setItem(i: number, patch: Partial<ItemRow>) {
     setItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
   }
@@ -214,6 +207,7 @@ export function QuoteRegisterModal({ onClose, official }: { onClose: () => void;
             <Step1
               type={type} setType={setType}
               isGoods={isGoods}
+              categories={categories}
               cat1={cat1} setCat1={setCat1}
               cat2={cat2} setCat2={setCat2}
               cat3={cat3} setCat3={setCat3}
@@ -221,7 +215,12 @@ export function QuoteRegisterModal({ onClose, official }: { onClose: () => void;
               deadline={deadline} setDeadline={setDeadline}
               budgetTbd={budgetTbd} setBudgetTbd={setBudgetTbd}
               budget={budget} setBudget={setBudget}
-              npsCode={npsCode} budgetErr={tried1 && errBudget}
+              npsCode={npsCode} setNpsCode={setNpsCode}
+              naraOpen={naraOpen} setNaraOpen={setNaraOpen}
+              naraResults={naraResults}
+              naraLoading={naraLoading}
+              onPickNara={(r) => { setNpsCode(r.code); setNaraOpen(false); }}
+              budgetErr={tried1 && errBudget}
               onNext={goStep2}
             />
           )}
@@ -303,6 +302,7 @@ function Stepper({ step }: { step: number }) {
 function Step1(p: {
   type: "물품 견적" | "용역 견적"; setType: (v: "물품 견적" | "용역 견적") => void;
   isGoods: boolean;
+  categories: TopCat[];
   cat1: string; setCat1: (v: string) => void;
   cat2: string; setCat2: (v: string) => void;
   cat3: string; setCat3: (v: string) => void;
@@ -310,11 +310,37 @@ function Step1(p: {
   deadline: string; setDeadline: (v: string) => void;
   budgetTbd: boolean; setBudgetTbd: (v: boolean) => void;
   budget: string; setBudget: (v: string) => void;
-  npsCode: string; budgetErr: boolean;
+  npsCode: string; setNpsCode: (v: string) => void;
+  naraOpen: boolean; setNaraOpen: (v: boolean) => void;
+  naraResults: NaraResult[];
+  naraLoading: boolean;
+  onPickNara: (r: NaraResult) => void;
+  budgetErr: boolean;
   onNext: () => void;
 }) {
-  const top = CATEGORY_TREE.find((c) => c.name === p.cat1);
-  const mid = top?.subs.find((s) => s.name === p.cat2);
+  const top = p.categories.find((c) => c.name === p.cat1);
+  const mid = top?.children.find((s) => s.name === p.cat2);
+  const npsInputRef = useRef<HTMLInputElement>(null);
+  const [naraRect, setNaraRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  useEffect(() => {
+    if (!p.naraOpen) return;
+    function place() {
+      const el = npsInputRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setNaraRect({ top: r.bottom + 7.32, left: r.left, width: r.width });
+    }
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") p.setNaraOpen(false); }
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [p.naraOpen]);
 
   return (
     <>
@@ -329,28 +355,31 @@ function Step1(p: {
 
       <div style={blockStyle}>
         <label style={{ ...labelStyle, marginBottom: "7.32px" }}>
-          카테고리 {reqStar1}{" "}
-          <span style={{ fontWeight: 400, color: "rgba(29,29,31,0.3)" }}>{p.isGoods ? "(물품만 표시)" : "(용역/서비스만 표시)"}</span>
+          카테고리 {reqStar1}
         </label>
         <div className="flex" style={{ gap: "9.76px" }}>
           <CatSelect
             value={p.cat1}
             placeholder="대분류"
-            options={CATEGORY_TREE.map((c) => c.name)}
+            options={p.categories.map((c) => c.name)}
             onChange={(v) => { p.setCat1(v); p.setCat2(""); p.setCat3(""); }}
           />
           <CatSelect
             value={p.cat2}
             placeholder="중분류"
             disabled={!top}
-            options={(top?.subs ?? []).map((s) => s.name)}
+            options={(top?.children ?? []).map((s) => s.name)}
             onChange={(v) => { p.setCat2(v); p.setCat3(""); }}
           />
           <CatSelect
             value={p.cat3}
             placeholder="소분류"
             disabled={!mid}
-            options={mid?.subs ?? []}
+            options={[]}
+            groups={[
+              { label: "물품", options: (mid?.children ?? []).filter((l) => l.itemType === "GOODS").map((l) => l.name) },
+              { label: "서비스", options: (mid?.children ?? []).filter((l) => l.itemType === "SERVICE").map((l) => l.name) },
+            ].filter((g) => g.options.length > 0)}
             onChange={p.setCat3}
           />
         </div>
@@ -361,15 +390,39 @@ function Step1(p: {
         <input type="text" className={inputClass} value={p.title} onChange={(e) => p.setTitle(e.target.value)} placeholder="공고 제목을 입력하세요" style={inputStyle} />
       </div>
 
-      <div style={blockStyle}>
+      <div style={blockStyle} className="relative">
         <label style={{ ...labelStyle, marginBottom: "7.32px" }}>
           물품식별번호{" "}
-          <span style={{ fontWeight: 400, color: "rgba(29,29,31,0.3)" }}>(카테고리 선택 시 자동 입력)</span>
+          <span style={{ fontWeight: 400, color: "rgba(29,29,31,0.3)" }}>(조달청 나라장터 데이터 연동)</span>
         </label>
         <div className="flex items-center" style={{ height: "51px", boxSizing: "border-box", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.2)", background: "#FAFAFA", padding: "0 20.52px", gap: "9.76px" }}>
           <BarcodeIcon />
-          <span style={{ fontSize: "13px", fontWeight: 400, lineHeight: "23.4px", letterSpacing: "0.65px", color: "rgba(29,29,31,0.6)" }}>{p.npsCode}</span>
+          <input
+            ref={npsInputRef}
+            value={p.npsCode}
+            onChange={(e) => p.setNpsCode(e.target.value)}
+            onFocus={() => p.setNaraOpen(true)}
+            placeholder="모델명 또는 상품명 검색"
+            className="box-border outline-none placeholder:text-[#1d1d1f]/30 placeholder:font-medium"
+            style={{ flex: 1, minWidth: 0, border: "none", background: "transparent", fontSize: "13px", fontWeight: 400, lineHeight: "23.4px", letterSpacing: "0.65px", color: "rgba(29,29,31,0.6)" }}
+          />
         </div>
+        {p.naraOpen && naraRect && createPortal(
+          <>
+            <button
+              type="button"
+              aria-label="검색 닫기"
+              tabIndex={-1}
+              onClick={() => p.setNaraOpen(false)}
+              className="fixed inset-0"
+              style={{ zIndex: 55, background: "transparent", border: "none", cursor: "default" }}
+            />
+            <div style={{ position: "fixed", top: naraRect.top, left: naraRect.left, width: naraRect.width, zIndex: 56 }}>
+              <NaraDropdown results={p.naraResults} onPick={p.onPickNara} loading={p.naraLoading} />
+            </div>
+          </>,
+          document.body
+        )}
       </div>
 
       <div style={blockStyle}>
@@ -616,8 +669,9 @@ function SegToggle({ options, value, onChange }: { options: string[]; value: str
   );
 }
 
-function CatSelect({ value, placeholder, options, onChange, disabled }: {
+function CatSelect({ value, placeholder, options, onChange, disabled, groups }: {
   value: string; placeholder: string; options: string[]; onChange: (v: string) => void; disabled?: boolean;
+  groups?: { label: string; options: string[] }[];
 }) {
   return (
     <div className="flex flex-1" style={{ minWidth: 0, position: "relative", opacity: disabled ? 0.5 : 1 }}>
@@ -635,9 +689,45 @@ function CatSelect({ value, placeholder, options, onChange, disabled }: {
         }}
       >
         <option value="">{placeholder}</option>
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+        {groups
+          ? groups.map((g) => (
+              <optgroup key={g.label} label={g.label}>
+                {g.options.map((o) => <option key={o} value={o}>{o}</option>)}
+              </optgroup>
+            ))
+          : options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
       <span style={{ position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><ChevronDown /></span>
+    </div>
+  );
+}
+
+function NaraDropdown({ results, onPick, loading }: { results: NaraResult[]; onPick: (r: NaraResult) => void; loading: boolean }) {
+  return (
+    <div style={{ borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.4)", background: "#fff", overflow: "hidden", boxShadow: "0 10px 30px rgba(0,0,0,0.12)" }}>
+      <div style={{ padding: "9.76px 14.64px 10.76px", background: "#F5F5F7" }}>
+        <span style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)" }}>{loading ? "조달청 나라장터 검색 중..." : `조달청 나라장터 검색 결과 (${results.length}건)`}</span>
+      </div>
+      <div style={{ maxHeight: "240px", overflowY: "auto" }}>
+        {loading ? (
+          <div className="flex items-center justify-center" style={{ gap: "8px", padding: "24px 14.64px" }}>
+            <span className="animate-spin" style={{ display: "inline-block", width: "16px", height: "16px", border: "2px solid rgba(210,210,215,0.5)", borderTopColor: "rgba(29,29,31,0.5)", borderRadius: "9999px" }} />
+            <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "19.8px", color: "rgba(29,29,31,0.5)" }}>검색 중입니다 (최대 30초 소요)</span>
+          </div>
+        ) : results.map((r) => (
+          <button key={r.code} type="button" onClick={() => onPick(r)} className="flex w-full items-start justify-between text-left"
+              style={{ padding: "12.2px 14.64px 13.2px", border: "none", background: "#fff", cursor: "pointer", gap: "12px" }}>
+              <span className="min-w-0">
+                <span className="block" style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "#1D1D1F" }}>{r.name}</span>
+                {r.spec && <span className="block" style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.5)", marginTop: "2.44px" }}>{r.spec}</span>}
+              </span>
+              <span className="shrink-0 text-right">
+                <span className="block" style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.5)" }}>{r.code}</span>
+                {r.category && <span className="block" style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)" }}>{r.category}</span>}
+              </span>
+            </button>
+        ))}
+      </div>
     </div>
   );
 }

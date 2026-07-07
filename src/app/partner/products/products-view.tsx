@@ -187,6 +187,7 @@ function RegisterModal({
   const [regType, setRegType] = useState<RegType>("물품 등록");
   const [naraOpen, setNaraOpen] = useState(false);
   const [naraResults, setNaraResults] = useState<NaraResult[]>([]);
+  const [naraLoading, setNaraLoading] = useState(false);
   const [delivery, setDelivery] = useState<(typeof DELIVERY_TERMS)[number]>("상차도");
   const [deliveryApply, setDeliveryApply] = useState(true);
   const [detailMode, setDetailMode] = useState<DetailMode>("none");
@@ -224,12 +225,14 @@ function RegisterModal({
   useEffect(() => {
     if (!naraOpen) return;
     const ac = new AbortController();
+    setNaraLoading(true);
     const t = setTimeout(() => {
       fetch(`/api/nara?q=${encodeURIComponent(npsCode)}`, { signal: ac.signal })
         .then((r) => r.json())
         .then((d: { results: NaraResult[] }) => setNaraResults(d.results ?? []))
-        .catch(() => {});
-    }, 200);
+        .catch(() => {})
+        .finally(() => { if (!ac.signal.aborted) setNaraLoading(false); });
+    }, 300);
     return () => { clearTimeout(t); ac.abort(); };
   }, [naraOpen, npsCode]);
 
@@ -321,6 +324,7 @@ function RegisterModal({
               naraOpen={naraOpen}
               setNaraOpen={setNaraOpen}
               naraResults={naraResults}
+              naraLoading={naraLoading}
               catTree={catTree}
               topId={topId}
               midId={midId}
@@ -498,6 +502,7 @@ function StepOne({
   naraOpen,
   setNaraOpen,
   naraResults,
+  naraLoading,
   catTree,
   topId,
   midId,
@@ -516,6 +521,7 @@ function StepOne({
   naraOpen: boolean;
   setNaraOpen: (v: boolean) => void;
   naraResults: NaraResult[];
+  naraLoading: boolean;
   catTree: CatNode[];
   topId: string;
   midId: string;
@@ -614,7 +620,7 @@ function StepOne({
               style={{ zIndex: 55, background: "transparent", border: "none", cursor: "default" }}
             />
             <div style={{ position: "fixed", top: naraRect.top, left: naraRect.left, width: naraRect.width, zIndex: 56 }}>
-              <NaraDropdown onPick={onPickNara} results={naraResults} />
+              <NaraDropdown onPick={onPickNara} results={naraResults} loading={naraLoading} />
             </div>
           </>,
           document.body
@@ -629,14 +635,19 @@ function StepOne({
   );
 }
 
-function NaraDropdown({ onPick, results }: { onPick: (r: NaraResult) => void; results: NaraResult[] }) {
+function NaraDropdown({ onPick, results, loading }: { onPick: (r: NaraResult) => void; results: NaraResult[]; loading: boolean }) {
   return (
     <div style={{ borderRadius: "9.76px", border: "1px solid #E5E7EB", background: "#fff", overflow: "hidden", boxShadow: "0 10px 30px rgba(0,0,0,0.12)" }}>
       <div style={{ padding: "9.76px 14.64px 10.76px", background: "#F9FAFB" }}>
-        <span style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#9CA3AF" }}>{`조달청 나라장터 검색 결과 (${results.length}건)`}</span>
+        <span style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#9CA3AF" }}>{loading ? "조달청 나라장터 검색 중..." : `조달청 나라장터 검색 결과 (${results.length}건)`}</span>
       </div>
       <div style={{ maxHeight: "280px", overflowY: "auto" }}>
-        {results.map((r) => (
+        {loading ? (
+          <div className="flex items-center justify-center" style={{ gap: "8px", padding: "24px 14.64px" }}>
+            <span className="animate-spin" style={{ display: "inline-block", width: "16px", height: "16px", border: "2px solid #E5E7EB", borderTopColor: "#6B7280", borderRadius: "9999px" }} />
+            <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "18px", color: "#6B7280" }}>검색 중입니다 (최대 30초 소요)</span>
+          </div>
+        ) : results.map((r) => (
           <button
             key={r.code}
             type="button"
@@ -1109,7 +1120,7 @@ function AiModal({ onClose, onApply }: { onClose: () => void; onApply: (url: str
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value.slice(0, 500))}
-              placeholder="예: 고성능 데스크탑 PC 상세페이지. 상단에 제품 정면 이미지를 크게 배치하고, 하단에 CPU·그래픽카드·메모리·SSD 핵심 사양을 아이콘과 함께 정리. 화이트 배경에 네이비 포인트 컬러, 깔끔하고 신뢰감 있는 B2B 공공조달 톤, 한글 설명 텍스트 포함"
+              placeholder="예: 고성능 데스크탑 PC 상세페이지. 상단에 제품 정면 이미지를 크게 배치하고, 하단에 CPU·그래픽카드·메모리·SSD 핵심 사양을 아이콘과 함께 정리. 화이트 배경에 네이비 포인트 컬러, 깔끔하고 신뢰감 있는 B2B 공공조달 톤"
               rows={3}
               style={{ height: "100px", resize: "none", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.3)", background: "#fff", padding: "13.2px 15.64px", fontSize: "17.08px", fontWeight: prompt ? 400 : 500, letterSpacing: "-0.2928px", lineHeight: "24.4px", color: prompt ? INK : "#9CA3AF", outline: "none" }}
             />

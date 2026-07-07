@@ -21,8 +21,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # env files
-# NOTE: .env IS tracked on purpose — private LAN git server (192.168.0.193).
-# ⚠️ WARNING: 계약 제8조③ 도급인(루멘트) GitHub(외부)에는 .env 절대 push 금지 — 시크릿 유출.
+.env
 .env*.local
 
 # prisma
@@ -31,12 +30,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 
-# project: never delete, move here (gitignored)
-/.trash/
-
-# omc
-/.omc/
-
-# local file storage (uploads) — dev mock
+# local file storage (uploads)
 /storage/
-verification/

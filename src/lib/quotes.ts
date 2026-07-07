@@ -109,7 +109,7 @@ export type QuoteDetailData = {
   deliveryCondition: string;
   deliveryPlace: string;
   items: QuoteDetailItem[];
-  attachments: { name: string }[];
+  attachments: { name: string; url: string }[];
   proposals: QuoteDetailProposal[];
   awardedResponseId: string | null;
   paid: boolean;
@@ -203,7 +203,7 @@ export async function loadQuoteDetail(
     deliveryCondition: req.deliveryCondition ?? "-",
     deliveryPlace,
     items,
-    attachments: req.attachments.map((a) => ({ name: a.fileName })),
+    attachments: req.attachments.map((a) => ({ name: a.fileName, url: a.fileUrl })),
     proposals,
     awardedResponseId: req.awardedResponseId,
     paid,

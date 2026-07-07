@@ -1,11 +1,26 @@
 "use client";
 
 import { useState } from "react";
+import DOMPurify from "isomorphic-dompurify";
 import type { InfoDetailData, InfoComment } from "@/lib/info";
 import { VideoEmbed } from "@/components/video-embed";
 
 const NAVY = "#1E3A5F";
 const RED = "#EF4444";
+
+const INFO_BODY_CSS = `
+.info-body { font-size: 15px; font-weight: 400; letter-spacing: -0.225px; line-height: 24.375px; color: rgba(29,29,31,0.8); overflow-wrap: break-word; word-break: break-word; }
+.info-body img { max-width: 100%; height: auto; }
+.info-body h1 { font-size: 2em; font-weight: 700; margin: 0.4em 0; }
+.info-body h2 { font-size: 1.5em; font-weight: 700; margin: 0.4em 0; }
+.info-body h3 { font-size: 1.17em; font-weight: 700; margin: 0.4em 0; }
+.info-body ul { list-style: disc; padding-left: 1.5em; margin: 0.4em 0; }
+.info-body ol { list-style: decimal; padding-left: 1.5em; margin: 0.4em 0; }
+.info-body a { color: #0071E3; text-decoration: underline; }
+.info-body blockquote { border-left: 4px solid #D2D2D7; padding-left: 1em; margin: 0.4em 0; }
+.info-body p { margin: 0 0 0.6em; }
+.info-body p:last-child { margin-bottom: 0; }
+`;
 
 type ReportKind = "문의" | "신고";
 
@@ -486,9 +501,16 @@ export function ReportView({ initialKind = null, data }: { initialKind?: ReportK
         )}
 
         <div style={{ padding: "39.04px 0" }}>
-          <p style={{ margin: 0, fontSize: "15px", fontWeight: 400, letterSpacing: "-0.225px", lineHeight: "24.375px", color: "rgba(29,29,31,0.8)" }}>
-            {data?.body ?? POST.body}
-          </p>
+          {data ? (
+            <>
+              <style>{INFO_BODY_CSS}</style>
+              <div className="info-body" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(data.body) }} />
+            </>
+          ) : (
+            <p style={{ margin: 0, fontSize: "15px", fontWeight: 400, letterSpacing: "-0.225px", lineHeight: "24.375px", color: "rgba(29,29,31,0.8)" }}>
+              {POST.body}
+            </p>
+          )}
         </div>
 
         <div style={{ marginBottom: "39.04px", padding: "25.4px", borderRadius: "19.52px", background: "#F5F5F7", border: "1px solid rgba(210,210,215,0.1)" }}>

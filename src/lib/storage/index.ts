@@ -192,7 +192,7 @@ class LocalStorageAdapter implements StorageAdapter {
     try {
       const bytes = await fsp.readFile(path.join(this.dir, key));
       let contentType = "application/octet-stream";
-      try { contentType = (await fsp.readFile(path.join(this.dir, `${key}.ct`), "utf8")).trim() || contentType; } catch { /* no sidecar */ }
+      try { contentType = (await fsp.readFile(path.join(this.dir, `${key}.ct`), "utf8")).trim() || contentType; } catch {}
       return { bytes, contentType };
     } catch {
       return null;

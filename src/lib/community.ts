@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { decrypt } from "@/lib/crypto/pii";
 
 export type DemandStatus = "진행중" | "마감";
 
@@ -131,13 +132,13 @@ export async function loadCommunityDetail(
     })),
     comments: post.comments.map((c) => ({
       id: c.id,
-      company: c.author.supplierCompany?.name ?? c.author.name,
+      company: c.author.supplierCompany?.name ?? (decrypt(c.author.name) ?? c.author.name),
       date: ymd(c.createdAt),
       body: c.content,
       mine: !!currentUserId && c.authorId === currentUserId,
       reply: c.replies[0]
         ? {
-            name: [c.replies[0].author.departmentName, c.replies[0].author.name].filter(Boolean).join(" "),
+            name: [c.replies[0].author.departmentName, decrypt(c.replies[0].author.name) ?? c.replies[0].author.name].filter(Boolean).join(" "),
             date: ymd(c.replies[0].createdAt),
             body: c.replies[0].content,
           }

@@ -66,9 +66,14 @@ export async function POST(req: NextRequest) {
 
   let categoryId: string | null = null;
   if (categoryPath?.length) {
-    const leafName = categoryPath[categoryPath.length - 1];
-    const cat = await prisma.category.findFirst({ where: { name: leafName } });
-    categoryId = cat?.id ?? null;
+    let parentId: string | null = null;
+    let resolved = true;
+    for (const levelName of categoryPath) {
+      const cat: { id: string } | null = await prisma.category.findFirst({ where: { name: levelName, parentId }, select: { id: true } });
+      if (!cat) { resolved = false; break; }
+      parentId = cat.id;
+    }
+    categoryId = resolved ? parentId : null;
   }
 
   const quoteRequest = await prisma.quoteRequest.create({

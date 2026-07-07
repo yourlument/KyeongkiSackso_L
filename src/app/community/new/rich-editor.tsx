@@ -196,10 +196,14 @@ export function RichEditor({
   initialHTML = "",
   onChange,
   error = false,
+  placeholder = PLACEHOLDER,
+  minHeight,
 }: {
   initialHTML?: string;
   onChange: (html: string) => void;
   error?: boolean;
+  placeholder?: string;
+  minHeight?: number;
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const colorRef = useRef<HTMLInputElement>(null);
@@ -427,6 +431,7 @@ export function RichEditor({
         <div
           ref={editorRef}
           className="krte-content"
+          style={minHeight ? { minHeight: `${minHeight}px` } : undefined}
           contentEditable
           suppressContentEditableWarning
           role="textbox"
@@ -437,7 +442,7 @@ export function RichEditor({
           onDrop={onDrop}
           onDragOver={(e) => e.preventDefault()}
         />
-        {empty && <div className="krte-ph">{PLACEHOLDER}</div>}
+        {empty && <div className="krte-ph">{placeholder}</div>}
       </div>
 
       <input

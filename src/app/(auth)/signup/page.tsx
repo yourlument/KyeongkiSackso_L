@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Stepper, Field, TextInput, PasswordInput } from "@/components/signup/ui";
 import { openPostcode } from "@/lib/daum-postcode";
 import { uploadFile } from "@/lib/upload-client";
+import { TermContent } from "@/components/term-content";
 import {
   CheckCircleIcon,
   AlertCircleIcon,
@@ -20,6 +21,7 @@ interface Term {
   title: string;
   summary: string;
   content: string;
+  contentHtml?: string | null;
   required: boolean;
 }
 
@@ -74,7 +76,7 @@ export default function SignupPage() {
     setFieldErrors((e) => ({ ...e, [k]: undefined }));
 
   useEffect(() => {
-    fetch(`/api/terms?portal=${portal}`)
+    fetch(`/api/terms?portal=${portal}&context=agreement`)
       .then((r) => r.json())
       .then((d) => setTerms(d.terms ?? []))
       .catch(() => setTerms([]));
@@ -102,7 +104,7 @@ export default function SignupPage() {
     return null;
   }
 
-  function next() {
+  async function next() {
     if (step === 0) {
       const fe: typeof fieldErrors = {};
       if (!form.email) fe.email = "이메일을 입력하세요";
@@ -112,6 +114,16 @@ export default function SignupPage() {
       else if (form.password !== form.passwordConfirm) fe.passwordConfirm = "비밀번호가 일치하지 않습니다";
       setFieldErrors(fe);
       if (Object.values(fe).some(Boolean)) return;
+      try {
+        const res = await fetch(`/api/auth/check-email?email=${encodeURIComponent(form.email)}`);
+        const data = await res.json();
+        if (data.exists) {
+          setFieldErrors({ email: "이미 가입된 이메일입니다" });
+          return;
+        }
+      } catch {
+        return;
+      }
       setError(null);
       setStep(1);
       return;
@@ -685,7 +697,16 @@ function TermsStep({
           전체 동의하기
         </span>
       </div>
-      {detail && <TermDetailModal term={detail} onClose={() => setDetail(null)} />}
+      {detail && (
+        <TermDetailModal
+          term={detail}
+          onClose={() => setDetail(null)}
+          onConfirm={() => {
+            if (!agreed.has(detail.id)) toggle(detail.id);
+            setDetail(null);
+          }}
+        />
+      )}
     </>
   );
 }
@@ -790,8 +811,7 @@ function Completion({ portal, form }: { portal: Portal; form: Form }) {
   );
 }
 
-function TermDetailModal({ term, onClose }: { term: Term; onClose: () => void }) {
-  const lines = term.content.split("\n");
+function TermDetailModal({ term, onClose, onConfirm }: { term: Term; onClose: () => void; onConfirm: () => void }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-[19.52px] backdrop-blur-[2px]"
@@ -823,22 +843,12 @@ function TermDetailModal({ term, onClose }: { term: Term; onClose: () => void })
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-[29.28px] py-[24.4px]">
-          {lines.map((ln, i) =>
-            /^제\d+조/.test(ln) ? (
-              <p key={i} className="mb-1 mt-4 text-[16px] font-bold tracking-[-0.448px] text-ink first:mt-0">
-                {ln}
-              </p>
-            ) : (
-              <p key={i} className="mb-1 text-[14px] leading-[25.2px] tracking-[-0.195px] text-ink/70">
-                {ln}
-              </p>
-            ),
-          )}
+          <TermContent content={term.content} contentHtml={term.contentHtml} />
         </div>
         <div className="border-t border-line/20 bg-[#FAFAFA] px-[29.28px] pb-[19.52px] pt-[20.52px]">
           <button
             type="button"
-            onClick={onClose}
+            onClick={onConfirm}
             className="w-full rounded-[14.64px] bg-navy py-[14.64px] text-[13px] font-semibold tracking-[-0.2928px] text-white hover:bg-navy-hover"
           >
             확인했습니다

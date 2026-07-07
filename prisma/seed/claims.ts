@@ -15,7 +15,7 @@ export async function seedClaims(prisma: PrismaClient, ctx: SeedCtx): Promise<st
   if (!hwaseong) throw new Error("claims: 화성시청 Organization 없음 — 기본 시드 선행 필요");
 
   async function findCompany(bizNo: string, name: string) {
-    const c = await prisma.supplierCompany.findUnique({
+    const c = await prisma.supplierCompany.findFirst({
       where: { businessRegistrationNo: encryptLookup("SupplierCompany", "businessRegistrationNo", bizNo) },
     });
     if (!c) throw new Error(`claims: 공급사 ${name}(${bizNo}) 없음 — 기본 시드 선행 필요`);

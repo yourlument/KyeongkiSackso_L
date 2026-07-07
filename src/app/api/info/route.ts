@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import DOMPurify from "isomorphic-dompurify";
 import { getSessionClaims } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
+
+function safeVideoUrl(u?: string): string | null {
+  const t = u?.trim();
+  if (!t) return null;
+  return /^https?:\/\//i.test(t) || t.startsWith("/") ? t : null;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +25,7 @@ const bodySchema = z.object({
 export async function POST(req: NextRequest) {
   const claims = await getSessionClaims();
   if (!claims) return NextResponse.json({ error: "로그인이 필요합니다" }, { status: 401 });
+  if (claims.role === "SUPPLIER") return NextResponse.json({ error: "공급업체 계정은 정보공유 기능을 이용할 수 없습니다" }, { status: 403 });
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
@@ -32,8 +40,8 @@ export async function POST(req: NextRequest) {
       authorId: claims.sub,
       category: category ?? null,
       title,
-      content,
-      videoUrl: videoUrl?.trim() || null,
+      content: DOMPurify.sanitize(content),
+      videoUrl: safeVideoUrl(videoUrl),
       isPublished: true,
       attachments: files.length
         ? { create: files.map((a) => ({ fileUrl: a.url, fileName: a.name })) }

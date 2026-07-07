@@ -7,7 +7,7 @@ export async function seedCommunity(prisma: PrismaClient, ctx: SeedCtx): Promise
   if (!official) throw new Error("[seedCommunity] 기본 시드 미실행: official@korlink.co.kr 없음");
   const dsUser = await prisma.user.findUnique({ where: { email: "supplier@korlink.co.kr" } });
   if (!dsUser) throw new Error("[seedCommunity] 기본 시드 미실행: supplier@korlink.co.kr 없음");
-  const officetek = await prisma.supplierCompany.findUnique({
+  const officetek = await prisma.supplierCompany.findFirst({
     where: { businessRegistrationNo: encryptLookup("SupplierCompany", "businessRegistrationNo", "700-01-00007") },
   });
   if (!officetek) throw new Error("[seedCommunity] 기본 시드 미실행: 오피스텍(주)(700-01-00007) 없음");

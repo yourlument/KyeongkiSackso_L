@@ -197,10 +197,28 @@ export function QuoteDetailView({ id, data }: { id: string; data: QuoteDetailDat
               ) : (
                 <div className="flex flex-col" style={{ gap: "7.32px" }}>
                   {data.attachments.map((a, i) => (
-                    <div key={i} className="flex items-center" style={{ gap: "9.76px", borderRadius: "14.64px", border: `1px solid rgba(210,210,215,0.2)`, padding: "12.2px 15.64px" }}>
-                      <AttachIcon />
-                      <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.7)" }}>{a.name}</span>
-                    </div>
+                    <a
+                      key={i}
+                      href={a.url}
+                      download={a.name}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between transition-colors hover:bg-[rgba(29,29,31,0.02)]"
+                      style={{ background: "#fff", border: `1px solid rgba(210,210,215,0.2)`, borderRadius: "14.64px", padding: "12.2px 15.64px", textDecoration: "none" }}
+                    >
+                      <span className="flex min-w-0 items-center" style={{ gap: "12.2px" }}>
+                        <span className="flex shrink-0 items-center justify-center" style={{ width: "40px", height: "40px", background: "#F5F5F7", borderRadius: "9.76px" }}>
+                          <FileTypeIcon name={a.name} />
+                        </span>
+                        <span className="flex min-w-0 flex-col">
+                          <span style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "#1D1D1F", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</span>
+                          <span style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)" }}>{fileExtLabel(a.name)}</span>
+                        </span>
+                      </span>
+                      <span className="flex shrink-0 items-center justify-center" style={{ width: "36px", height: "36px" }}>
+                        <DownloadIcon />
+                      </span>
+                    </a>
                   ))}
                 </div>
               )}
@@ -862,6 +880,53 @@ function AttachIcon() {
   return (
     <svg width={23} height={22} viewBox="0 0 23 22" fill="none" aria-hidden>
       <path d="M14.1356 7.49853L9.02014 12.6685C8.85143 12.8519 8.76707 13.0688 8.76707 13.3194C8.76707 13.5699 8.85444 13.7869 9.02918 13.9702C9.20391 14.1535 9.41781 14.2452 9.67087 14.2452C9.92394 14.2452 10.1348 14.1535 10.3035 13.9702L15.419 8.78186C15.7685 8.42742 16.0035 8.01492 16.124 7.54436C16.2445 7.07381 16.2445 6.60325 16.124 6.1327C16.0035 5.66214 15.7685 5.24964 15.419 4.8952C15.0696 4.54075 14.6629 4.30242 14.1989 4.1802C13.735 4.05797 13.271 4.05797 12.8071 4.1802C12.3431 4.30242 11.9364 4.54075 11.5869 4.8952L6.47142 10.0835C5.89299 10.6702 5.50134 11.3577 5.29648 12.146C5.09162 12.9344 5.09162 13.7227 5.29648 14.511C5.50134 15.2994 5.89299 15.9869 6.47142 16.5735C7.04985 17.1602 7.7277 17.5544 8.50497 17.756C9.28224 17.9577 10.0595 17.9577 10.8368 17.756C11.614 17.5544 12.2919 17.1602 12.8703 16.5735L17.9678 11.3852L19.2512 12.6685L14.1356 17.8569C13.3283 18.6758 12.3763 19.2319 11.2796 19.5252C10.2071 19.8185 9.13462 19.8185 8.06211 19.5252C6.9655 19.2319 6.01048 18.6758 5.19706 17.8569C4.38364 17.038 3.83232 16.0724 3.54311 14.9602C3.26594 13.8724 3.26594 12.7846 3.54311 11.6969C3.83232 10.5846 4.38063 9.61297 5.18802 8.78186L10.3035 3.59353C10.882 3.00686 11.5598 2.61269 12.3371 2.41103C13.1144 2.20936 13.8916 2.20936 14.6689 2.41103C15.4462 2.61269 16.124 3.00686 16.7024 3.59353C17.2809 4.1802 17.6695 4.8677 17.8683 5.65603C18.0672 6.44436 18.0672 7.2327 17.8683 8.02103C17.6695 8.80936 17.2809 9.49686 16.7024 10.0835L11.5869 15.2719C11.2375 15.6263 10.8308 15.8646 10.3668 15.9869C9.90285 16.1091 9.4389 16.1091 8.97495 15.9869C8.511 15.8646 8.10429 15.6263 7.75482 15.2719C7.40535 14.9174 7.17036 14.5049 7.04985 14.0344C6.92935 13.5638 6.92935 13.0933 7.04985 12.6227C7.17036 12.1521 7.40535 11.7396 7.75482 11.3852L12.8703 6.19686L14.1356 7.49853Z" fill="#1D1D1F" fillOpacity="0.2" />
+    </svg>
+  );
+}
+function fileExtLabel(name: string): string {
+  const ext = name.includes(".") ? (name.split(".").pop() ?? "").toUpperCase() : "";
+  return ext || "FILE";
+}
+function FileTypeIcon({ name }: { name: string }) {
+  const ext = name.includes(".") ? (name.split(".").pop() ?? "").toLowerCase() : "";
+  const img = ["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"].includes(ext);
+  const xls = ["xls", "xlsx", "csv"].includes(ext);
+  const color =
+    ext === "pdf" ? "#F04438"
+    : xls ? "#16A34A"
+    : img ? "#0E9384"
+    : ["doc", "docx"].includes(ext) ? "#2563EB"
+    : ["ppt", "pptx"].includes(ext) ? "#EA580C"
+    : ext === "hwp" ? "#1E3A5F"
+    : "#6B7280";
+  if (img) {
+    return (
+      <svg width={18} height={18} viewBox="0 0 18 18" fill="none" aria-hidden>
+        <rect x="2.25" y="3.25" width="13.5" height="11.5" rx="2" stroke={color} strokeWidth="1.5" />
+        <circle cx="6.4" cy="7" r="1.3" fill={color} />
+        <path d="M3 13.2 6.6 9.6l2.4 2.4 3-3 3 3" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  if (xls) {
+    return (
+      <svg width={18} height={18} viewBox="0 0 18 18" fill="none" aria-hidden>
+        <rect x="3.25" y="2.5" width="11.5" height="13" rx="1.8" stroke={color} strokeWidth="1.5" />
+        <path d="M6.6 6.2 11.4 11.8M11.4 6.2 6.6 11.8" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  return (
+    <svg width={18} height={18} viewBox="0 0 18 18" fill="none" aria-hidden>
+      <path d="M4 2.5h6l4 4v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M10 2.5v4h4" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function DownloadIcon() {
+  return (
+    <svg width={18} height={18} viewBox="0 0 18 18" fill="none" aria-hidden>
+      <path d="M9 2.5v8m0 0L6 7.5m3 3 3-3M3.5 13.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" stroke="#1D1D1F" strokeOpacity="0.3" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
