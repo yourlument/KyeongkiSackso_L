@@ -46,8 +46,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const authorName = decrypt(comment.author.name) ?? comment.author.name;
   const displayName = parentId
+<<<<<<< Updated upstream
     ? [comment.author.departmentName, authorName].filter(Boolean).join(" ")
     : (comment.author.supplierCompany?.name ?? authorName);
+=======
+    ? [decrypt(comment.author.departmentName), decrypt(comment.author.name)].filter(Boolean).join(" ")
+    : (comment.author.supplierCompany?.name ?? comment.author.name);
+>>>>>>> Stashed changes
 
   try {
     if (parentId) {

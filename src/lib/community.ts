@@ -138,7 +138,11 @@ export async function loadCommunityDetail(
       mine: !!currentUserId && c.authorId === currentUserId,
       reply: c.replies[0]
         ? {
+<<<<<<< Updated upstream
             name: [c.replies[0].author.departmentName, decrypt(c.replies[0].author.name) ?? c.replies[0].author.name].filter(Boolean).join(" "),
+=======
+            name: [decrypt(c.replies[0].author.departmentName), decrypt(c.replies[0].author.name)].filter(Boolean).join(" "),
+>>>>>>> Stashed changes
             date: ymd(c.replies[0].createdAt),
             body: c.replies[0].content,
           }

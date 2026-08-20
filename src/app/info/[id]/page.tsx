@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { KakaoChat } from "@/components/kakao-chat";
@@ -12,6 +12,7 @@ export default async function InfoDetailPage({ params, searchParams }: { params:
   const { id } = await params;
   if (id === "new") notFound();
   const [{ type }, claims] = await Promise.all([searchParams, getSessionClaims()]);
+  if (claims?.role === "SUPPLIER") redirect("/");
   const post = await loadInfoDetail(id, claims?.sub);
   if (!post) notFound();
   const initialKind = type === "신고" || type === "report" ? "신고" : type === "문의" || type === "inquiry" ? "문의" : null;

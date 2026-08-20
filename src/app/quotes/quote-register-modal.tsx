@@ -4,7 +4,11 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { uploadFile } from "@/lib/upload-client";
+<<<<<<< Updated upstream
 import type { NaraResult } from "@/lib/nara";
+=======
+import { CATEGORY_TAXONOMY } from "@/lib/categories";
+>>>>>>> Stashed changes
 
 export type OfficialInfo = {
   organizationName: string | null;
@@ -46,9 +50,21 @@ const emptyItem = (): ItemRow => ({ name: "", qty: "", unit: "EA(개)", spec: ""
 
 const UNIT_OPTIONS = ["EA(개)", "SET(세트)", "BOX(박스)", "㎥", "㎡", "m", "kg", "ton", "L"];
 
+<<<<<<< Updated upstream
 type LeafCat = { id: string; code: string; name: string; itemType: string };
 type MidCat = { id: string; code: string; name: string; children: LeafCat[] };
 type TopCat = { id: string; code: string; name: string; children: MidCat[] };
+=======
+type SubCat = { name: string; subs: string[] };
+type TopCat = { name: string; subs: SubCat[] };
+// 소분류(leaf)는 공고 유형(물품/용역)에 따라 goods/service 목록으로 분기한다.
+function buildCategoryTree(isGoods: boolean): TopCat[] {
+  return CATEGORY_TAXONOMY.map((top) => ({
+    name: top.name,
+    subs: top.mids.map((m) => ({ name: m.name, subs: isGoods ? [...m.goods] : [...m.service] })),
+  }));
+}
+>>>>>>> Stashed changes
 
 export function QuoteRegisterModal({ onClose, official }: { onClose: () => void; official?: OfficialInfo }) {
   const router = useRouter();
@@ -73,6 +89,7 @@ export function QuoteRegisterModal({ onClose, official }: { onClose: () => void;
 
   const isGoods = type === "물품 견적";
 
+<<<<<<< Updated upstream
   const [categories, setCategories] = useState<TopCat[]>([]);
   useEffect(() => {
     const ac = new AbortController();
@@ -105,6 +122,23 @@ export function QuoteRegisterModal({ onClose, official }: { onClose: () => void;
   const _top = categories.find((c) => c.name === cat1);
   const _mid = _top?.children.find((s) => s.name === cat2);
   const catOk = !!cat1 && (!_top?.children.length || !!cat2) && (!_mid?.children.length || !!cat3);
+=======
+  // 유형(물품/용역)에 따라 카테고리 트리를 재구성한다.
+  const categoryTree = buildCategoryTree(isGoods);
+  function changeType(v: "물품 견적" | "용역 견적") {
+    if (v === type) return;
+    setType(v);
+    // 유형 전환 시 stale 카테고리 선택 초기화
+    setCat1("");
+    setCat2("");
+    setCat3("");
+  }
+
+  const [tried1, setTried1] = useState(false);
+  const _top = categoryTree.find((c) => c.name === cat1);
+  const _mid = _top?.subs.find((s) => s.name === cat2);
+  const catOk = !!cat1 && (!_top?.subs.length || !!cat2) && (!_mid?.subs.length || !!cat3);
+>>>>>>> Stashed changes
   const errTitle = !title.trim();
   const errDeadline = !deadline;
   const errBudget = !budgetTbd && !budget.trim();
@@ -119,6 +153,18 @@ export function QuoteRegisterModal({ onClose, official }: { onClose: () => void;
     setTried1(true);
     if (step1Errors.length === 0) setStep(2);
   }
+<<<<<<< Updated upstream
+=======
+  const npsCode = (() => {
+    if (!catOk || !cat1) return "";
+    const i1 = categoryTree.findIndex((c) => c.name === cat1);
+    const i2 = _top?.subs.findIndex((s) => s.name === cat2) ?? -1;
+    const i3 = _mid?.subs.findIndex((s) => s === cat3) ?? -1;
+    const pad = (n: number) => String(Math.max(0, n) + 1).padStart(2, "0");
+    return `${pad(i1)}${pad(i2)}${pad(i3)}000000`;
+  })();
+
+>>>>>>> Stashed changes
   function setItem(i: number, patch: Partial<ItemRow>) {
     setItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
   }
@@ -205,7 +251,8 @@ export function QuoteRegisterModal({ onClose, official }: { onClose: () => void;
 
           {step === 1 && (
             <Step1
-              type={type} setType={setType}
+              type={type} setType={changeType}
+              tree={categoryTree}
               isGoods={isGoods}
               categories={categories}
               cat1={cat1} setCat1={setCat1}
@@ -301,6 +348,7 @@ function Stepper({ step }: { step: number }) {
 
 function Step1(p: {
   type: "물품 견적" | "용역 견적"; setType: (v: "물품 견적" | "용역 견적") => void;
+  tree: TopCat[];
   isGoods: boolean;
   categories: TopCat[];
   cat1: string; setCat1: (v: string) => void;
@@ -318,6 +366,7 @@ function Step1(p: {
   budgetErr: boolean;
   onNext: () => void;
 }) {
+<<<<<<< Updated upstream
   const top = p.categories.find((c) => c.name === p.cat1);
   const mid = top?.children.find((s) => s.name === p.cat2);
   const npsInputRef = useRef<HTMLInputElement>(null);
@@ -341,6 +390,10 @@ function Step1(p: {
       document.removeEventListener("keydown", onKey);
     };
   }, [p.naraOpen]);
+=======
+  const top = p.tree.find((c) => c.name === p.cat1);
+  const mid = top?.subs.find((s) => s.name === p.cat2);
+>>>>>>> Stashed changes
 
   return (
     <>
@@ -361,7 +414,11 @@ function Step1(p: {
           <CatSelect
             value={p.cat1}
             placeholder="대분류"
+<<<<<<< Updated upstream
             options={p.categories.map((c) => c.name)}
+=======
+            options={p.tree.map((c) => c.name)}
+>>>>>>> Stashed changes
             onChange={(v) => { p.setCat1(v); p.setCat2(""); p.setCat3(""); }}
           />
           <CatSelect

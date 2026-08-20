@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function InfoPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const claims = await getSessionClaims();
   if (!claims) redirect("/login");
+  if (claims.role === "SUPPLIER") redirect("/");
   const { page: pageParam } = await searchParams;
   const requested = Number.parseInt(pageParam ?? "1", 10);
   const { posts, hotPosts, page, pageCount } = await loadInfo(claims.sub, Number.isFinite(requested) ? requested : 1);

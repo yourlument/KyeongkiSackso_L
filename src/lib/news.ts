@@ -86,7 +86,14 @@ export async function loadNewsById(id: string): Promise<{
   });
   if (!n || n.status !== "PUBLISHED") return null;
 
+<<<<<<< Updated upstream
   await prisma.news.update({ where: { id }, data: { views: { increment: 1 } } });
+=======
+  await prisma.news.update({
+    where: { id },
+    data: { views: { increment: 1 } },
+  });
+>>>>>>> Stashed changes
 
   const all = await prisma.news.findMany({
     where: { status: "PUBLISHED" },

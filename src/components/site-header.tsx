@@ -180,9 +180,13 @@ export function SiteHeader({ variant = "official" }: { variant?: "official" | "s
   const supplier = variant === "supplier";
   const loggedIn = auth?.authenticated === true;
   const isSupplierRole = auth?.role === "SUPPLIER";
+<<<<<<< Updated upstream
   const nav = supplier || isSupplierRole
+=======
+  const nav = supplier
+>>>>>>> Stashed changes
     ? NAV_SUPPLIER
-    : loggedIn
+    : loggedIn && !isSupplierRole
       ? [...NAV_BASE, NAV_INFO, NAV_NEWS]
       : [...NAV_BASE, NAV_NEWS];
 

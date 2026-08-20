@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -60,6 +60,15 @@ export default function InfoNewPage() {
   const router = useRouter();
   const attachRef = useRef<HTMLInputElement>(null);
   const videoFileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { authenticated: boolean; role: string | null }) => {
+        if (d.role === "SUPPLIER") router.replace("/");
+      })
+      .catch(() => {});
+  }, [router]);
 
   const [category, setCategory] = useState<Category>(CATEGORIES[0]);
   const [title, setTitle] = useState("");

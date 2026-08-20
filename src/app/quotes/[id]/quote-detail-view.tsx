@@ -197,6 +197,7 @@ export function QuoteDetailView({ id, data }: { id: string; data: QuoteDetailDat
               ) : (
                 <div className="flex flex-col" style={{ gap: "7.32px" }}>
                   {data.attachments.map((a, i) => (
+<<<<<<< Updated upstream
                     <a
                       key={i}
                       href={a.url}
@@ -218,6 +219,11 @@ export function QuoteDetailView({ id, data }: { id: string; data: QuoteDetailDat
                       <span className="flex shrink-0 items-center justify-center" style={{ width: "36px", height: "36px" }}>
                         <DownloadIcon />
                       </span>
+=======
+                    <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" download className="flex items-center" style={{ gap: "9.76px", borderRadius: "14.64px", border: `1px solid rgba(210,210,215,0.2)`, padding: "12.2px 15.64px", textDecoration: "none" }}>
+                      <AttachIcon />
+                      <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.7)" }}>{a.name}</span>
+>>>>>>> Stashed changes
                     </a>
                   ))}
                 </div>

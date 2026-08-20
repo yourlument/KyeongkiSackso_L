@@ -1,0 +1,336 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1782725132880,
+  "projectRoot": "/home/woong/git/kmong/KyeongkiSackso_L",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "next",
+        "version": "16.2.7",
+        "category": "fullstack"
+      },
+      {
+        "name": "react",
+        "version": "19.2.0",
+        "category": "frontend"
+      },
+      {
+        "name": "react-dom",
+        "version": "19.2.0",
+        "category": "frontend"
+      },
+      {
+        "name": "playwright",
+        "version": "1.60.0",
+        "category": "testing"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "npm run build > /tmp/kyeongki_build.log 2>&1; echo \"build exit: $?\"; tail -25 /tmp/kyeongki_build.log",
+    "testCommand": null,
+    "lintCommand": "npm run lint",
+    "devCommand": "npm run dev",
+    "scripts": {
+      "dev": "next dev",
+      "build": "next build",
+      "start": "next start",
+      "lint": "next lint",
+      "typecheck": "tsc --noEmit",
+      "format": "prettier --write .",
+      "db:generate": "prisma generate",
+      "db:migrate": "prisma migrate dev",
+      "db:push": "prisma db push",
+      "db:studio": "prisma studio",
+      "db:seed": "tsx prisma/seed.ts"
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": "type-based"
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "public",
+      "src"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "prisma": {
+      "path": "prisma",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1782725132874,
+      "keyFiles": [
+        "schema.prisma",
+        "seed.ts"
+      ]
+    },
+    "public": {
+      "path": "public",
+      "purpose": "Public files",
+      "fileCount": 3,
+      "lastAccessed": 1782725132874,
+      "keyFiles": [
+        "icon-login-fail.svg",
+        "korlink-logo-md.svg",
+        "korlink-logo.svg"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 0,
+      "lastAccessed": 1782725132874,
+      "keyFiles": []
+    },
+    "prisma/migrations": {
+      "path": "prisma/migrations",
+      "purpose": "Database migrations",
+      "fileCount": 1,
+      "lastAccessed": 1782725132877,
+      "keyFiles": [
+        "migration_lock.toml"
+      ]
+    },
+    "src/app": {
+      "path": "src/app",
+      "purpose": "Application code",
+      "fileCount": 3,
+      "lastAccessed": 1782725132879,
+      "keyFiles": [
+        "globals.css",
+        "layout.tsx",
+        "page.tsx"
+      ]
+    },
+    "src/components": {
+      "path": "src/components",
+      "purpose": "UI components",
+      "fileCount": 9,
+      "lastAccessed": 1782725132879,
+      "keyFiles": [
+        "category-panel.tsx",
+        "chat-file-chip.tsx",
+        "footer-logo.tsx"
+      ]
+    },
+    "src/lib": {
+      "path": "src/lib",
+      "purpose": "Library code",
+      "fileCount": 34,
+      "lastAccessed": 1782725132879,
+      "keyFiles": [
+        "admin-approval.ts",
+        "admin-board.ts",
+        "admin-claim.ts"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src/app/quotes/quote-register-modal.tsx",
+      "accessCount": 11,
+      "lastAccessed": 1782730028119,
+      "type": "file"
+    },
+    {
+      "path": "src/app/page.tsx",
+      "accessCount": 6,
+      "lastAccessed": 1782729800047,
+      "type": "file"
+    },
+    {
+      "path": "src/app/api/community/[id]/comments/route.ts",
+      "accessCount": 6,
+      "lastAccessed": 1782730098243,
+      "type": "file"
+    },
+    {
+      "path": "prisma/schema.prisma",
+      "accessCount": 5,
+      "lastAccessed": 1782729749609,
+      "type": "file"
+    },
+    {
+      "path": "src/app/quotes/[id]/quote-detail-view.tsx",
+      "accessCount": 5,
+      "lastAccessed": 1782729836710,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/quotes.ts",
+      "accessCount": 5,
+      "lastAccessed": 1782730028772,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/community.ts",
+      "accessCount": 5,
+      "lastAccessed": 1782730097601,
+      "type": "file"
+    },
+    {
+      "path": "src/components/site-header.tsx",
+      "accessCount": 4,
+      "lastAccessed": 1782729817174,
+      "type": "file"
+    },
+    {
+      "path": "src/app/info/[id]/page.tsx",
+      "accessCount": 4,
+      "lastAccessed": 1782729825018,
+      "type": "file"
+    },
+    {
+      "path": "src/app/info/new/page.tsx",
+      "accessCount": 4,
+      "lastAccessed": 1782729847438,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/categories.ts",
+      "accessCount": 4,
+      "lastAccessed": 1782730018523,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/news.ts",
+      "accessCount": 4,
+      "lastAccessed": 1782730152670,
+      "type": "file"
+    },
+    {
+      "path": "src/app/api/info/route.ts",
+      "accessCount": 3,
+      "lastAccessed": 1782729832639,
+      "type": "file"
+    },
+    {
+      "path": "src/app/community/[id]/community-detail-view.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1782729715573,
+      "type": "file"
+    },
+    {
+      "path": "src/app/news/[id]/page.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1782729754664,
+      "type": "file"
+    },
+    {
+      "path": "src/app/info/page.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1782729818338,
+      "type": "file"
+    },
+    {
+      "path": "src/app/api/info/[id]/comments/route.ts",
+      "accessCount": 2,
+      "lastAccessed": 1782729834873,
+      "type": "file"
+    },
+    {
+      "path": "src/app/api/info/[id]/reactions/route.ts",
+      "accessCount": 2,
+      "lastAccessed": 1782729836800,
+      "type": "file"
+    },
+    {
+      "path": "src/app/api/quotes/route.ts",
+      "accessCount": 2,
+      "lastAccessed": 1782730018271,
+      "type": "file"
+    },
+    {
+      "path": "prisma/seed.ts",
+      "accessCount": 2,
+      "lastAccessed": 1782730066348,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/crypto/pii.ts",
+      "accessCount": 2,
+      "lastAccessed": 1782730096659,
+      "type": "file"
+    },
+    {
+      "path": "src/app/api/nara/route.ts",
+      "accessCount": 1,
+      "lastAccessed": 1782725276144,
+      "type": "file"
+    },
+    {
+      "path": "src/app/news/[id]/news-detail-view.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1782725282233,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/info.ts",
+      "accessCount": 1,
+      "lastAccessed": 1782725308620,
+      "type": "file"
+    },
+    {
+      "path": "src/app/report/report-view.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1782725321665,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/nara.ts",
+      "accessCount": 1,
+      "lastAccessed": 1782729507284,
+      "type": "file"
+    },
+    {
+      "path": "src/app/api/files/[key]/route.ts",
+      "accessCount": 1,
+      "lastAccessed": 1782729508298,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/auth/session.ts",
+      "accessCount": 1,
+      "lastAccessed": 1782729741310,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/auth/partner.ts",
+      "accessCount": 1,
+      "lastAccessed": 1782729741799,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

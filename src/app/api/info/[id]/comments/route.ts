@@ -19,7 +19,11 @@ function ymd(d: Date): string {
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const claims = await getSessionClaims();
   if (!claims) return NextResponse.json({ error: "로그인이 필요합니다" }, { status: 401 });
+<<<<<<< Updated upstream
   if (claims.role === "SUPPLIER") return NextResponse.json({ error: "공급업체 계정은 정보공유 기능을 이용할 수 없습니다" }, { status: 403 });
+=======
+  if (claims.role === "SUPPLIER") return NextResponse.json({ error: "접근 권한이 없습니다" }, { status: 403 });
+>>>>>>> Stashed changes
 
   const { id } = await params;
   const post = await prisma.post.findUnique({
