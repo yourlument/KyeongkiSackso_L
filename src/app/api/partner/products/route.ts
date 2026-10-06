@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSupplierCompanyId } from "@/lib/auth/partner";
+import { certificationMarksFromNames } from "@/lib/certification-marks";
+import {
+  SUPPLIER_ACCOUNT_VERIFICATION_MESSAGE,
+  supplierCanTrade,
+} from "@/lib/supplier-trade-access";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +30,12 @@ export const productInput = z.object({
 export async function POST(req: Request) {
   const companyId = await getSupplierCompanyId();
   if (!companyId) return NextResponse.json({ message: "로그인이 필요해요" }, { status: 401 });
+  if (!(await supplierCanTrade(companyId))) {
+    return NextResponse.json(
+      { message: SUPPLIER_ACCOUNT_VERIFICATION_MESSAGE },
+      { status: 403 },
+    );
+  }
 
   const body = await req.json().catch(() => null);
   const parsed = productInput.safeParse(body);
@@ -32,6 +43,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "필수 항목을 확인해 주세요" }, { status: 400 });
   }
   const d = parsed.data;
+  const company = await prisma.supplierCompany.findUnique({
+    where: { id: companyId },
+    select: { certifications: true },
+  });
 
   const imageCreates = [
     ...(d.imageUrl ? [{ url: d.imageUrl, type: "THUMBNAIL" as const, sortOrder: 0 }] : []),
@@ -50,7 +65,7 @@ export async function POST(req: Request) {
       deliveryDays: d.deliveryDays ?? null,
       deliveryCondition: d.deliveryCondition ?? null,
       specs: d.specs ?? undefined,
-      badges: d.badges ?? [],
+      badges: certificationMarksFromNames(company?.certifications ?? []),
       status: "ACTIVE",
       ...(imageCreates.length ? { images: { create: imageCreates } } : {}),
     },

@@ -4,10 +4,15 @@ import DOMPurify from "isomorphic-dompurify";
 import { getSessionClaims } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 
-function safeVideoUrl(u?: string): string | null {
+function safeVideoUrl(u?: string | null): string | null {
   const t = u?.trim();
   if (!t) return null;
   return /^https?:\/\//i.test(t) || t.startsWith("/") ? t : null;
+}
+
+function htmlHasContent(html: string): boolean {
+  if (/<img\b/i.test(html)) return true;
+  return html.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim().length > 0;
 }
 
 export const dynamic = "force-dynamic";
@@ -15,27 +20,28 @@ export const dynamic = "force-dynamic";
 const attachmentSchema = z.object({ url: z.string().min(1), name: z.string().min(1) });
 
 const bodySchema = z.object({
-  category: z.string().trim().min(1).optional(),
+  category: z.string().trim().min(1).nullable().optional(),
   title: z.string().trim().min(1),
   content: z.string().trim().min(1),
-  videoUrl: z.string().trim().optional(),
-  attachments: z.array(attachmentSchema).optional(),
+  videoUrl: z.string().trim().nullable().optional(),
+  attachments: z.array(attachmentSchema).nullable().optional(),
 });
 
 export async function POST(req: NextRequest) {
   const claims = await getSessionClaims();
   if (!claims) return NextResponse.json({ error: "로그인이 필요합니다" }, { status: 401 });
-<<<<<<< Updated upstream
   if (claims.role === "SUPPLIER") return NextResponse.json({ error: "공급업체 계정은 정보공유 기능을 이용할 수 없습니다" }, { status: 403 });
-=======
-  if (claims.role === "SUPPLIER") return NextResponse.json({ error: "접근 권한이 없습니다" }, { status: 403 });
->>>>>>> Stashed changes
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
-    return NextResponse.json({ error: "제목과 내용을 입력하세요" }, { status: 400 });
+    const field = parsed.error.issues[0]?.path[0];
+    const error =
+      field === "title" ? "제목을 입력하세요" : field === "content" ? "내용을 입력하세요" : "제목과 내용을 입력하세요";
+    return NextResponse.json({ error }, { status: 400 });
   }
   const { category, title, content, videoUrl, attachments } = parsed.data;
+  if (!htmlHasContent(content)) return NextResponse.json({ error: "내용을 입력하세요" }, { status: 400 });
+
   const files = (attachments ?? []).filter((a) => a.url && a.name).slice(0, 10);
 
   const post = await prisma.post.create({

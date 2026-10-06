@@ -158,7 +158,7 @@ function SalesTab({
         </div>
         <div style={{ borderRadius: "8px", overflow: "hidden" }}>
           <div className="grid" style={{ gridTemplateColumns: MONTHLY_GRID, background: "rgba(29,29,31,0.02)", borderBottom: "1px solid rgba(210,210,215,0.1)" }}>
-            {["정산월", "총 매출", "주문수", "플랫폼 수수료", "정산금액", "상태", "지급 예정일"].map((h) => (
+            {["정산월", "총 매출", "주문수", "PG 수수료", "정산금액", "상태", "지급 예정일"].map((h) => (
               <div key={h} style={{ padding: "12.2px 19.52px" }}>
                 <span style={{ fontSize: "11px", fontWeight: 600, lineHeight: "19.8px", letterSpacing: "-0.165px", color: "rgba(29,29,31,0.4)" }}>{h}</span>
               </div>
@@ -183,35 +183,6 @@ function SalesTab({
           ))}
         </div>
       </Card>
-
-      <div
-        style={{
-          padding: "25.4px",
-          marginBottom: "24.4px",
-          borderRadius: "19.52px",
-          border: "1px solid rgba(210,210,215,0.2)",
-          background: "linear-gradient(135deg, rgba(30,58,95,0.03) 0%, rgba(30,58,95,0) 100%)",
-          boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-        }}
-      >
-        <div className="flex" style={{ gap: "14.64px" }}>
-          <div className="flex shrink-0 items-center justify-center" style={{ width: "44px", height: "44px", borderRadius: "9.76px", background: "rgba(30,58,95,0.1)" }}>
-            <img src="/icons/sales-info.svg" alt="" width={20} height={20} aria-hidden="true" />
-          </div>
-          <div>
-            <p style={{ fontSize: "13px", fontWeight: 600, lineHeight: "23.4px", letterSpacing: "-0.195px", color: INK, margin: 0 }}>정산 안내</p>
-            <ul style={{ listStyle: "none", margin: "9.76px 0 0", padding: 0 }}>
-              <InfoLi>
-                정산금은&nbsp;<strong style={{ fontWeight: 500, color: INK }}>매월 10일</strong>에 등록하신 계좌로 지급됩니다
-              </InfoLi>
-              <InfoLi top="7.32px">
-                <strong style={{ fontWeight: 500, color: INK }}>플랫폼 수수료는 0%</strong>&nbsp;— 전체 매출액이 그대로 정산됩니다
-              </InfoLi>
-              <InfoLi top="7.32px">정산 내역은 익월 초에 확정되며, 확정 후 10일 이내 지급 완료됩니다</InfoLi>
-            </ul>
-          </div>
-        </div>
-      </div>
 
       <div className="flex" style={{ gap: "19.52px", marginBottom: "29.28px" }}>
         <SummaryCard label="총 주문 금액" value={totalOrderAmount} iconBg="transparent" icon="/icons/sales-card-total.svg" />
@@ -480,7 +451,7 @@ function OrderDetailModal({ order, onClose }: { order: OrderRow; onClose: () => 
             <p style={{ fontSize: "11px", fontWeight: 600, lineHeight: "19.8px", letterSpacing: "0.275px", color: "rgba(29,29,31,0.4)", margin: "0 0 9.76px" }}>증빙 서류 출력</p>
             <p style={{ fontSize: "11px", fontWeight: 400, lineHeight: "19.8px", letterSpacing: "-0.165px", color: "rgba(29,29,31,0.3)", margin: "0 0 14.64px" }}>클릭 시 새 창에서 열립니다.</p>
             <div className="flex" style={{ gap: "9.76px" }}>
-              <DocButton onClick={() => window.open(`/api/orders/${order.id}/document?type=purchase`, "_blank")}>구매확인서</DocButton>
+              <DocButton onClick={() => window.open(`/api/orders/${order.id}/document?type=purchase`, "_blank")}>거래명세서(구매확인용)</DocButton>
               <DocButton onClick={() => window.open(`/api/orders/${order.id}/document?type=sales`, "_blank")}>매출 전표</DocButton>
               <DocButton disabled>세금 계산서 🔒</DocButton>
             </div>
@@ -524,15 +495,6 @@ function OrderStatusBadge({ status }: { status: OrderRow["status"] }) {
   if (status === "결제완료") return <StatusBadge bg="rgba(30,58,95,0.1)" border="rgba(30,58,95,0.2)" color={NAVY}>결제완료</StatusBadge>;
   if (status === "배송/진행중") return <StatusBadge bg="#F0F9FF" border="#BAE6FD" color="#0369A1">배송/진행중</StatusBadge>;
   return <StatusBadge bg="#ECFDF5" border="#A7F3D0" color="#047857">완료</StatusBadge>;
-}
-
-function InfoLi({ children, top }: { children: React.ReactNode; top?: string }) {
-  return (
-    <li className="flex items-center" style={{ gap: "9.76px", marginTop: top ?? 0 }}>
-      <img src="/icons/sales-li-check.svg" alt="" width={11} height={8} aria-hidden="true" className="shrink-0" />
-      <span style={{ fontSize: "12px", fontWeight: 400, lineHeight: "21.6px", letterSpacing: "-0.18px", color: "rgba(29,29,31,0.6)" }}>{children}</span>
-    </li>
-  );
 }
 
 function SummaryCard({ label, value, iconBg, icon }: { label: string; value: string; iconBg: string; icon: string }) {

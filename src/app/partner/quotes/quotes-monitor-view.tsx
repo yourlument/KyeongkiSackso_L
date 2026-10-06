@@ -19,6 +19,8 @@ import {
   PageArrowIcon,
 } from "./quotes-icons";
 import { QuoteSubmitModal } from "./quote-submit-modal";
+import { SettlementAccountVerificationBanner } from "@/components/settlement-account-verification-banner";
+import type { SettlementAccountVerificationStatus } from "@/lib/supplier-account-verification";
 
 const NAVY = "#1E3A5F";
 
@@ -30,21 +32,59 @@ export function QuotesMonitorView({
   productRequests,
   announcements,
   proposals,
+  canTrade,
+  accountVerificationStatus,
+  initialMainTab = null,
+  initialSubTab = null,
+  initialRequestId = null,
 }: {
   stats: { total: number; waiting: number; submitted: number };
   productRequests: ProductRequest[];
   announcements: AnnouncementRow[];
   proposals: Proposal[];
+  canTrade: boolean;
+  accountVerificationStatus: SettlementAccountVerificationStatus;
+  initialMainTab?: string | null;
+  initialSubTab?: string | null;
+  initialRequestId?: string | null;
 }) {
   const router = useRouter();
-  const [mainTab, setMainTab] = useState<MainTab>("product");
-  const [subTab, setSubTab] = useState<SubTab>("list");
-  const [openReq, setOpenReq] = useState<string | null>(null);
-  const [submitAnnouncement, setSubmitAnnouncement] = useState<AnnouncementRow | null>(null);
-  const [submitProduct, setSubmitProduct] = useState<ProductRequest | null>(null);
+  const [mainTab, setMainTab] = useState<MainTab>(initialMainTab === "announcement" ? "announcement" : "product");
+  const [subTab, setSubTab] = useState<SubTab>(initialSubTab === "proposals" ? "proposals" : "list");
+  const [openReq, setOpenReq] = useState<string | null>(
+    initialMainTab === "product" && initialRequestId
+      ? initialRequestId
+      : null,
+  );
+  const [submitAnnouncement, setSubmitAnnouncement] = useState<AnnouncementRow | null>(
+    canTrade && initialMainTab === "announcement" && initialRequestId
+      ? announcements.find((row) => row.id === initialRequestId) ?? null
+      : null,
+  );
+  const [submitProduct, setSubmitProduct] = useState<ProductRequest | null>(
+    canTrade && initialMainTab === "product" && initialRequestId
+      ? productRequests.find((row) => row.id === initialRequestId) ?? null
+      : null,
+  );
+  const [submissionComplete, setSubmissionComplete] = useState(false);
+
+  function handleSubmitted() {
+    setSubmitAnnouncement(null);
+    setSubmitProduct(null);
+    setSubmissionComplete(true);
+  }
+
+  function handleSubmissionCompleteClose() {
+    setSubmissionComplete(false);
+    router.refresh();
+  }
 
   return (
     <>
+      {!canTrade && accountVerificationStatus !== "VERIFIED" && (
+        <SettlementAccountVerificationBanner status={accountVerificationStatus} />
+      )}
+
       <div style={{ paddingBottom: "29.28px" }}>
         <h1 style={{ fontSize: "20px", fontWeight: 700, letterSpacing: "-0.56px", lineHeight: "25px", color: "#1D1D1F", margin: 0 }}>
           견적 요청 모니터링
@@ -103,22 +143,60 @@ export function QuotesMonitorView({
       </div>
 
       {mainTab === "product" ? (
-        <ProductTab stats={stats} requests={productRequests} openReq={openReq} setOpenReq={setOpenReq} onSubmit={setSubmitProduct} />
+        <ProductTab stats={stats} requests={productRequests} openReq={openReq} setOpenReq={setOpenReq} onSubmit={setSubmitProduct} canTrade={canTrade} />
       ) : (
-        <AnnouncementTab announcements={announcements} proposals={proposals} subTab={subTab} setSubTab={setSubTab} onSubmit={setSubmitAnnouncement} />
+        <AnnouncementTab announcements={announcements} proposals={proposals} subTab={subTab} setSubTab={setSubTab} onSubmit={setSubmitAnnouncement} canTrade={canTrade} />
       )}
 
       {submitAnnouncement && (
-        <QuoteSubmitModal target={{ kind: "announcement", row: submitAnnouncement }} onClose={() => setSubmitAnnouncement(null)} onSubmitted={() => { setSubmitAnnouncement(null); router.refresh(); }} />
+        <QuoteSubmitModal target={{ kind: "announcement", row: submitAnnouncement }} onClose={() => setSubmitAnnouncement(null)} onSubmitted={handleSubmitted} />
       )}
       {submitProduct && (
-        <QuoteSubmitModal target={{ kind: "product", row: submitProduct }} onClose={() => setSubmitProduct(null)} onSubmitted={() => { setSubmitProduct(null); router.refresh(); }} />
+        <QuoteSubmitModal target={{ kind: "product", row: submitProduct }} onClose={() => setSubmitProduct(null)} onSubmitted={handleSubmitted} />
       )}
+      {submissionComplete && <QuoteSubmissionCompleteModal onClose={handleSubmissionCompleteClose} />}
     </>
   );
 }
 
-function ProductTab({ stats, requests, openReq, setOpenReq, onSubmit }: { stats: { total: number; waiting: number; submitted: number }; requests: ProductRequest[]; openReq: string | null; setOpenReq: (v: string | null) => void; onSubmit: (r: ProductRequest) => void }) {
+export function QuoteSubmissionCompleteModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="partner-quote-submission-complete-title"
+      className="fixed inset-0 flex items-center justify-center"
+      onClick={onClose}
+      style={{ zIndex: 60, background: "rgba(0,0,0,0.4)", padding: "19.52px" }}
+    >
+      <div
+        onClick={(event) => event.stopPropagation()}
+        style={{ width: "390px", maxWidth: "100%", borderRadius: "19.52px", background: "#fff", padding: "29.28px", textAlign: "center", boxShadow: "0 2px 20px rgba(0,0,0,0.06)" }}
+      >
+        <div className="flex items-center justify-center" style={{ width: "68px", height: "68px", borderRadius: "9999px", background: "#ECFDF5", color: "#10B981", margin: "0 auto" }}>
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path d="M8 16.5 13.2 22 24 10.5" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+        <h2 id="partner-quote-submission-complete-title" style={{ fontSize: "18px", fontWeight: 700, lineHeight: "25.2px", letterSpacing: "-0.504px", color: "#1D1D1F", margin: "19.52px 0 0" }}>
+          견적 제출 완료
+        </h2>
+        <p style={{ fontSize: "13px", fontWeight: 400, lineHeight: "23.4px", letterSpacing: "-0.195px", color: "rgba(29,29,31,0.5)", margin: "4.88px 0 0" }}>
+          견적이 성공적으로 제출되었습니다.
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{ width: "100%", marginTop: "24.4px", borderRadius: "14.64px", border: "none", background: NAVY, padding: "12.2px 19.52px", cursor: "pointer", fontSize: "13px", fontWeight: 600, lineHeight: "22.75px", letterSpacing: "-0.293px", color: "#fff" }}
+        >
+          확인
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ProductTab({ stats, requests, openReq, setOpenReq, onSubmit, canTrade }: { stats: { total: number; waiting: number; submitted: number }; requests: ProductRequest[]; openReq: string | null; setOpenReq: (v: string | null) => void; onSubmit: (r: ProductRequest) => void; canTrade: boolean }) {
   const statCards = [
     { key: "total", value: String(stats.total), label: "전체 요청" },
     { key: "waiting", value: String(stats.waiting), label: "대기중" },
@@ -155,6 +233,7 @@ function ProductTab({ stats, requests, openReq, setOpenReq, onSubmit }: { stats:
             open={openReq === r.id}
             onToggle={() => setOpenReq(openReq === r.id ? null : r.id)}
             onSubmit={() => onSubmit(r)}
+            canTrade={canTrade}
           />
         ))}
       </div>
@@ -162,7 +241,7 @@ function ProductTab({ stats, requests, openReq, setOpenReq, onSubmit }: { stats:
   );
 }
 
-function ProductRow({ row, last, open, onToggle, onSubmit }: { row: ProductRequest; last: boolean; open: boolean; onToggle: () => void; onSubmit: () => void }) {
+function ProductRow({ row, last, open, onToggle, onSubmit, canTrade }: { row: ProductRequest; last: boolean; open: boolean; onToggle: () => void; onSubmit: () => void; canTrade: boolean }) {
   const submitted = row.status === "견적 제출됨";
   return (
     <div style={{ borderBottom: last && !open ? "none" : "1px solid #F3F4F6" }}>
@@ -201,7 +280,12 @@ function ProductRow({ row, last, open, onToggle, onSubmit }: { row: ProductReque
           </div>
         ) : (
           <div className="flex items-center" style={{ gap: "14.64px" }}>
-            <button type="button" onClick={onSubmit} style={{ borderRadius: "9.76px", background: NAVY, padding: "7.32px 14.64px", border: "none", cursor: "pointer", fontSize: "14.64px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "19.52px", color: "#fff" }}>
+            <button
+              type="button"
+              disabled={!canTrade}
+              onClick={() => { if (canTrade) onSubmit(); }}
+              style={{ borderRadius: "9.76px", background: NAVY, padding: "7.32px 14.64px", border: "none", cursor: canTrade ? "pointer" : "not-allowed", opacity: canTrade ? 1 : 0.4, fontSize: "14.64px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "19.52px", color: "#fff" }}
+            >
               견적 제출
             </button>
             <button type="button" onClick={onToggle} aria-label="펼치기" className="inline-flex items-center justify-center" style={{ width: "24px", height: "24px", border: "none", background: "none", cursor: "pointer", transform: open ? "rotate(180deg)" : "none" }}>
@@ -252,7 +336,7 @@ function ProductRequestDetail({ row }: { row: ProductRequest }) {
   );
 }
 
-function AnnouncementTab({ announcements, proposals, subTab, setSubTab, onSubmit }: { announcements: AnnouncementRow[]; proposals: Proposal[]; subTab: SubTab; setSubTab: (v: SubTab) => void; onSubmit: (r: AnnouncementRow) => void }) {
+function AnnouncementTab({ announcements, proposals, subTab, setSubTab, onSubmit, canTrade }: { announcements: AnnouncementRow[]; proposals: Proposal[]; subTab: SubTab; setSubTab: (v: SubTab) => void; onSubmit: (r: AnnouncementRow) => void; canTrade: boolean }) {
   const [page, setPage] = useState(1);
 
   return (
@@ -280,7 +364,7 @@ function AnnouncementTab({ announcements, proposals, subTab, setSubTab, onSubmit
       </div>
 
       {subTab === "list" ? (
-        <AnnouncementList rows={announcements} page={page} setPage={setPage} onSubmit={onSubmit} />
+        <AnnouncementList rows={announcements} page={page} setPage={setPage} onSubmit={onSubmit} canTrade={canTrade} />
       ) : (
         <ProposalStatus proposals={proposals} />
       )}
@@ -292,7 +376,7 @@ const AN_GRID = "465px 185px 157px 105px 74px 141px";
 
 const PAGE_SIZE = 10;
 
-function AnnouncementList({ rows, page, setPage, onSubmit }: { rows: AnnouncementRow[]; page: number; setPage: (n: number) => void; onSubmit: (r: AnnouncementRow) => void }) {
+function AnnouncementList({ rows, page, setPage, onSubmit, canTrade }: { rows: AnnouncementRow[]; page: number; setPage: (n: number) => void; onSubmit: (r: AnnouncementRow) => void; canTrade: boolean }) {
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageRows = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
@@ -331,7 +415,12 @@ function AnnouncementList({ rows, page, setPage, onSubmit }: { rows: Announcemen
             <span style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "#6B7280" }}>{r.proposals}</span>
           </div>
           <div style={{ padding: "14.64px 19.52px" }}>
-            <button type="button" onClick={() => onSubmit(r)} style={{ borderRadius: "9.76px", background: NAVY, padding: "7.32px 14.64px", border: "none", cursor: "pointer", fontSize: "14.64px", fontWeight: 500, letterSpacing: "-0.2401px", lineHeight: "19.52px", color: "#fff" }}>
+            <button
+              type="button"
+              disabled={!canTrade}
+              onClick={() => { if (canTrade) onSubmit(r); }}
+              style={{ borderRadius: "9.76px", background: NAVY, padding: "7.32px 14.64px", border: "none", cursor: canTrade ? "pointer" : "not-allowed", opacity: canTrade ? 1 : 0.4, fontSize: "14.64px", fontWeight: 500, letterSpacing: "-0.2401px", lineHeight: "19.52px", color: "#fff" }}
+            >
               견적 제출
             </button>
           </div>

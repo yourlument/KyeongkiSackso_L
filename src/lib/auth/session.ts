@@ -1,5 +1,8 @@
 import { cookies } from "next/headers";
+import { prisma } from "@/lib/db";
+import { findValidRefreshToken } from "./token-service";
 import { verifyAccessToken, verifyRefreshToken, REFRESH_TTL_DAYS, type AccessClaims } from "./jwt";
+import { canUseSession } from "./access";
 
 export const ACCESS_COOKIE = "korink_at";
 export const REFRESH_COOKIE = "korink_rt";
@@ -31,18 +34,40 @@ export async function clearAuthCookies(): Promise<void> {
   jar.delete(REFRESH_COOKIE);
 }
 
+async function activeClaims(claims: AccessClaims): Promise<AccessClaims | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: claims.sub },
+    select: {
+      role: true,
+      status: true,
+      supplierCompany: { select: { isRestricted: true } },
+    },
+  });
+  if (!user) return null;
+  return canUseSession({
+    status: user.status,
+    storedRole: user.role,
+    claimRole: claims.role,
+    supplierRestricted: user.supplierCompany?.isRestricted ?? false,
+  })
+    ? claims
+    : null;
+}
+
 export async function getSessionClaims(): Promise<AccessClaims | null> {
   const jar = await cookies();
 
   const access = jar.get(ACCESS_COOKIE)?.value;
   if (access) {
     const claims = await verifyAccessToken(access);
-    if (claims) return claims;
+    if (claims) return activeClaims(claims);
   }
 
   const refresh = jar.get(REFRESH_COOKIE)?.value;
   if (!refresh) return null;
   const payload = await verifyRefreshToken(refresh);
   if (!payload?.role) return null;
-  return { sub: payload.sub, role: payload.role };
+  const record = await findValidRefreshToken(refresh);
+  if (!record || record.userId !== payload.sub) return null;
+  return activeClaims({ sub: payload.sub, role: payload.role });
 }

@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { CertificationNameCombobox } from "@/components/certification-name-combobox";
 import type {
   AdminApprovalData,
   MemberRow as Member,
@@ -10,6 +11,7 @@ import type {
   CertRow as Cert,
   CertStatus,
 } from "@/lib/admin-approval";
+import { fileDownloadUrl } from "@/lib/file-links";
 
 const MEMBER_BADGE: Record<MemberStatus, { bg: string; border: string; color: string }> = {
   대기: { bg: "#FFFBEB", border: "#FDE68A", color: "#B45309" },
@@ -70,11 +72,11 @@ export function ApprovalView({ data }: { data: AdminApprovalData }) {
     });
     if (res.ok) refresh();
   }
-  async function mutateCert(id: string, action: "approve" | "reject", reason?: string) {
+  async function mutateCert(id: string, action: "approve" | "reject", reason?: string, name?: string) {
     const res = await fetch("/api/admin/approval/cert", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, action, reason }),
+      body: JSON.stringify({ id, action, reason, name }),
     });
     if (res.ok) refresh();
   }
@@ -159,9 +161,10 @@ export function ApprovalView({ data }: { data: AdminApprovalData }) {
       ) : (
         <CertTab
           rows={certRows}
+          certificationNameOptions={data.certificationNameOptions}
           filter={certFilter}
           onFilter={setCertFilter}
-          onApprove={(id) => mutateCert(id, "approve")}
+          onApprove={(id, name) => mutateCert(id, "approve", undefined, name)}
           onReject={(id, reason) => mutateCert(id, "reject", reason)}
         />
       )}
@@ -231,7 +234,7 @@ function MemberDetail({
         <DetailListIcon />
         <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.293px", lineHeight: "22.8px", color: "rgba(29,29,31,0.6)" }}>가입 시 입력한 전체 정보 보기</span>
       </button>
-      {rejectOpen ? (
+      {status === "대기" && (rejectOpen ? (
         <div className="flex flex-col" style={{ paddingTop: "15.64px", borderTop: "1px solid rgba(210,210,215,0.1)" }}>
           <p style={{ margin: "0 0 7.32px", fontSize: "12px", fontWeight: 500, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.5)" }}>반려 사유</p>
           <textarea
@@ -285,7 +288,7 @@ function MemberDetail({
             반려
           </button>
         </div>
-      )}
+      ))}
     </div>
   );
 }
@@ -668,15 +671,17 @@ function MemberTab({
 
 function CertTab({
   rows,
+  certificationNameOptions,
   filter,
   onFilter,
   onApprove,
   onReject,
 }: {
   rows: Cert[];
+  certificationNameOptions: string[];
   filter: CertFilter;
   onFilter: (f: CertFilter) => void;
-  onApprove: (id: string) => void;
+  onApprove: (id: string, name: string) => void;
   onReject: (id: string, reason: string) => void;
 }) {
   const [fileView, setFileView] = useState<{ fileName: string; fileUrl: string } | null>(null);
@@ -721,7 +726,8 @@ function CertTab({
           background: "#FFFFFF",
           borderRadius: "19.52px",
           border: "1px solid rgba(210,210,215,0.2)",
-          overflow: "hidden",
+          overflowX: "auto",
+          overflowY: "hidden",
         }}
       >
         <div
@@ -737,7 +743,7 @@ function CertTab({
             { label: "제출일", w: "151px" },
             { label: "상태", w: "162px" },
           ].map((h) => (
-            <div key={h.label} style={{ width: h.w, padding: "17.08px 24.4px" }}>
+            <div key={h.label} style={{ width: h.w, flexShrink: 0, padding: "17.08px 24.4px" }}>
               <span
                 style={{
                   fontSize: "12px",
@@ -757,13 +763,14 @@ function CertTab({
         {rows.map((c, i) => {
           const badge = CERT_BADGE[c.status];
           const isPending = c.status === "검토중";
+          const hasFile = Boolean(c.fileUrl);
           return (
             <div
-              key={c.name}
+              key={c.id}
               className="flex items-center"
               style={{ borderTop: i === 0 ? "none" : "1px solid rgba(210,210,215,0.1)" }}
             >
-              <div style={{ width: "197px", padding: "17.08px 24.4px" }}>
+              <div style={{ width: "197px", flexShrink: 0, padding: "17.08px 24.4px" }}>
                 <span
                   style={{
                     fontSize: "13px",
@@ -776,7 +783,7 @@ function CertTab({
                   {c.name}
                 </span>
               </div>
-              <div style={{ width: "225px", padding: "17.08px 24.4px" }}>
+              <div style={{ width: "225px", flexShrink: 0, padding: "17.08px 24.4px" }}>
                 <span
                   style={{
                     fontSize: "13px",
@@ -789,7 +796,7 @@ function CertTab({
                   {c.kind}
                 </span>
               </div>
-              <div style={{ width: "151px", padding: "17.08px 24.4px" }}>
+              <div style={{ width: "151px", flexShrink: 0, padding: "17.08px 24.4px" }}>
                 <span
                   style={{
                     fontSize: "12px",
@@ -802,7 +809,7 @@ function CertTab({
                   {c.date}
                 </span>
               </div>
-              <div style={{ width: "162px", padding: "17.08px 24.4px" }}>
+              <div style={{ width: "162px", flexShrink: 0, padding: "17.08px 24.4px" }}>
                 <span
                   className="inline-flex items-center justify-center"
                   style={{
@@ -821,11 +828,12 @@ function CertTab({
                   {c.status}
                 </span>
               </div>
-              <div className="flex items-center" style={{ flex: 1, padding: "17.08px 24.4px" }}>
+              <div className="flex items-center" style={{ flex: "1 0 auto", padding: "17.08px 24.4px" }}>
                 <div className="flex items-center" style={{ gap: "9.76px" }}>
                   <button
                     type="button"
-                    onClick={() => setFileView({ fileName: c.fileName || `${c.kind} 인증서`, fileUrl: c.fileUrl })}
+                    disabled={!hasFile}
+                    onClick={() => hasFile && setFileView({ fileName: c.fileName || `${c.kind} 인증서`, fileUrl: c.fileUrl })}
                     className="inline-flex items-center justify-center"
                     style={{
                       height: "38px",
@@ -833,12 +841,13 @@ function CertTab({
                       padding: "8.32px 15.64px",
                       background: "#FFFFFF",
                       border: "1px solid rgba(210,210,215,0.2)",
-                      cursor: "pointer",
+                      cursor: hasFile ? "pointer" : "default",
                       fontSize: "12px",
                       fontWeight: 400,
                       letterSpacing: "-0.2401px",
                       lineHeight: "21.6px",
                       color: "rgba(29,29,31,0.5)",
+                      opacity: hasFile ? 1 : 0.4,
                     }}
                   >
                     파일 보기
@@ -921,9 +930,10 @@ function CertTab({
         <CertApproveModal
           name={approveTarget.name}
           kind={approveTarget.kind}
+          certificationNameOptions={certificationNameOptions}
           onCancel={() => setApproveTarget(null)}
-          onConfirm={() => {
-            onApprove(approveTarget.id);
+          onConfirm={(name) => {
+            onApprove(approveTarget.id, name);
             setApproveTarget(null);
           }}
         />
@@ -987,7 +997,7 @@ function CertDetailModal({ cert, onClose }: { cert: Cert; onClose: () => void })
               )}
             </div>
           </div>
-          {(cert.fileUrl || cert.fileName) && (
+          {cert.fileUrl && (
             <div>
               <p style={{ margin: "0 0 10.4px", fontSize: "11px", fontWeight: 600, letterSpacing: "0.55px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)" }}>제출 서류</p>
               <DocRow name={cert.fileName || cert.kind} onView={() => setFileView(true)} />
@@ -1001,6 +1011,7 @@ function CertDetailModal({ cert, onClose }: { cert: Cert; onClose: () => void })
 }
 
 function FileViewModal({ fileName, fileUrl, onClose }: { fileName: string; fileUrl?: string; onClose: () => void }) {
+  const downloadUrl = fileUrl ? fileDownloadUrl(fileUrl, fileName) : "";
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.45)", padding: "24px" }} onClick={onClose}>
       <div className="flex w-full flex-col" style={{ maxWidth: "625px", background: "#FFFFFF", borderRadius: "19.52px" }} onClick={(e) => e.stopPropagation()}>
@@ -1023,7 +1034,7 @@ function FileViewModal({ fileName, fileUrl, onClose }: { fileName: string; fileU
             <div className="flex items-center justify-center" style={{ gap: "14.64px", marginTop: "29.28px" }}>
               {fileUrl ? (
                 <a
-                  href={fileUrl}
+                  href={downloadUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center"
@@ -1075,14 +1086,19 @@ function FileViewModal({ fileName, fileUrl, onClose }: { fileName: string; fileU
 function CertApproveModal({
   name,
   kind,
+  certificationNameOptions,
   onCancel,
   onConfirm,
 }: {
   name: string;
   kind: string;
+  certificationNameOptions: string[];
   onCancel: () => void;
-  onConfirm: () => void;
+  onConfirm: (name: string) => void;
 }) {
+  const [certificationName, setCertificationName] = useState(kind);
+  const resolvedName = certificationName.trim();
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.45)", padding: "24px" }} onClick={onCancel}>
       <div className="flex w-full flex-col" style={{ maxWidth: "468px", background: "#FFFFFF", borderRadius: "19.52px", padding: "29.28px" }} onClick={(e) => e.stopPropagation()}>
@@ -1092,11 +1108,19 @@ function CertApproveModal({
           </div>
         </div>
         <p style={{ margin: 0, paddingBottom: "9.76px", fontSize: "17px", fontWeight: 700, letterSpacing: "-0.476px", lineHeight: "21.25px", color: "#1D1D1F", textAlign: "center" }}>인증서 승인</p>
-        <div className="flex flex-wrap justify-center" style={{ paddingBottom: "29.28px" }}>
+        <div className="flex flex-wrap justify-center" style={{ paddingBottom: "19.52px" }}>
           <span style={{ whiteSpace: "pre", fontSize: "14px", fontWeight: 600, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "#1D1D1F" }}>{name}</span>
           <span style={{ whiteSpace: "pre", fontSize: "14px", fontWeight: 400, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "rgba(29,29,31,0.6)" }}>의</span>
-          <span style={{ whiteSpace: "pre", fontSize: "14px", fontWeight: 400, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "#1E3A5F" }}>{kind}</span>
+          <span style={{ whiteSpace: "pre", fontSize: "14px", fontWeight: 400, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "#1E3A5F" }}>{resolvedName}</span>
           <span style={{ whiteSpace: "pre", fontSize: "14px", fontWeight: 400, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "rgba(29,29,31,0.6)" }}> 인증서를 승인하시겠습니까?</span>
+        </div>
+        <div style={{ paddingBottom: "19.52px" }}>
+          <p style={{ margin: "0 0 7.32px", fontSize: "12px", fontWeight: 600, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.5)" }}>인증서명 *</p>
+          <CertificationNameCombobox
+            options={certificationNameOptions}
+            value={certificationName}
+            onChange={setCertificationName}
+          />
         </div>
         <div className="flex" style={{ gap: "14.64px" }}>
           <button
@@ -1109,9 +1133,12 @@ function CertApproveModal({
           </button>
           <button
             type="button"
-            onClick={onConfirm}
+            disabled={!resolvedName}
+            onClick={() => {
+              if (resolvedName) onConfirm(resolvedName);
+            }}
             className="inline-flex items-center justify-center"
-            style={{ flex: 1, height: "49.12px", borderRadius: "14.64px", background: "#10B981", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#FFFFFF" }}
+            style={{ flex: 1, height: "49.12px", borderRadius: "14.64px", background: "#10B981", border: "none", cursor: resolvedName ? "pointer" : "default", opacity: resolvedName ? 1 : 0.4, fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#FFFFFF" }}
           >
             승인 처리
           </button>

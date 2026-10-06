@@ -16,7 +16,7 @@ export async function PATCH(
 
   const quote = await prisma.quoteRequest.findUnique({
     where: { id },
-    select: { officialId: true },
+    select: { officialId: true, awardedResponseId: true },
   });
   if (!quote) return NextResponse.json({ error: "공고를 찾을 수 없습니다" }, { status: 404 });
   if (quote.officialId !== claims.sub) return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
@@ -29,9 +29,15 @@ export async function PATCH(
 
   const target = await prisma.quoteResponse.findFirst({
     where: { id: responseId, quoteRequestId: id },
-    select: { id: true },
+    select: { id: true, status: true },
   });
-  if (!target) return NextResponse.json({ error: "제안서를 찾을 수 없습니다" }, { status: 404 });
+  if (!target) return NextResponse.json({ error: "견적서를 찾을 수 없습니다" }, { status: 404 });
+  if (quote.awardedResponseId !== null || target.status === "AWARDED") {
+    return NextResponse.json(
+      { error: "선정 시 취소 또는 변경이 불가하오니 신중하게 선택해주시기 바랍니다." },
+      { status: 409 },
+    );
+  }
 
   if (body.status === "AWARDED") {
     await prisma.$transaction([
@@ -69,7 +75,7 @@ export async function PATCH(
             type: "QUOTE_AWARDED" as const,
             title: "견적 선정 결과",
             body: `'${resp.quoteRequest.title}' 견적에 귀사가 선정되었습니다.`,
-            link: "/partner/quotes",
+            link: "/partner/quotes?tab=announcement&sub=proposals",
             category: "quoteNotice" as const,
           })),
         );

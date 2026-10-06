@@ -5,12 +5,19 @@ import { SiteFooter } from "@/components/site-footer";
 import { KakaoChat } from "@/components/kakao-chat";
 import { CheckoutView } from "./checkout-view";
 
-export default async function CheckoutPage({ searchParams }: { searchParams: Promise<{ pay?: string }> }) {
+export default async function CheckoutPage({ searchParams }: { searchParams: Promise<{ pay?: string; productId?: string; quantity?: string }> }) {
   const claims = await getSessionClaims();
   if (!claims) redirect("/login");
 
   const sp = await searchParams;
-  const initialPay = sp?.pay === "virtual" ? "virtual" : "card";
+  const initialPay = sp?.pay === "bank" ? "bank" : "card";
+
+  const productId = sp?.productId?.trim() ?? "";
+  const quantity = Number(sp?.quantity);
+  const directItem =
+    productId && Number.isInteger(quantity) && quantity > 0
+      ? { productId, quantity }
+      : null;
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">
@@ -26,7 +33,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
           </p>
           <div style={{ marginTop: "29.28px", borderTop: "1px solid rgba(210,210,215,0.4)" }} />
 
-          <CheckoutView initialPay={initialPay} />
+          <CheckoutView initialPay={initialPay} directItem={directItem} />
         </div>
       </main>
       <SiteFooter />

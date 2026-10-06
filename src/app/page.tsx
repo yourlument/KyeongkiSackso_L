@@ -5,6 +5,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { KakaoChat } from "@/components/kakao-chat";
 import { CategoryPanel } from "@/components/category-panel";
 import type { PanelCategory } from "@/components/category-panel";
+import { HeroSearch } from "@/components/hero-search";
 import { loadNews } from "@/lib/news";
 
 export const dynamic = "force-dynamic";
@@ -86,6 +87,7 @@ async function getCategoryTree(): Promise<{
         const items = leaves
           .filter((l) => l.parentId === mid.id)
           .map((l) => ({
+            id: l.id,
             name: l.name,
             type: l.itemType === "SERVICE" ? ("서비스" as const) : ("물품" as const),
           }));
@@ -110,17 +112,17 @@ async function getCategoryTree(): Promise<{
 const FEATURES = [
   {
     title: "스마트 검색",
-    desc: "물품식별번호, 키워드, 카테고리로 즉시 검색. 다중 필터로 정밀하게 찾아보세요.",
+    desc: "분류번호, 키워드, 카테고리로 즉시 검색. 다중 필터로 정밀하게 찾아보세요.",
     icon: "/icons/land-feat-search.svg",
   },
   {
     title: "견적 매칭",
-    desc: "공고 등록부터 선정까지 한 번에. 업체별 제안서를 그리드로 비교 분석하세요.",
+    desc: "공고 등록부터 선정까지 한 번에. 업체별 견적서를 그리드로 비교 분석하세요.",
     icon: "/icons/land-feat-quote.svg",
   },
   {
     title: "지급대행 결제",
-    desc: "법인카드/가상계좌 결제 후 플랫폼이 입점 업체별로 자동 분배합니다.",
+    desc: "법인카드/계좌이체 결제 후 플랫폼이 입점 업체별로 자동 분배합니다.",
     icon: "/icons/land-feat-payment.svg",
   },
   {
@@ -164,29 +166,7 @@ export default async function HomePage() {
             공공조달 상품을 더 쉽고 투명하게.
           </p>
 
-          <form
-            action="/search"
-            className="flex h-[64px] w-full max-w-[820px] items-center rounded-[19.52px] border border-[#D2D2D7]/40 bg-white p-[1px]"
-          >
-            <span className="flex h-[59px] w-[59px] flex-none items-center justify-center" aria-hidden="true">
-              <img src="/icons/land-hero-search.svg" alt="" width={59} height={59} />
-            </span>
-            <input
-              type="text"
-              name="q"
-              placeholder="물품식별번호, 품명, 키워드를 입력하세요"
-              aria-label="물품 검색"
-              className="h-full min-w-0 flex-1 bg-transparent text-[16px] font-normal leading-[28px] tracking-[-0.293px] text-ink placeholder:font-medium placeholder:text-ink/30 focus:outline-none"
-            />
-            <div className="flex flex-none items-center px-[9.76px]">
-              <button
-                type="submit"
-                className="rounded-[14.64px] bg-navy px-[24.4px] py-[9.76px] text-[14px] font-semibold leading-[24.5px] tracking-[-0.293px] text-white transition-colors hover:bg-navy-hover"
-              >
-                검색
-              </button>
-            </div>
-          </form>
+          <HeroSearch />
 
           <div className="mt-[29.28px] flex items-center gap-[14.64px]">
             <Link

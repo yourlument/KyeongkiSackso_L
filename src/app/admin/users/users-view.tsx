@@ -1,8 +1,13 @@
 "use client";
 
-import { useMemo, useState, useTransition, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useTransition, type CSSProperties, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import type { AdminUserRow, AdminUserStatus } from "@/lib/admin-users";
+import {
+  type AdminUserRow,
+  type AdminUserSortDirection,
+  type AdminUserSortSelection,
+  type AdminUserStatus,
+} from "@/lib/admin-users";
 
 type RoleLabel = "공급업체" | "공무원";
 
@@ -10,14 +15,89 @@ const ROLE_FILTERS: Array<"전체" | RoleLabel> = ["전체", "공무원", "공�
 const PAGE_SIZE = 18;
 const GRID = "194px 157px 294px 177px 128px 137px";
 const CELL_PAD = "17.08px 24.4px";
+const NAVY = "#1E3A5F";
+const JOIN_ORDER_OPTIONS: Array<{ value: AdminUserSortDirection | "none"; label: string }> = [
+  { value: "desc", label: "가입일 내림차순" },
+  { value: "asc", label: "가입일 오름차순" },
+  { value: "none", label: "가입일 정렬 안 함" },
+];
+const NAME_ORDER_OPTIONS: Array<{ value: AdminUserSortDirection | "none"; label: string }> = [
+  { value: "none", label: "이름 정렬 안 함" },
+  { value: "asc", label: "이름 오름차순" },
+  { value: "desc", label: "이름 내림차순" },
+];
 
-export function UsersView({ rows }: { rows: AdminUserRow[] }) {
+export function UsersView({
+  rows,
+  initialSortSelection,
+  initialRole,
+  initialQuery,
+  initialPage,
+}: {
+  rows: AdminUserRow[];
+  initialSortSelection: AdminUserSortSelection;
+  initialRole: "전체" | RoleLabel;
+  initialQuery: string;
+  initialPage: number;
+}) {
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const [roleF, setRoleF] = useState<"전체" | RoleLabel>("전체");
-  const [q, setQ] = useState("");
-  const [page, setPage] = useState(1);
+  const [joinedAtOrder, setJoinedAtOrder] = useState<AdminUserSortDirection | null>(initialSortSelection.joinedAt);
+  const [nameOrder, setNameOrder] = useState<AdminUserSortDirection | null>(initialSortSelection.name);
+  const [roleF, setRoleF] = useState<"전체" | RoleLabel>(initialRole);
+  const [q, setQ] = useState(initialQuery);
+  const [page, setPage] = useState(initialPage);
   const [detail, setDetail] = useState<AdminUserRow | null>(null);
+
+  useEffect(() => {
+    setJoinedAtOrder(initialSortSelection.joinedAt);
+    setNameOrder(initialSortSelection.name);
+    setRoleF(initialRole);
+    setQ(initialQuery);
+    setPage(initialPage);
+  }, [initialSortSelection, initialRole, initialQuery, initialPage]);
+
+  function updateQuery(next: Partial<{ joinedAtOrder: AdminUserSortDirection | null; nameOrder: AdminUserSortDirection | null; role: "전체" | RoleLabel; q: string; page: number }>) {
+    const query = new URLSearchParams();
+    const nextJoinedAtOrder = next.joinedAtOrder !== undefined ? next.joinedAtOrder : joinedAtOrder;
+    const nextNameOrder = next.nameOrder !== undefined ? next.nameOrder : nameOrder;
+    const nextRole = next.role ?? roleF;
+    const nextText = next.q ?? q;
+    const nextPage = next.page ?? page;
+    if (nextJoinedAtOrder === null) query.set("joinOrder", "none");
+    else if (nextJoinedAtOrder !== "desc") query.set("joinOrder", nextJoinedAtOrder);
+    if (nextNameOrder) query.set("nameOrder", nextNameOrder);
+    if (nextRole !== "전체") query.set("role", nextRole);
+    if (nextText.trim()) query.set("q", nextText.trim());
+    if (nextPage > 1) query.set("page", String(nextPage));
+    const serialized = query.toString();
+    startTransition(() => router.replace(`/admin/users${serialized ? `?${serialized}` : ""}`));
+  }
+
+  useEffect(() => {
+    setDetail((prev) => {
+      if (!prev) return prev;
+      const fresh = rows.find((r) => r.kind === prev.kind && r.id === prev.id);
+      return fresh ?? null;
+    });
+  }, [rows]);
+
+  useEffect(() => {
+    let lastAt = 0;
+    function revalidate() {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastAt < 1000) return;
+      lastAt = now;
+      startTransition(() => router.refresh());
+    }
+    window.addEventListener("focus", revalidate);
+    document.addEventListener("visibilitychange", revalidate);
+    return () => {
+      window.removeEventListener("focus", revalidate);
+      document.removeEventListener("visibilitychange", revalidate);
+    };
+  }, [router, startTransition]);
 
   const filtered = useMemo(() => {
     return rows
@@ -91,6 +171,7 @@ export function UsersView({ rows }: { rows: AdminUserRow[] }) {
                 onClick={() => {
                   setRoleF(r);
                   setPage(1);
+                  updateQuery({ role: r, page: 1 });
                 }}
                 className="inline-flex items-center justify-center"
                 style={{
@@ -114,6 +195,50 @@ export function UsersView({ rows }: { rows: AdminUserRow[] }) {
           })}
         </div>
 
+        <div className="relative flex items-center" style={{ height: "39.4px", borderRadius: "9999px", border: "1px solid rgba(210,210,215,0.3)", background: "#fff" }}>
+          <select
+            value={joinedAtOrder ?? "none"}
+            onChange={(event) => {
+              const nextOrder = event.target.value === "none" ? null : event.target.value as AdminUserSortDirection;
+              setJoinedAtOrder(nextOrder);
+              setPage(1);
+              updateQuery({ joinedAtOrder: nextOrder, page: 1 });
+            }}
+            aria-label="가입일 정렬"
+            className="h-full cursor-pointer appearance-none outline-none"
+            style={{ background: "transparent", border: "none", padding: "0 35px 0 15.64px", fontSize: "12px", fontWeight: 500, letterSpacing: "-0.18px", color: NAVY }}
+          >
+            {JOIN_ORDER_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <span aria-hidden style={{ position: "absolute", right: "14px", color: NAVY, pointerEvents: "none", fontSize: "12px" }}>▾</span>
+        </div>
+
+        <div className="relative flex items-center" style={{ height: "39.4px", borderRadius: "9999px", border: "1px solid rgba(210,210,215,0.3)", background: "#fff" }}>
+          <select
+            value={nameOrder ?? "none"}
+            onChange={(event) => {
+              const nextOrder = event.target.value === "none" ? null : event.target.value as AdminUserSortDirection;
+              setNameOrder(nextOrder);
+              setPage(1);
+              updateQuery({ nameOrder: nextOrder, page: 1 });
+            }}
+            aria-label="이름 정렬"
+            className="h-full cursor-pointer appearance-none outline-none"
+            style={{ background: "transparent", border: "none", padding: "0 35px 0 15.64px", fontSize: "12px", fontWeight: 500, letterSpacing: "-0.18px", color: NAVY }}
+          >
+            {NAME_ORDER_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <span aria-hidden style={{ position: "absolute", right: "14px", color: NAVY, pointerEvents: "none", fontSize: "12px" }}>▾</span>
+        </div>
+
         <div className="relative flex-1" style={{ height: "49.13px" }}>
           <span
             className="absolute flex items-center"
@@ -125,8 +250,10 @@ export function UsersView({ rows }: { rows: AdminUserRow[] }) {
           <input
             value={q}
             onChange={(e) => {
-              setQ(e.target.value);
+              const next = e.target.value;
+              setQ(next);
               setPage(1);
+              updateQuery({ q: next, page: 1 });
             }}
             placeholder="이름 또는 부서 검색"
             className="h-full w-full"
@@ -287,7 +414,11 @@ export function UsersView({ rows }: { rows: AdminUserRow[] }) {
           <PageArrow
             dir="prev"
             disabled={safePage <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            onClick={() => {
+              const next = Math.max(1, safePage - 1);
+              setPage(next);
+              updateQuery({ page: next });
+            }}
           />
           {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((n) => {
             const active = n === safePage;
@@ -295,7 +426,10 @@ export function UsersView({ rows }: { rows: AdminUserRow[] }) {
               <button
                 key={n}
                 type="button"
-                onClick={() => setPage(n)}
+                onClick={() => {
+                  setPage(n);
+                  updateQuery({ page: n });
+                }}
                 className="flex items-center justify-center"
                 style={{
                   width: "39px",
@@ -318,16 +452,28 @@ export function UsersView({ rows }: { rows: AdminUserRow[] }) {
           <PageArrow
             dir="next"
             disabled={safePage >= totalPages}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            onClick={() => {
+              const next = Math.min(totalPages, safePage + 1);
+              setPage(next);
+              updateQuery({ page: next });
+            }}
           />
         </div>
       </div>
 
       {detail &&
         (detail.kind === "supplier" ? (
-          <SupplierDetailModal row={detail} onClose={() => setDetail(null)} onBlock={() => handleBlock(detail)} />
+          <SupplierDetailModal
+            row={detail}
+            onClose={() => setDetail(null)}
+            onBlock={isWithdrawn(detail.status) ? undefined : () => handleBlock(detail)}
+          />
         ) : (
-          <OfficialDetailModal row={detail} onClose={() => setDetail(null)} onBlock={() => handleBlock(detail)} />
+          <OfficialDetailModal
+            row={detail}
+            onClose={() => setDetail(null)}
+            onBlock={isWithdrawn(detail.status) ? undefined : () => handleBlock(detail)}
+          />
         ))}
     </div>
   );
@@ -335,6 +481,7 @@ export function UsersView({ rows }: { rows: AdminUserRow[] }) {
 
 function StatusBadge({ status }: { status: AdminUserStatus }) {
   const blocked = status === "차단";
+  const withdrawn = isWithdrawn(status);
   return (
     <span
       className="inline-flex items-center justify-center"
@@ -346,15 +493,19 @@ function StatusBadge({ status }: { status: AdminUserStatus }) {
         fontWeight: 500,
         letterSpacing: "-0.18px",
         lineHeight: "21.6px",
-        background: blocked ? "#FEF2F2" : "#ECFDF5",
-        border: blocked ? "1px solid #FECACA" : "1px solid #A7F3D0",
-        color: blocked ? "#DC2626" : "#047857",
+        background: withdrawn ? "rgba(29,29,31,0.05)" : blocked ? "#FEF2F2" : "#ECFDF5",
+        border: withdrawn ? "1px solid #D1D5DB" : blocked ? "1px solid #FECACA" : "1px solid #A7F3D0",
+        color: withdrawn ? "#4B5563" : blocked ? "#DC2626" : "#047857",
         whiteSpace: "nowrap",
       }}
     >
       {status}
     </span>
   );
+}
+
+function isWithdrawn(status: AdminUserStatus) {
+  return String(status) === "탈퇴";
 }
 
 function ModalShell({ onClose, children }: { onClose: () => void; children: ReactNode }) {
@@ -450,6 +601,8 @@ function ProfileRow({
   sub: string;
   status: AdminUserStatus;
 }) {
+  const blocked = status === "차단";
+  const withdrawn = isWithdrawn(status);
   return (
     <div className="flex items-center" style={{ gap: "14.64px" }}>
       <div
@@ -505,13 +658,13 @@ function ProfileRow({
         style={{
           borderRadius: "9999px",
           padding: "5.88px 13.2px",
-          background: status === "차단" ? "#FEF2F2" : "#ECFDF5",
-          border: status === "차단" ? "1px solid #FECACA" : "1px solid #A7F3D0",
+          background: withdrawn ? "rgba(29,29,31,0.05)" : blocked ? "#FEF2F2" : "#ECFDF5",
+          border: withdrawn ? "1px solid #D1D5DB" : blocked ? "1px solid #FECACA" : "1px solid #A7F3D0",
           fontSize: "12px",
           fontWeight: 500,
           letterSpacing: "-0.18px",
           lineHeight: "21.6px",
-          color: status === "차단" ? "#DC2626" : "#047857",
+          color: withdrawn ? "#4B5563" : blocked ? "#DC2626" : "#047857",
           whiteSpace: "nowrap",
         }}
       >
@@ -666,9 +819,55 @@ function SupplierDetailModal({
 }: {
   row: AdminUserRow;
   onClose: () => void;
-  onBlock: () => void;
+  onBlock?: () => void;
 }) {
   const s = row.supplier!;
+  const router = useRouter();
+  const [payoutRegistered, setPayoutRegistered] = useState(
+    s.payoutRegistered,
+  );
+  const [payoutRegisteredAt, setPayoutRegisteredAt] = useState(
+    s.payoutRegisteredAt,
+  );
+  const [payoutError, setPayoutError] = useState(
+    s.payoutLastError === "-" ? "" : s.payoutLastError,
+  );
+  const [registeringPayout, setRegisteringPayout] = useState(false);
+
+  async function registerPayout() {
+    if (!s.bankVerified || payoutRegistered || registeringPayout) return;
+    setRegisteringPayout(true);
+    setPayoutError("");
+    try {
+      const response = await fetch(
+        `/api/admin/nicepay/payout/submalls/${row.id}`,
+        { method: "POST" },
+      );
+      const result = (await response.json().catch(() => ({}))) as {
+        message?: string;
+      };
+      if (!response.ok) {
+        setPayoutError(result.message ?? "지급대행 등록에 실패했습니다.");
+        router.refresh();
+        return;
+      }
+      setPayoutRegistered(true);
+      setPayoutRegisteredAt(
+        new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Asia/Seoul",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date()),
+      );
+      router.refresh();
+    } catch {
+      setPayoutError("지급대행 등록에 실패했습니다.");
+    } finally {
+      setRegisteringPayout(false);
+    }
+  }
+
   return (
     <ModalShell onClose={onClose}>
       <ModalHeader title="공급업체 상세 정보" sub={s.fieldLabel} onClose={onClose} />
@@ -819,7 +1018,57 @@ function SupplierDetailModal({
             <Field label="은행" value={s.bankName} />
             <Field label="계좌번호" value={s.bankAccountNo} />
             <Field label="예금주" value={s.bankAccountHolder} />
+            <Field
+              label="운영 상태"
+              value={payoutRegistered ? "운영 중" : "운영 전환 대기"}
+            />
+            <Field
+              label="지급대행"
+              value={payoutRegistered ? "등록 완료" : "미등록"}
+            />
+            {payoutRegistered && (
+              <Field label="등록일" value={payoutRegisteredAt} />
+            )}
+            {payoutError && (
+              <Field
+                label="처리 결과"
+                value={payoutError}
+                full
+                valueStyle={{ color: "#EF4444" }}
+              />
+            )}
           </InfoBox>
+          <button
+            type="button"
+            onClick={registerPayout}
+            disabled={!s.bankVerified || payoutRegistered || registeringPayout}
+            className="flex w-full items-center justify-center"
+            style={{
+              height: "49px",
+              marginTop: "14.64px",
+              borderRadius: "14.64px",
+              border: "none",
+              background:
+                s.bankVerified && !payoutRegistered
+                  ? "#1E3A5F"
+                  : "rgba(30,58,95,0.4)",
+              color: "#FFFFFF",
+              fontSize: "13px",
+              fontWeight: 600,
+              letterSpacing: "-0.2928px",
+              lineHeight: "22.75px",
+              cursor:
+                s.bankVerified && !payoutRegistered && !registeringPayout
+                  ? "pointer"
+                  : "not-allowed",
+            }}
+          >
+            {payoutRegistered
+              ? "지급대행 등록 완료"
+              : registeringPayout
+                ? "지급대행 등록 요청 중"
+                : "지급대행 등록 요청"}
+          </button>
         </div>
 
         <ModalFooter onClose={onClose} onBlock={onBlock} />
@@ -835,7 +1084,7 @@ function OfficialDetailModal({
 }: {
   row: AdminUserRow;
   onClose: () => void;
-  onBlock: () => void;
+  onBlock?: () => void;
 }) {
   const o = row.official!;
   return (

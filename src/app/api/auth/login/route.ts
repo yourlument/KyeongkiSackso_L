@@ -45,11 +45,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "이용이 제한된 계정입니다" }, { status: 403 });
   }
 
-  if (user.role === "SUPPLIER" && user.supplierCompany?.approvalStatus !== "APPROVED") {
-    return NextResponse.json(
-      { message: "관리자 승인 대기 중인 계정입니다" },
-      { status: 403 },
-    );
+  if (user.role === "SUPPLIER") {
+    if (user.supplierCompany?.isRestricted) {
+      return NextResponse.json({ message: "이용이 제한된 계정입니다" }, { status: 403 });
+    }
+    if (user.supplierCompany?.approvalStatus !== "APPROVED") {
+      return NextResponse.json(
+        { message: "관리자 승인 대기 중인 계정입니다" },
+        { status: 403 },
+      );
+    }
   }
 
   const { accessToken, refreshToken } = await issueTokens(user.id, user.role);

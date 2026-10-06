@@ -4,7 +4,21 @@ export type NaraResult = {
   name: string;
   spec: string | null;
   category: string | null;
+  classNo: string | null;
+  description: string | null;
 };
+
+export type NaraSearchResult = Pick<NaraResult, "name" | "classNo" | "description">;
+
+export function dedupeNaraByClassNo<T extends { classNo: string | null }>(rows: T[]): T[] {
+  const picked = new Map<string, T>();
+  for (const row of rows) {
+    const classNo = row.classNo?.trim();
+    if (!classNo || picked.has(classNo)) continue;
+    picked.set(classNo, row);
+  }
+  return [...picked.values()];
+}
 
 type RawItem = Record<string, unknown>;
 
@@ -14,12 +28,32 @@ const sn = (v: unknown): string | null => {
   return t.length ? t : null;
 };
 
+const VENDOR_TOKEN_COUNT = 3;
+
+export function naraDescription(krnPrdctNm: string | null | undefined, mnfctCorpNm?: string | null): string | null {
+  const parts = s(krnPrdctNm)
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (!parts.length) return null;
+  const vendorParts = s(mnfctCorpNm)
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean).length;
+  const drop = vendorParts > 0 && vendorParts < parts.length ? vendorParts : VENDOR_TOKEN_COUNT;
+  const rest = parts.slice(drop);
+  return rest.length ? rest.join(", ") : null;
+}
+
 function mapItem(it: RawItem): NaraResult {
+  const spec = sn(it.krnPrdctNm ?? it.prdctSpec ?? it.spec ?? it.stndrdSpec);
   return {
     code: s(it.prdctIdntNo ?? it.prdctClsfcNo ?? it.dtilPrdctClsfcNo ?? ""),
-    name: s(it.prdctIdntNoNm ?? it.prdctClsfcNoNm ?? it.dtilPrdctClsfcNoNm ?? it.prdctNm ?? ""),
-    spec: sn(it.krnPrdctNm ?? it.prdctSpec ?? it.spec ?? it.stndrdSpec),
+    name: s(it.prdctClsfcNoNm ?? it.dtilPrdctClsfcNoNm ?? it.prdctIdntNoNm ?? it.prdctNm ?? ""),
+    spec,
     category: sn(it.prdctClsfcNoNm ?? it.clsfcNm ?? it.upPrdctClsfcNoNm),
+    classNo: sn(it.dtilPrdctClsfcNo ?? it.prdctClsfcNo),
+    description: naraDescription(spec, sn(it.mnfctCorpNm)),
   };
 }
 
@@ -61,8 +95,7 @@ async function fetchNara(extra: Record<string, string>, numOfRows: number): Prom
 export async function searchNaraLive(q: string): Promise<NaraResult[] | null> {
   const t = q.trim();
   if (!t) return null;
-  const param = /^\d+$/.test(t) ? "prdctIdntNo" : "krnPrdctNm";
-  return fetchNara({ [param]: t }, 10);
+  return fetchNara({ krnPrdctNm: t }, 10);
 }
 
 export async function searchNaraByDtil(dtilCode: string, numOfRows = 999): Promise<NaraResult[] | null> {

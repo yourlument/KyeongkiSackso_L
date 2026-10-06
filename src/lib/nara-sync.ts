@@ -14,6 +14,22 @@ export async function fetchCategoryItems(category: {
   return byKeyword ?? [];
 }
 
+async function backfillClassNo(items: NaraResult[]): Promise<void> {
+  const byClassNo = new Map<string, string[]>();
+  for (const r of items) {
+    if (!r.classNo) continue;
+    const codes = byClassNo.get(r.classNo);
+    if (codes) codes.push(r.code);
+    else byClassNo.set(r.classNo, [r.code]);
+  }
+  for (const [classNo, codes] of byClassNo) {
+    await prisma.naraItem.updateMany({
+      where: { npsCode: { in: codes }, classNo: null },
+      data: { classNo },
+    });
+  }
+}
+
 export async function syncCategoryItems(categoryId: string): Promise<number> {
   const cat = await prisma.category.findUnique({
     where: { id: categoryId },
@@ -25,9 +41,10 @@ export async function syncCategoryItems(categoryId: string): Promise<number> {
 
   if (items.length) {
     await prisma.naraItem.createMany({
-      data: items.map((r) => ({ npsCode: r.code, name: r.name, spec: r.spec, category: r.category })),
+      data: items.map((r) => ({ npsCode: r.code, name: r.name, spec: r.spec, category: r.category, classNo: r.classNo })),
       skipDuplicates: true,
     });
+    await backfillClassNo(items);
     await prisma.naraItemCategory.createMany({
       data: items.map((r) => ({ categoryId, npsCode: r.code })),
       skipDuplicates: true,

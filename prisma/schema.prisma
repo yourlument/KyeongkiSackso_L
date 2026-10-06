@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -66,28 +65,28 @@ model User {
 }
 
 model RefreshToken {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String   @unique @map("token_hash")
-  expiresAt DateTime @map("expires_at")
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
   revokedAt DateTime? @map("revoked_at")
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime  @default(now()) @map("created_at")
 
   @@index([userId])
   @@map("refresh_tokens")
 }
 
 model Organization {
-  id                     String   @id @default(cuid())
+  id                     String  @id @default(cuid())
   name                   String
-  businessRegistrationNo String?  @unique @map("business_registration_no")
+  businessRegistrationNo String? @unique @map("business_registration_no")
   type                   String?
   region                 String?
   phone                  String?
-  representativeName String? @map("representative_name")
-  taxEmail           String? @map("tax_email")
-  address            String?
+  representativeName     String? @map("representative_name")
+  taxEmail               String? @map("tax_email")
+  address                String?
 
   users     User[]
   createdAt DateTime @default(now()) @map("created_at")
@@ -102,18 +101,20 @@ enum ApprovalStatus {
 }
 
 model SupplierCompany {
-  id                     String         @id @default(cuid())
-  name                   String
-  representativeName     String         @map("representative_name")
-  businessRegistrationNo String         @map("business_registration_no")
-  businessLicenseFileUrl String?        @map("business_license_file_url")
-  corporateRegistrationNo String?       @map("corporate_registration_no")
-  businessType           String?        @map("business_type")
-  businessItem           String?        @map("business_item")
-  address                String?
-  phone                  String?
-  approvalStatus         ApprovalStatus @default(PENDING) @map("approval_status")
-  approvalMemo           String?        @map("approval_memo")
+  id                      String         @id @default(cuid())
+  name                    String
+  representativeName      String         @map("representative_name")
+  businessRegistrationNo  String         @map("business_registration_no")
+  businessLicenseFileUrl  String?        @map("business_license_file_url")
+  corporateRegistrationNo String?        @map("corporate_registration_no")
+  businessType            String?        @map("business_type")
+  businessItem            String?        @map("business_item")
+  address                 String?
+  phone                   String?
+  quoteSealCompanyName    String?        @map("quote_seal_company_name")
+  quoteSealImageKey       String?        @map("quote_seal_image_key")
+  approvalStatus          ApprovalStatus @default(PENDING) @map("approval_status")
+  approvalMemo            String?        @map("approval_memo")
 
   region            String?
   establishedYear   Int?     @map("established_year")
@@ -130,28 +131,43 @@ model SupplierCompany {
 
   taxEmail String? @map("tax_email")
 
-  bankName          String?   @map("bank_name")
-  bankAccountNo     String?   @map("bank_account_no")
-  bankAccountHolder String?   @map("bank_account_holder")
-  bankbookFileUrl   String?   @map("bankbook_file_url")
-  bankVerifiedAt    DateTime? @map("bank_verified_at")
+  bankName           String?   @map("bank_name")
+  bankAccountNo      String?   @map("bank_account_no")
+  bankAccountHolder  String?   @map("bank_account_holder")
+  bankbookFileUrl    String?   @map("bankbook_file_url")
+  bankVerifiedAt     DateTime? @map("bank_verified_at")
+  bankCode           String?   @map("bank_code")
+  bankOtpRefId       String?   @map("bank_otp_ref_id")
+  bankOtpRequestNo   String?   @map("bank_otp_request_no")
+  bankOtpRequestedAt DateTime? @map("bank_otp_requested_at")
+
+  pendingBankName          String? @map("pending_bank_name")
+  pendingBankAccountNo     String? @map("pending_bank_account_no")
+  pendingBankAccountHolder String? @map("pending_bank_account_holder")
+  pendingBankbookFileUrl   String? @map("pending_bankbook_file_url")
+  pendingBankCode          String? @map("pending_bank_code")
+
+  nicepaySubId            String?   @unique @map("nicepay_sub_id")
+  nicepaySubmallSyncedAt  DateTime? @map("nicepay_submall_synced_at")
+  nicepaySubmallLastError String?   @map("nicepay_submall_last_error")
 
   categoryId String?   @map("category_id")
   category   Category? @relation(fields: [categoryId], references: [id])
 
   isRestricted Boolean @default(false) @map("is_restricted")
 
-  users                 User[]
-  products              Product[]
-  quoteResponses        QuoteResponse[]
-  settlements           Settlement[]
-  certificationRequests SupplierCertification[]
-  performances          SupplierPerformance[]
-  equipments            SupplierEquipment[]
-  subscriptions         Subscription[]
-  chatThreads           ChatThread[]
-  orderItems            OrderItem[]
-  targetedQuoteRequests QuoteRequest[]          @relation("DirectQuoteTarget")
+  users                            User[]
+  products                         Product[]
+  quoteResponses                   QuoteResponse[]
+  settlements                      Settlement[]
+  certificationRequests            SupplierCertification[]
+  performances                     SupplierPerformance[]
+  equipments                       SupplierEquipment[]
+  subscriptions                    Subscription[]
+  subscriptionBillingRegistrations SubscriptionBillingRegistration[]
+  chatThreads                      ChatThread[]
+  orderItems                       OrderItem[]
+  targetedQuoteRequests            QuoteRequest[]                    @relation("DirectQuoteTarget")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -219,17 +235,17 @@ enum TermType {
 }
 
 model Term {
-  id        String              @id @default(cuid())
-  type      TermType
-  version   String
-  title     String
-  summary   String?
-  content   String
-  contentHtml String?           @map("content_html")
-  required  Boolean             @default(true)
-  isActive  Boolean             @default(true) @map("is_active")
-  agreements UserTermAgreement[]
-  createdAt DateTime            @default(now()) @map("created_at")
+  id          String              @id @default(cuid())
+  type        TermType
+  version     String
+  title       String
+  summary     String?
+  content     String
+  contentHtml String?             @map("content_html")
+  required    Boolean             @default(true)
+  isActive    Boolean             @default(true) @map("is_active")
+  agreements  UserTermAgreement[]
+  createdAt   DateTime            @default(now()) @map("created_at")
 
   @@unique([type, version])
   @@map("terms")
@@ -385,6 +401,7 @@ model NaraItem {
   name     String
   spec     String?
   category String?
+  classNo  String? @map("class_no")
 
   @@map("nara_items")
 }
@@ -451,22 +468,22 @@ model QuoteRequest {
   status      QuoteRequestStatus @default(DRAFT)
   deadline    DateTime?
 
-  kind                    QuoteRequestKind  @default(OPEN_BID)
-  targetSupplierCompanyId String?           @map("target_supplier_company_id")
-  targetSupplierCompany   SupplierCompany?  @relation("DirectQuoteTarget", fields: [targetSupplierCompanyId], references: [id])
+  kind                    QuoteRequestKind @default(OPEN_BID)
+  targetSupplierCompanyId String?          @map("target_supplier_company_id")
+  targetSupplierCompany   SupplierCompany? @relation("DirectQuoteTarget", fields: [targetSupplierCompanyId], references: [id])
 
-  quoteType         CategoryItemType? @map("quote_type")
-  categoryId        String?           @map("category_id")
-  category          Category?         @relation(fields: [categoryId], references: [id])
-  npsCode           String?           @map("nps_code")
-  budget            Decimal?          @db.Decimal(14, 2)
-  budgetTbd         Boolean           @default(false) @map("budget_tbd")
-  dueDate           DateTime?         @map("due_date")
-  deliveryCondition String?           @map("delivery_condition")
-  deliveryPlace     String?           @map("delivery_place")
-  deliveryAddress   String?           @map("delivery_address")
-  deliveryAddressDetail String?       @map("delivery_address_detail")
-  desiredDeliveryDate   DateTime?     @map("desired_delivery_date")
+  quoteType             CategoryItemType? @map("quote_type")
+  categoryId            String?           @map("category_id")
+  category              Category?         @relation(fields: [categoryId], references: [id])
+  npsCode               String?           @map("nps_code")
+  budget                Decimal?          @db.Decimal(14, 2)
+  budgetTbd             Boolean           @default(false) @map("budget_tbd")
+  dueDate               DateTime?         @map("due_date")
+  deliveryCondition     String?           @map("delivery_condition")
+  deliveryPlace         String?           @map("delivery_place")
+  deliveryAddress       String?           @map("delivery_address")
+  deliveryAddressDetail String?           @map("delivery_address_detail")
+  desiredDeliveryDate   DateTime?         @map("desired_delivery_date")
 
   contactOrgName    String? @map("contact_org_name")
   contactDepartment String? @map("contact_department")
@@ -533,7 +550,7 @@ model QuoteResponse {
   quoteRequest      QuoteRequest        @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
   supplierCompanyId String              @map("supplier_company_id")
   supplierCompany   SupplierCompany     @relation(fields: [supplierCompanyId], references: [id])
-  totalAmount       Decimal             @db.Decimal(14, 2) @map("total_amount")
+  totalAmount       Decimal             @map("total_amount") @db.Decimal(14, 2)
   status            QuoteResponseStatus @default(SUBMITTED)
   validUntil        DateTime?           @map("valid_until")
   memo              String?
@@ -544,7 +561,7 @@ model QuoteResponse {
 
   items       QuoteResponseItem[]
   attachments QuoteResponseAttachment[]
-  awardedFor  QuoteRequest?       @relation("AwardedResponse")
+  awardedFor  QuoteRequest?             @relation("AwardedResponse")
   order       Order?
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -561,7 +578,7 @@ model QuoteResponseItem {
   quoteResponse      QuoteResponse    @relation(fields: [quoteResponseId], references: [id], onDelete: Cascade)
   quoteRequestItemId String           @map("quote_request_item_id")
   quoteRequestItem   QuoteRequestItem @relation(fields: [quoteRequestItemId], references: [id])
-  unitPrice          Decimal          @db.Decimal(14, 2) @map("unit_price")
+  unitPrice          Decimal          @map("unit_price") @db.Decimal(14, 2)
   amount             Decimal          @db.Decimal(14, 2)
 
   @@index([quoteResponseId])
@@ -642,7 +659,7 @@ model Order {
   buyerId String @map("buyer_id")
   buyer   User   @relation("BuyerOrders", fields: [buyerId], references: [id])
 
-  totalAmount Decimal     @db.Decimal(14, 2) @map("total_amount")
+  totalAmount Decimal     @map("total_amount") @db.Decimal(14, 2)
   status      OrderStatus @default(PENDING)
 
   recipientName         String? @map("recipient_name")
@@ -667,8 +684,9 @@ model Order {
   payments       Payment[]
   refundRequests RefundRequest[]
 
-  settlementId String?     @map("settlement_id")
-  settlement   Settlement? @relation(fields: [settlementId], references: [id])
+  settlementId      String?      @map("settlement_id")
+  settlement        Settlement?  @relation(fields: [settlementId], references: [id])
+  sourceSettlements Settlement[] @relation("SourceOrderSettlements")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -691,7 +709,7 @@ model OrderItem {
   name      String
   spec      String?
   quantity  Int
-  unitPrice Decimal @db.Decimal(14, 2) @map("unit_price")
+  unitPrice Decimal @map("unit_price") @db.Decimal(14, 2)
   amount    Decimal @db.Decimal(14, 2)
 
   @@index([orderId])
@@ -714,6 +732,7 @@ model Contract {
 enum PaymentProvider {
   MOCK
   TOSS
+  NICEPAY
 }
 
 enum PaymentStatus {
@@ -733,6 +752,7 @@ model Payment {
   amount        Decimal         @db.Decimal(14, 2)
   method        String?
   transactionId String?         @map("transaction_id")
+  requestKey    String?         @unique @map("request_key")
   metadata      Json?
   paidAt        DateTime?       @map("paid_at")
 
@@ -753,18 +773,18 @@ enum RefundRequestStatus {
 }
 
 model RefundRequest {
-  id          String              @id @default(cuid())
-  orderId     String              @map("order_id")
-  order       Order               @relation(fields: [orderId], references: [id])
-  paymentId   String?             @map("payment_id")
-  payment     Payment?            @relation(fields: [paymentId], references: [id])
-  requesterId String              @map("requester_id")
-  requester   User                @relation(fields: [requesterId], references: [id])
-  reason      String
-  status      RefundRequestStatus @default(PENDING)
-  rejectReason String?            @map("reject_reason")
-  processedAt DateTime?           @map("processed_at")
-  processedBy String?             @map("processed_by")
+  id           String              @id @default(cuid())
+  orderId      String              @map("order_id")
+  order        Order               @relation(fields: [orderId], references: [id])
+  paymentId    String?             @map("payment_id")
+  payment      Payment?            @relation(fields: [paymentId], references: [id])
+  requesterId  String              @map("requester_id")
+  requester    User                @relation(fields: [requesterId], references: [id])
+  reason       String
+  status       RefundRequestStatus @default(PENDING)
+  rejectReason String?             @map("reject_reason")
+  processedAt  DateTime?           @map("processed_at")
+  processedBy  String?             @map("processed_by")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -776,72 +796,160 @@ model RefundRequest {
 enum SettlementStatus {
   PENDING
   PAID
+  CANCELLED
 }
 
 model Settlement {
   id                String           @id @default(cuid())
   supplierCompanyId String           @map("supplier_company_id")
   supplierCompany   SupplierCompany  @relation(fields: [supplierCompanyId], references: [id])
+  sourceOrderId     String?          @map("source_order_id")
+  sourceOrder       Order?           @relation("SourceOrderSettlements", fields: [sourceOrderId], references: [id])
   periodStart       DateTime         @map("period_start")
   periodEnd         DateTime         @map("period_end")
   amount            Decimal          @db.Decimal(14, 2)
   status            SettlementStatus @default(PENDING)
   paidAt            DateTime?        @map("paid_at")
 
-  grossAmount         Decimal?  @db.Decimal(14, 2) @map("gross_amount")
-  fee                 Decimal?  @db.Decimal(14, 2)
-  scheduledPayoutDate DateTime? @map("scheduled_payout_date")
-  settleNote          String?   @map("settle_note")
+  grossAmount              Decimal?  @map("gross_amount") @db.Decimal(14, 2)
+  fee                      Decimal?  @db.Decimal(14, 2)
+  pgFee                    Decimal?  @map("pg_fee") @db.Decimal(14, 2)
+  scheduledPayoutDate      DateTime? @map("scheduled_payout_date")
+  settleNote               String?   @map("settle_note")
+  nicepayPayoutSeq         String?   @map("nicepay_payout_seq")
+  nicepayPayoutStatus      String?   @map("nicepay_payout_status")
+  nicepayPayoutRequestedAt DateTime? @map("nicepay_payout_requested_at")
+  nicepayPayoutError       String?   @map("nicepay_payout_error")
 
   orders Order[]
 
   createdAt DateTime @default(now()) @map("created_at")
 
+  @@unique([sourceOrderId, supplierCompanyId])
   @@index([supplierCompanyId])
+  @@index([sourceOrderId])
   @@map("settlements")
 }
 
 enum SubscriptionStatus {
+  PENDING
   ACTIVE
   OVERDUE
   CANCELLED
 }
 
-model Subscription {
-  id                String             @id @default(cuid())
-  supplierCompanyId String             @map("supplier_company_id")
-  supplierCompany   SupplierCompany    @relation(fields: [supplierCompanyId], references: [id])
-  planName          String             @map("plan_name")
-  price             Decimal            @db.Decimal(14, 2)
-  status            SubscriptionStatus @default(ACTIVE)
-  startedAt         DateTime           @map("started_at")
-  nextBillingDate   DateTime?          @map("next_billing_date")
-  payMethod         String?            @map("pay_method")
-  cardNo            String?            @map("card_no")
+enum SubscriptionCycle {
+  MONTHLY
+  ANNUAL
+}
 
-  payments SubscriptionPayment[]
+enum SubscriptionPaymentKind {
+  INITIAL
+  RENEWAL
+}
+
+enum SubscriptionBillingRegistrationStatus {
+  READY
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum SubscriptionBillingRegistrationMode {
+  ACTIVATE
+  REPLACE
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  supplierCompanyId    String             @map("supplier_company_id")
+  supplierCompany      SupplierCompany    @relation(fields: [supplierCompanyId], references: [id])
+  planName             String             @map("plan_name")
+  price                Decimal            @db.Decimal(14, 2)
+  status               SubscriptionStatus @default(ACTIVE)
+  cycle                SubscriptionCycle  @default(MONTHLY)
+  startedAt            DateTime           @map("started_at")
+  nextBillingDate      DateTime?          @map("next_billing_date")
+  payMethod            String?            @map("pay_method")
+  cardNo               String?            @map("card_no")
+  cardCode             String?            @map("card_code")
+  cardName             String?            @map("card_name")
+  billingProvider      String?            @map("billing_provider")
+  billingKeyEncrypted  String?            @map("billing_key_encrypted")
+  billingKeyIssuedTid  String?            @map("billing_key_issued_tid")
+  billingAnchorDay     Int?               @map("billing_anchor_day")
+  currentPeriodStart   DateTime?          @map("current_period_start")
+  currentPeriodEnd     DateTime?          @map("current_period_end")
+  cancelAtPeriodEnd    Boolean            @default(false) @map("cancel_at_period_end")
+  cancelEffectiveAt    DateTime?          @map("cancel_effective_at")
+  cancelledAt          DateTime?          @map("cancelled_at")
+  billingFailureCount  Int                @default(0) @map("billing_failure_count")
+  nextRetryAt          DateTime?          @map("next_retry_at")
+  lastBillingAttemptAt DateTime?          @map("last_billing_attempt_at")
+  lastBillingError     String?            @map("last_billing_error")
+  billingLockUntil     DateTime?          @map("billing_lock_until")
+
+  payments      SubscriptionPayment[]
+  registrations SubscriptionBillingRegistration[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([supplierCompanyId])
   @@index([status])
+  @@index([nextBillingDate, status])
   @@map("subscriptions")
 }
 
 model SubscriptionPayment {
-  id             String        @id @default(cuid())
-  subscriptionId String        @map("subscription_id")
-  subscription   Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
-  amount         Decimal       @db.Decimal(14, 2)
-  status         PaymentStatus @default(PAID)
-  billingMonth   String?       @map("billing_month")
-  paidAt         DateTime?     @map("paid_at")
+  id              String                  @id @default(cuid())
+  subscriptionId  String                  @map("subscription_id")
+  subscription    Subscription            @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  amount          Decimal                 @db.Decimal(14, 2)
+  status          PaymentStatus           @default(PAID)
+  billingMonth    String?                 @map("billing_month")
+  paidAt          DateTime?               @map("paid_at")
+  kind            SubscriptionPaymentKind @default(RENEWAL)
+  provider        PaymentProvider         @default(MOCK)
+  transactionId   String?                 @unique @map("transaction_id")
+  merchantOrderId String?                 @unique @map("merchant_order_id")
+  periodStart     DateTime?               @map("period_start")
+  periodEnd       DateTime?               @map("period_end")
+  attemptedAt     DateTime?               @map("attempted_at")
+  attemptCount    Int                     @default(0) @map("attempt_count")
+  failureReason   String?                 @map("failure_reason")
+  metadata        Json?
 
   createdAt DateTime @default(now()) @map("created_at")
 
+  @@unique([subscriptionId, billingMonth])
   @@index([subscriptionId])
   @@map("subscription_payments")
+}
+
+model SubscriptionBillingRegistration {
+  id                String                                @id @default(cuid())
+  requestKey        String                                @unique @map("request_key")
+  supplierCompanyId String                                @map("supplier_company_id")
+  supplierCompany   SupplierCompany                       @relation(fields: [supplierCompanyId], references: [id], onDelete: Cascade)
+  subscriptionId    String?                               @map("subscription_id")
+  subscription      Subscription?                         @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  requestedById     String                                @map("requested_by_id")
+  cycle             SubscriptionCycle
+  amount            Decimal                               @db.Decimal(14, 2)
+  mode              SubscriptionBillingRegistrationMode
+  status            SubscriptionBillingRegistrationStatus @default(READY)
+  expiresAt         DateTime                              @map("expires_at")
+  completedAt       DateTime?                             @map("completed_at")
+  resultCode        String?                               @map("result_code")
+  resultMessage     String?                               @map("result_message")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([supplierCompanyId, status])
+  @@index([subscriptionId])
+  @@map("subscription_billing_registrations")
 }
 
 enum NotificationType {
@@ -881,19 +989,19 @@ enum PostStatus {
 }
 
 model Post {
-  id        String     @id @default(cuid())
-  boardType BoardType  @map("board_type")
-  authorId  String     @map("author_id")
-  author    User       @relation(fields: [authorId], references: [id])
-  category  String?
-  title     String
-  content   String
-  status    PostStatus @default(OPEN)
-  views     Int        @default(0)
-  likes     Int        @default(0)
-  dislikes  Int        @default(0)
-  isPublished Boolean  @default(true) @map("is_published")
-  videoUrl  String?    @map("video_url")
+  id          String     @id @default(cuid())
+  boardType   BoardType  @map("board_type")
+  authorId    String     @map("author_id")
+  author      User       @relation(fields: [authorId], references: [id])
+  category    String?
+  title       String
+  content     String
+  status      PostStatus @default(OPEN)
+  views       Int        @default(0)
+  likes       Int        @default(0)
+  dislikes    Int        @default(0)
+  isPublished Boolean    @default(true) @map("is_published")
+  videoUrl    String?    @map("video_url")
 
   comments    Comment[]
   attachments PostAttachment[]
@@ -908,12 +1016,12 @@ model Post {
 }
 
 model PostAttachment {
-  id       String  @id @default(cuid())
-  postId   String  @map("post_id")
-  post     Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
-  fileUrl  String  @map("file_url")
-  fileName String  @map("file_name")
-  fileSize Int?    @map("file_size")
+  id       String @id @default(cuid())
+  postId   String @map("post_id")
+  post     Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  fileUrl  String @map("file_url")
+  fileName String @map("file_name")
+  fileSize Int?   @map("file_size")
 
   @@index([postId])
   @@map("post_attachments")
@@ -1018,11 +1126,11 @@ model NewsAttachment {
 }
 
 model Banner {
-  id        String   @id @default(cuid())
-  imageUrl  String   @map("image_url")
+  id        String    @id @default(cuid())
+  imageUrl  String    @map("image_url")
   link      String?
-  sortOrder Int      @default(0) @map("sort_order")
-  isActive  Boolean  @default(true) @map("is_active")
+  sortOrder Int       @default(0) @map("sort_order")
+  isActive  Boolean   @default(true) @map("is_active")
   startsAt  DateTime? @map("starts_at")
   endsAt    DateTime? @map("ends_at")
 
@@ -1080,17 +1188,17 @@ enum InquiryStatus {
 }
 
 model Inquiry {
-  id       String        @id @default(cuid())
-  userId   String        @map("user_id")
-  user     User          @relation(fields: [userId], references: [id])
-  title    String
-  content  String
-  answer   String?
-  status   InquiryStatus @default(OPEN)
+  id      String        @id @default(cuid())
+  userId  String        @map("user_id")
+  user    User          @relation(fields: [userId], references: [id])
+  title   String
+  content String
+  answer  String?
+  status  InquiryStatus @default(OPEN)
 
-  category String?
-  priority Priority @default(NORMAL)
-  answeredBy String? @map("answered_by")
+  category   String?
+  priority   Priority @default(NORMAL)
+  answeredBy String?  @map("answered_by")
 
   contactName  String? @map("contact_name")
   contactOrg   String? @map("contact_org")

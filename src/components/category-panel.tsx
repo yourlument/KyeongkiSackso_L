@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
-type SubItem = { name: string; type: "물품" | "서비스" };
+type SubItem = { id: string; name: string; type: "물품" | "서비스" };
 type SubCategory = { name: string; count: number; items: SubItem[]; open: boolean };
 export type PanelCategory = { name: string; subs: SubCategory[] | null };
 
@@ -144,8 +145,9 @@ export function CategoryPanel({ categories }: { categories: PanelCategory[] }) {
                       }}
                     >
                       {sub.items.map((item) => (
-                        <div
-                          key={item.name}
+                        <Link
+                          key={item.id}
+                          href={`/search?category=${item.id}`}
                           className="flex items-center"
                           style={{
                             borderRadius: "14.64px",
@@ -191,7 +193,7 @@ export function CategoryPanel({ categories }: { categories: PanelCategory[] }) {
                           >
                             {item.type}
                           </span>
-                        </div>
+                        </Link>
                       ))}
                     </div>
                   )}

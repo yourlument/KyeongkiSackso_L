@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionClaims } from "@/lib/auth/session";
+import { submitSettlementPayout } from "@/lib/nicepay/payout-service";
+import { createPurchaseConfirmationSettlements } from "@/lib/settlements";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +22,17 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   const order = await prisma.order.findUnique({
     where: { orderNo: id },
-    select: { id: true, buyerId: true, status: true },
+    select: {
+      id: true,
+      buyerId: true,
+      status: true,
+      items: {
+        select: {
+          supplierCompanyId: true,
+          amount: true,
+        },
+      },
+    },
   });
 
   if (!order || order.buyerId !== claims.sub) {
@@ -31,10 +43,41 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ message: "구매 확정이 가능한 상태가 아닙니다" }, { status: 400 });
   }
 
-  await prisma.order.update({
-    where: { id: order.id },
-    data: { status: "COMPLETED" },
+  const completedAt = new Date();
+  const settlementIds = await prisma.$transaction(async (tx) => {
+    const updated = await tx.order.updateMany({
+      where: { id: order.id, status: "DELIVERED" },
+      data: { status: "COMPLETED" },
+    });
+    if (updated.count !== 1) {
+      throw new Error("구매 확정이 가능한 상태가 아닙니다");
+    }
+    return createPurchaseConfirmationSettlements(tx, {
+      orderId: order.id,
+      completedAt,
+      items: order.items,
+    });
   });
 
-  return NextResponse.json({ ok: true });
+  const payouts = await Promise.all(
+    settlementIds.map(async (settlementId) => {
+      try {
+        const result = await submitSettlementPayout(settlementId, {
+          dupChkYn: "N",
+        });
+        return { settlementId, requested: true, seq: result.seq };
+      } catch (error) {
+        return {
+          settlementId,
+          requested: false,
+          message:
+            error instanceof Error
+              ? error.message
+              : "NICEPAY 지급 요청 실패",
+        };
+      }
+    }),
+  );
+
+  return NextResponse.json({ ok: true, settlements: payouts });
 }

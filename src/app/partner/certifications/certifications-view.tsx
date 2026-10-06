@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { CertificationNameCombobox } from "@/components/certification-name-combobox";
 import type { CertRow, CertStatus } from "@/lib/partner-certifications";
 import { uploadFile } from "@/lib/upload-client";
 import {
@@ -70,9 +71,11 @@ function StatCard({ value, color, label }: { value: string; color: string; label
 export function CertificationsView({
   rows,
   stats,
+  nameOptions,
 }: {
   rows: CertRow[];
   stats: { approved: number; reviewing: number; total: number };
+  nameOptions: string[];
 }) {
   const router = useRouter();
   const [submitOpen, setSubmitOpen] = useState(false);
@@ -248,7 +251,13 @@ export function CertificationsView({
         </div>
       </div>
 
-      {submitOpen && <SubmitModal onClose={() => setSubmitOpen(false)} onSubmitted={() => { setSubmitOpen(false); router.refresh(); }} />}
+      {submitOpen && (
+        <SubmitModal
+          nameOptions={nameOptions}
+          onClose={() => setSubmitOpen(false)}
+          onSubmitted={() => { setSubmitOpen(false); router.refresh(); }}
+        />
+      )}
       {deleteTarget && <DeleteModal cert={deleteTarget} onClose={() => setDeleteTarget(null)} onDeleted={() => { setDeleteTarget(null); router.refresh(); }} />}
     </div>
   );
@@ -274,7 +283,15 @@ function Overlay({ children, onClose }: { children: React.ReactNode; onClose: ()
   );
 }
 
-function SubmitModal({ onClose, onSubmitted }: { onClose: () => void; onSubmitted: () => void }) {
+function SubmitModal({
+  nameOptions,
+  onClose,
+  onSubmitted,
+}: {
+  nameOptions: string[];
+  onClose: () => void;
+  onSubmitted: () => void;
+}) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
@@ -283,7 +300,8 @@ function SubmitModal({ onClose, onSubmitted }: { onClose: () => void; onSubmitte
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
-  const canSubmit = name.trim() !== "" && !!fileUrl && !submitting;
+  const normalizedName = name.trim();
+  const canSubmit = normalizedName !== "" && !!fileUrl && !submitting;
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -315,7 +333,7 @@ function SubmitModal({ onClose, onSubmitted }: { onClose: () => void; onSubmitte
       const res = await fetch("/api/partner/certifications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), description: desc.trim() || null, fileUrl, fileName }),
+        body: JSON.stringify({ name: normalizedName, description: desc.trim() || null, fileUrl, fileName }),
       });
       if (res.ok) onSubmitted();
     } finally {
@@ -366,26 +384,7 @@ function SubmitModal({ onClose, onSubmitted }: { onClose: () => void; onSubmitte
             <label style={{ display: "block", marginBottom: "7.32px", fontSize: "12px", fontWeight: 600, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.5)" }}>
               인증서명 *
             </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="예: ISO 9001 품질경영시스템 인증"
-              style={{
-                width: "100%",
-                padding: "13.19px 15.64px",
-                borderRadius: "14.64px",
-                background: "#fff",
-                border: "1px solid rgba(210,210,215,0.3)",
-                fontSize: "13px",
-                fontWeight: 400,
-                letterSpacing: "-0.2928px",
-                lineHeight: "22.75px",
-                color: INK,
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-            />
+            <CertificationNameCombobox options={nameOptions} value={name} onChange={setName} />
           </div>
 
           <div style={{ marginTop: "19.52px" }}>

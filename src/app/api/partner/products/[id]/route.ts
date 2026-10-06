@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSupplierCompanyId } from "@/lib/auth/partner";
+import { certificationMarksFromNames } from "@/lib/certification-marks";
 import { productInput } from "../route";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +34,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     categoryId: p.categoryId,
     itemType: p.category?.itemType ?? null,
     specs: (p.specs as Spec[] | null) ?? [],
-    badges: p.badges,
+    badges: certificationMarksFromNames(p.badges),
     imageUrl: p.images.find((i) => i.type === "THUMBNAIL")?.url ?? null,
     detailImageUrls: p.images.filter((i) => i.type === "DETAIL").map((i) => i.url),
   });
@@ -51,6 +52,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const parsed = productInput.partial().safeParse(body);
   if (!parsed.success) return NextResponse.json({ message: "필수 항목을 확인해 주세요" }, { status: 400 });
   const d = parsed.data;
+  const company = await prisma.supplierCompany.findUnique({
+    where: { id: companyId },
+    select: { certifications: true },
+  });
 
   await prisma.product.update({
     where: { id },
@@ -64,7 +69,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       ...(d.deliveryDays !== undefined ? { deliveryDays: d.deliveryDays } : {}),
       ...(d.deliveryCondition !== undefined ? { deliveryCondition: d.deliveryCondition } : {}),
       ...(d.specs !== undefined ? { specs: d.specs } : {}),
-      ...(d.badges !== undefined ? { badges: d.badges } : {}),
+      badges: certificationMarksFromNames(company?.certifications ?? []),
     },
   });
 

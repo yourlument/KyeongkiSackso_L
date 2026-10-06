@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSessionClaims } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
+import { cancelNicepayPayment } from "@/lib/nicepay/payment";
+import { finalizePaymentRefund } from "@/lib/nicepay/payment-service";
+import {
+  SettlementPayoutStateError,
+  cancelOrderSettlementPayouts,
+} from "@/lib/nicepay/payout-service";
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +21,21 @@ export async function PATCH(_req: Request, { params }: { params: Promise<{ id: s
     where: { id },
     select: {
       id: true,
+      orderNo: true,
       status: true,
-      payments: { orderBy: { createdAt: "desc" }, take: 1, select: { id: true, amount: true, method: true } },
+      payments: {
+        where: { status: "PAID" },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: {
+          id: true,
+          amount: true,
+          method: true,
+          provider: true,
+          status: true,
+          transactionId: true,
+        },
+      },
     },
   });
   if (!order) return NextResponse.json({ message: "주문을 찾을 수 없습니다" }, { status: 404 });
@@ -25,24 +44,93 @@ export async function PATCH(_req: Request, { params }: { params: Promise<{ id: s
   }
 
   const base = order.payments[0];
+  let nicepayCancel: Record<string, unknown> | null = null;
+  let nicepayTid: string | null = null;
+  if (base?.provider === "NICEPAY" && base.status === "PAID") {
+    if (!base.transactionId) {
+      return NextResponse.json(
+        { message: "NICEPAY 거래번호가 없어 자동 환불할 수 없습니다." },
+        { status: 409 },
+      );
+    }
+    nicepayTid = base.transactionId;
+    if (base.method === "가상계좌") {
+      return NextResponse.json(
+        { message: "가상계좌 환불은 환불 계좌정보 입력 후 처리해야 합니다." },
+        { status: 409 },
+      );
+    }
+  }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.order.update({ where: { id: order.id }, data: { status: "CANCELLED" } });
-    if (base) {
-      await tx.payment.update({ where: { id: base.id }, data: { status: "REFUNDED" } });
-      await tx.payment.create({
-        data: {
-          orderId: order.id,
-          provider: "MOCK",
-          status: "REFUNDED",
-          amount: base.amount,
-          method: base.method,
-          paidAt: new Date(),
-          metadata: { provisional: true, kind: "refund", refundedBy: claims.sub },
+  try {
+    await cancelOrderSettlementPayouts(order.id);
+  } catch (error) {
+    return NextResponse.json(
+      {
+        message:
+          error instanceof Error
+            ? error.message
+            : "NICEPAY 지급대행 처리에 실패했습니다.",
+      },
+      { status: error instanceof SettlementPayoutStateError ? error.status : 502 },
+    );
+  }
+
+  if (base && nicepayTid) {
+    try {
+      nicepayCancel = await cancelNicepayPayment({
+        tid: nicepayTid,
+        orderNo: order.orderNo,
+        amount: Number(base.amount),
+        reason: "관리자 환불",
+      });
+    } catch (error) {
+      return NextResponse.json(
+        {
+          message:
+            error instanceof Error
+              ? error.message
+              : "NICEPAY 환불 요청에 실패했습니다.",
+        },
+        { status: 502 },
+      );
+    }
+  }
+
+  if (!base) {
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { status: "CANCELLED" },
+    });
+  } else {
+    try {
+      await finalizePaymentRefund({
+        paymentId: base.id,
+        cancelTransactionId:
+          nicepayCancel?.CancelNum != null
+            ? String(nicepayCancel.CancelNum)
+            : null,
+        source: "admin-order",
+        processedBy: claims.sub,
+        metadata: {
+          provisional: base.provider === "MOCK",
+          ...(nicepayCancel?.ResultCode != null
+            ? { resultCode: String(nicepayCancel.ResultCode) }
+            : {}),
         },
       });
+    } catch (error) {
+      return NextResponse.json(
+        {
+          message:
+            error instanceof Error
+              ? error.message
+              : "환불 상태 저장에 실패했습니다.",
+        },
+        { status: 409 },
+      );
     }
-  });
+  }
 
   return NextResponse.json({ ok: true, status: "CANCELLED" });
 }

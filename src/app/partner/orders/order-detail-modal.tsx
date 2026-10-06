@@ -15,8 +15,10 @@ export function OrderDetailModal({ order }: { order: OrderDetail }) {
   const close = () => router.push("/partner/orders");
   const [invoiceOpen, setInvoiceOpen] = useState(false);
   const [taxSubmitting, setTaxSubmitting] = useState(false);
-  const cancelled = d.status === "취소";
-  const showShipButton = d.status === "결제대기" || d.status === "결제완료";
+  const cancelled = d.status === "결제취소";
+  const unpaid = d.status === "결제대기";
+  const documentsLocked = unpaid || cancelled;
+  const showShipButton = d.status === "결제완료";
 
   const invoiceRow: OrderRow = {
     id: d.id,
@@ -45,7 +47,7 @@ export function OrderDetailModal({ order }: { order: OrderDetail }) {
   }
 
   async function markTaxIssued() {
-    if (taxSubmitting || d.taxInvoiceStatus === "ISSUED" || cancelled) return;
+    if (taxSubmitting || d.taxInvoiceStatus === "ISSUED" || cancelled || unpaid) return;
     setTaxSubmitting(true);
     const ok = await patchStatus({ taxInvoiceStatus: "ISSUED" });
     if (!ok) setTaxSubmitting(false);
@@ -117,7 +119,7 @@ export function OrderDetailModal({ order }: { order: OrderDetail }) {
               <InfoPair label="수신 이메일" value={d.tax.email} />
               <InfoPair label="사업장 주소" value={d.tax.address} full />
             </InfoCard>
-            <button type="button" onClick={markTaxIssued} disabled={taxSubmitting || d.taxInvoiceStatus === "ISSUED" || cancelled} style={{ width: "100%", marginTop: "14.64px", borderRadius: "14.64px", border: "none", background: NAVY, opacity: taxSubmitting || d.taxInvoiceStatus === "ISSUED" || cancelled ? 0.4 : 1, padding: "12.2px 0", fontSize: "12px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "21px", color: "#fff", cursor: taxSubmitting || d.taxInvoiceStatus === "ISSUED" || cancelled ? "default" : "pointer" }}>
+            <button type="button" onClick={markTaxIssued} disabled={taxSubmitting || d.taxInvoiceStatus === "ISSUED" || cancelled || unpaid} style={{ width: "100%", marginTop: "14.64px", borderRadius: "14.64px", border: "none", background: NAVY, opacity: taxSubmitting || d.taxInvoiceStatus === "ISSUED" || cancelled || unpaid ? 0.4 : 1, padding: "12.2px 0", fontSize: "12px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "21px", color: "#fff", cursor: taxSubmitting || d.taxInvoiceStatus === "ISSUED" || cancelled || unpaid ? "default" : "pointer" }}>
               세금계산서 발행 완료 처리
             </button>
           </Section>
@@ -146,8 +148,8 @@ export function OrderDetailModal({ order }: { order: OrderDetail }) {
             <p style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.275px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)", margin: "0 0 9.76px" }}>증빙 서류 출력</p>
             <p style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)", margin: "0 0 14.64px" }}>클릭 시 새 창에서 열립니다.</p>
             <div className="flex" style={{ gap: "9.76px" }}>
-              <DocButton onClick={() => openDocument("purchase")}>구매확인서</DocButton>
-              <DocButton onClick={() => openDocument("sales")}>매출 전표</DocButton>
+              <DocButton locked={documentsLocked} onClick={() => openDocument("purchase")}>거래명세서(구매확인용)</DocButton>
+              <DocButton locked={documentsLocked} onClick={() => openDocument("sales")}>매출 전표</DocButton>
               <DocButton locked>세금 계산서 🔒</DocButton>
             </div>
           </div>

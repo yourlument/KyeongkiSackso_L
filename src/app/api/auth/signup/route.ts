@@ -3,8 +3,17 @@ import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/auth/password";
 import { encryptModel, encryptLookup, encField } from "@/lib/crypto/pii";
 import { officialSignupSchema, supplierSignupSchema } from "@/lib/validators/auth";
+import { verifyBusinessNo } from "@/lib/nts";
+import { readBizVerification } from "@/lib/nts-token";
+import { normalizeQuoteSealCompanyName } from "@/lib/quote-seal";
+import { purgeExpiredWithdrawnUsers } from "@/lib/withdrawal-cleanup";
 import { Prisma } from "@prisma/client";
 import type { TermType } from "@prisma/client";
+
+const NTS_ALLOW_UNVERIFIED: Record<"OFFICIAL" | "SUPPLIER", string[]> = {
+  OFFICIAL: ["미등록"],
+  SUPPLIER: [],
+};
 
 const REQUIRED_TERMS: Record<"OFFICIAL" | "SUPPLIER", TermType[]> = {
   OFFICIAL: ["SERVICE", "CONSENT"],
@@ -43,13 +52,36 @@ export async function POST(req: Request) {
 
   const data = parsed.data;
 
-  const existing = await prisma.user.findUnique({ where: { email: data.email } });
+  let existing = await prisma.user.findUnique({ where: { email: data.email } });
+  if (existing?.status === "WITHDRAWN") {
+    await purgeExpiredWithdrawnUsers({ userId: existing.id });
+    existing = await prisma.user.findUnique({ where: { email: data.email } });
+  }
   if (existing) {
     return NextResponse.json({ message: "이미 가입된 이메일입니다" }, { status: 409 });
   }
 
   if (!(await assertRequiredTermsAgreed(portal, data.termIds))) {
     return NextResponse.json({ message: "필수 약관에 동의해 주세요" }, { status: 400 });
+  }
+
+  const bizNo =
+    portal === "OFFICIAL"
+      ? (data as import("@/lib/validators/auth").OfficialSignupInput).organizationBizNo
+      : (data as import("@/lib/validators/auth").SupplierSignupInput).businessRegistrationNo;
+  const proven = await readBizVerification(
+    (body as { bizVerifyToken?: string } | null)?.bizVerifyToken,
+    bizNo,
+  );
+  if (!proven) {
+    const nts = await verifyBusinessNo(bizNo);
+    const allowUnverified =
+      portal === "OFFICIAL"
+        ? NTS_ALLOW_UNVERIFIED.OFFICIAL
+        : NTS_ALLOW_UNVERIFIED.SUPPLIER;
+    if (!nts.valid && !allowUnverified.includes(nts.status)) {
+      return NextResponse.json({ message: nts.message }, { status: 400 });
+    }
   }
 
   const passwordHash = await hashPassword(data.password);
@@ -80,7 +112,7 @@ export async function POST(req: Request) {
           passwordHash,
           role: "OFFICIAL",
           status: "ACTIVE",
-          name: encField("User", "name", d.name || d.departmentName)!,
+          name: encField("User", "name", d.name)!,
           phone: encField("User", "phone", d.departmentPhone),
           position: encField("User", "position", d.position),
           departmentName: d.departmentName,
@@ -100,6 +132,7 @@ export async function POST(req: Request) {
     const company = await tx.supplierCompany.create({
       data: {
         name: d.companyName,
+        quoteSealCompanyName: normalizeQuoteSealCompanyName(d.companyName),
         representativeName: encField("SupplierCompany", "representativeName", d.representativeName)!,
         businessRegistrationNo: encField("SupplierCompany", "businessRegistrationNo", d.businessRegistrationNo)!,
         businessLicenseFileUrl: d.businessLicenseFileUrl,

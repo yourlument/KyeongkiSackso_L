@@ -3,12 +3,20 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { embedPostcode, type DaumPostcodeResult } from "@/lib/daum-postcode";
+import {
+  createBrowserUuid,
+  NicepayWindowClosedError,
+  openNicepayPayment,
+  type NicepayBrowserPayload,
+} from "@/lib/nicepay/browser";
+import { isValidKoreanPhone } from "@/lib/validators/phone";
+import { checkoutRequestKeyForMethod } from "@/lib/checkout-request";
 
 type CartItem = {
   id: string; productId: string; npsCode: string | null; name: string;
   price: number; unit: string; quantity: number; image: string | null; supplierCompanyName: string;
 };
-type PayMethod = "card" | "virtual";
+type PayMethod = "card" | "bank";
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 
 const CARD: React.CSSProperties = { borderRadius: "19.52px", background: "#fff", border: "1px solid rgba(210,210,215,0.15)", padding: "25.4px" };
@@ -16,24 +24,63 @@ const INPUT: React.CSSProperties = { width: "100%", boxSizing: "border-box", bor
 const LABEL: React.CSSProperties = { fontSize: "12px", fontWeight: 500, letterSpacing: "-0.18px", color: "rgba(29,29,31,0.6)", display: "block", marginBottom: "7.32px" };
 const IN_CLS = "placeholder:text-[#1d1d1f]/30";
 
-export function CheckoutView({ initialPay = "card" }: { initialPay?: PayMethod }) {
+type DirectItem = { productId: string; quantity: number };
+
+export function CheckoutView({ initialPay = "card", directItem = null }: { initialPay?: PayMethod; directItem?: DirectItem | null }) {
   const router = useRouter();
   const [items, setItems] = useState<CartItem[] | null>(null);
   const [pay, setPay] = useState<PayMethod>(initialPay);
   const [f, setF] = useState({ name: "", phone: "", org: "", dept: "", addr: "", memo: "" });
   const [submitting, setSubmitting] = useState(false);
   const [addrOpen, setAddrOpen] = useState(false);
+  const checkoutKey = useRef<string | null>(null);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
 
+  const directProductId = directItem?.productId ?? "";
+  const directQuantity = directItem?.quantity ?? 0;
+
+  function selectPay(next: PayMethod) {
+    checkoutKey.current = checkoutRequestKeyForMethod(
+      checkoutKey.current,
+      pay,
+      next,
+    );
+    setPay(next);
+  }
+
   useEffect(() => {
+    if (directProductId && directQuantity > 0) {
+      fetch(`/api/products/${encodeURIComponent(directProductId)}`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((p) =>
+          setItems(
+            p
+              ? [{
+                  id: p.id,
+                  productId: p.id,
+                  npsCode: p.npsCode ?? null,
+                  name: p.name,
+                  price: p.price,
+                  unit: p.unit ?? "",
+                  quantity: directQuantity,
+                  image: p.images?.[0] ?? null,
+                  supplierCompanyName: p.supplierCompanyName ?? "",
+                }]
+              : [],
+          ),
+        )
+        .catch(() => setItems([]));
+      return;
+    }
     fetch("/api/cart", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : { items: [] }))
       .then((d) => setItems(d.items ?? []))
       .catch(() => setItems([]));
-  }, []);
+  }, [directProductId, directQuantity]);
 
   const productTotal = (items ?? []).reduce((s, it) => s + it.price * it.quantity, 0);
-  const canPay = f.name.trim() && f.phone.trim() && f.org.trim() && f.dept.trim() && f.addr.trim() && (items?.length ?? 0) > 0 && !submitting;
+  const phoneValid = isValidKoreanPhone(f.phone);
+  const canPay = f.name.trim() && phoneValid && f.org.trim() && f.dept.trim() && f.addr.trim() && (items?.length ?? 0) > 0 && !submitting;
 
   function onAddrSelect(data: DaumPostcodeResult) {
     setF((p) => ({ ...p, addr: data.roadAddress + (data.buildingName ? ` (${data.buildingName})` : "") }));
@@ -41,20 +88,36 @@ export function CheckoutView({ initialPay = "card" }: { initialPay?: PayMethod }
   }
 
   async function submit() {
-    if (!canPay) return;
+    if (!canPay || !isValidKoreanPhone(f.phone)) return;
     setSubmitting(true);
     try {
+      checkoutKey.current ??= createBrowserUuid();
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pay, recipient: { name: f.name, phone: f.phone, org: f.org, dept: f.dept, address: f.addr, memo: f.memo } }),
+        body: JSON.stringify({
+          pay,
+          checkoutKey: checkoutKey.current,
+          recipient: { name: f.name, phone: f.phone, org: f.org, dept: f.dept, address: f.addr, memo: f.memo },
+          ...(directProductId && directQuantity > 0
+            ? { directItem: { productId: directProductId, quantity: directQuantity } }
+            : {}),
+        }),
       });
-      if (res.ok) {
-        router.push("/mypage");
-      } else {
-        setSubmitting(false);
+      const data = await res.json().catch(() => ({})) as {
+        message?: string;
+        payment?: NicepayBrowserPayload;
+      };
+      if (!res.ok || !data.payment) {
+        alert(data.message ?? "결제 준비 중 오류가 발생했습니다");
+        return;
       }
-    } catch {
+      await openNicepayPayment(data.payment);
+    } catch (error) {
+      if (!(error instanceof NicepayWindowClosedError)) {
+        alert("NICEPAY 결제창을 열지 못했습니다");
+      }
+    } finally {
       setSubmitting(false);
     }
   }
@@ -96,7 +159,13 @@ export function CheckoutView({ initialPay = "card" }: { initialPay?: PayMethod }
           <p style={{ fontSize: "15px", fontWeight: 600, letterSpacing: "-0.225px", color: "#1D1D1F", margin: "0 0 19.52px" }}>배송 및 수령 정보</p>
           <div className="grid grid-cols-2" style={{ gap: "14.64px" }}>
             <div><label style={LABEL}>수령인/담당자 <Req /></label><input className={IN_CLS} style={INPUT} value={f.name} onChange={set("name")} placeholder="실명 입력" /></div>
-            <div><label style={LABEL}>연락처 <Req /></label><input className={IN_CLS} style={INPUT} value={f.phone} onChange={set("phone")} placeholder="010-0000-0000" /></div>
+            <div>
+              <label style={LABEL}>연락처 <Req /></label>
+              <input className={IN_CLS} style={INPUT} type="tel" inputMode="tel" maxLength={13} value={f.phone} onChange={set("phone")} placeholder="010-0000-0000" />
+              {f.phone.trim() !== "" && !phoneValid && (
+                <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", color: "#F87171", margin: "7.32px 0 0" }}>올바른 번호를 입력해 주세요.</p>
+              )}
+            </div>
           </div>
           <div className="grid grid-cols-2" style={{ gap: "14.64px", marginTop: "19.52px" }}>
             <div><label style={LABEL}>소속 기관 <Req /></label><input className={IN_CLS} style={INPUT} value={f.org} onChange={set("org")} placeholder="예: 화성시청" /></div>
@@ -117,12 +186,12 @@ export function CheckoutView({ initialPay = "card" }: { initialPay?: PayMethod }
 
         <div style={CARD}>
           <p style={{ fontSize: "15px", fontWeight: 600, letterSpacing: "-0.225px", color: "#1D1D1F", margin: "0 0 14.64px" }}>결제 수단</p>
-          <button type="button" onClick={() => setPay("card")} className="flex w-full items-center" style={payOpt(pay === "card")}>
+          <button type="button" onClick={() => selectPay("card")} className="flex w-full items-center" style={payOpt(pay === "card")}>
             <span style={{ fontSize: "13px", fontWeight: pay === "card" ? 500 : 400, color: pay === "card" ? "#1E3A5F" : "rgba(29,29,31,0.6)" }}>법인/신용카드</span>
           </button>
           <div style={{ height: "9.76px" }} />
-          <button type="button" onClick={() => setPay("virtual")} className="flex w-full items-center" style={payOpt(pay === "virtual")}>
-            <span style={{ fontSize: "13px", fontWeight: pay === "virtual" ? 500 : 400, color: pay === "virtual" ? "#1E3A5F" : "rgba(29,29,31,0.6)" }}>가상계좌</span>
+          <button type="button" onClick={() => selectPay("bank")} className="flex w-full items-center" style={payOpt(pay === "bank")}>
+            <span style={{ fontSize: "13px", fontWeight: pay === "bank" ? 500 : 400, color: pay === "bank" ? "#1E3A5F" : "rgba(29,29,31,0.6)" }}>계좌이체</span>
           </button>
         </div>
       </div>

@@ -8,10 +8,11 @@ import { loadMyPage } from "@/lib/mypage";
 
 export const dynamic = "force-dynamic";
 
-export default async function MyPage() {
+export default async function MyPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const claims = await getSessionClaims();
   if (!claims) redirect("/login");
 
+  const { tab } = await searchParams;
   const isSupplier = claims.role === "SUPPLIER";
   const data = await loadMyPage(claims.sub, isSupplier);
 
@@ -19,7 +20,7 @@ export default async function MyPage() {
     <div className="flex min-h-screen flex-col bg-surface">
       <SiteHeader variant={isSupplier ? "supplier" : "official"} />
       <main className="flex-1">
-        <MyPageView role={isSupplier ? "supplier" : "official"} data={data} />
+        <MyPageView key={tab ?? ""} role={isSupplier ? "supplier" : "official"} data={data} initialTab={tab ?? null} />
       </main>
       <SiteFooter />
       <KakaoChat />

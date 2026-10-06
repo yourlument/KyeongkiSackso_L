@@ -4,11 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { uploadFile } from "@/lib/upload-client";
-<<<<<<< Updated upstream
-import type { NaraResult } from "@/lib/nara";
-=======
-import { CATEGORY_TAXONOMY } from "@/lib/categories";
->>>>>>> Stashed changes
+import type { NaraSearchResult } from "@/lib/nara";
 
 export type OfficialInfo = {
   organizationName: string | null;
@@ -50,21 +46,9 @@ const emptyItem = (): ItemRow => ({ name: "", qty: "", unit: "EA(개)", spec: ""
 
 const UNIT_OPTIONS = ["EA(개)", "SET(세트)", "BOX(박스)", "㎥", "㎡", "m", "kg", "ton", "L"];
 
-<<<<<<< Updated upstream
 type LeafCat = { id: string; code: string; name: string; itemType: string };
 type MidCat = { id: string; code: string; name: string; children: LeafCat[] };
 type TopCat = { id: string; code: string; name: string; children: MidCat[] };
-=======
-type SubCat = { name: string; subs: string[] };
-type TopCat = { name: string; subs: SubCat[] };
-// 소분류(leaf)는 공고 유형(물품/용역)에 따라 goods/service 목록으로 분기한다.
-function buildCategoryTree(isGoods: boolean): TopCat[] {
-  return CATEGORY_TAXONOMY.map((top) => ({
-    name: top.name,
-    subs: top.mids.map((m) => ({ name: m.name, subs: isGoods ? [...m.goods] : [...m.service] })),
-  }));
-}
->>>>>>> Stashed changes
 
 export function QuoteRegisterModal({ onClose, official }: { onClose: () => void; official?: OfficialInfo }) {
   const router = useRouter();
@@ -84,12 +68,12 @@ export function QuoteRegisterModal({ onClose, official }: { onClose: () => void;
   const [place, setPlace] = useState("");
   const [placeDetail, setPlaceDetail] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [submittedQuoteId, setSubmittedQuoteId] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<{ url: string; name: string }[]>([]);
   const [uploading, setUploading] = useState(false);
 
   const isGoods = type === "물품 견적";
 
-<<<<<<< Updated upstream
   const [categories, setCategories] = useState<TopCat[]>([]);
   useEffect(() => {
     const ac = new AbortController();
@@ -102,7 +86,7 @@ export function QuoteRegisterModal({ onClose, official }: { onClose: () => void;
 
   const [npsCode, setNpsCode] = useState("");
   const [naraOpen, setNaraOpen] = useState(false);
-  const [naraResults, setNaraResults] = useState<NaraResult[]>([]);
+  const [naraResults, setNaraResults] = useState<NaraSearchResult[]>([]);
   const [naraLoading, setNaraLoading] = useState(false);
   useEffect(() => {
     if (!naraOpen) return;
@@ -111,7 +95,7 @@ export function QuoteRegisterModal({ onClose, official }: { onClose: () => void;
     const t = setTimeout(() => {
       fetch(`/api/nara?q=${encodeURIComponent(npsCode)}`, { signal: ac.signal })
         .then((r) => r.json())
-        .then((d: { results: NaraResult[] }) => setNaraResults(d.results ?? []))
+        .then((d: { results: NaraSearchResult[] }) => setNaraResults(d.results ?? []))
         .catch(() => {})
         .finally(() => { if (!ac.signal.aborted) setNaraLoading(false); });
     }, 300);
@@ -122,23 +106,6 @@ export function QuoteRegisterModal({ onClose, official }: { onClose: () => void;
   const _top = categories.find((c) => c.name === cat1);
   const _mid = _top?.children.find((s) => s.name === cat2);
   const catOk = !!cat1 && (!_top?.children.length || !!cat2) && (!_mid?.children.length || !!cat3);
-=======
-  // 유형(물품/용역)에 따라 카테고리 트리를 재구성한다.
-  const categoryTree = buildCategoryTree(isGoods);
-  function changeType(v: "물품 견적" | "용역 견적") {
-    if (v === type) return;
-    setType(v);
-    // 유형 전환 시 stale 카테고리 선택 초기화
-    setCat1("");
-    setCat2("");
-    setCat3("");
-  }
-
-  const [tried1, setTried1] = useState(false);
-  const _top = categoryTree.find((c) => c.name === cat1);
-  const _mid = _top?.subs.find((s) => s.name === cat2);
-  const catOk = !!cat1 && (!_top?.subs.length || !!cat2) && (!_mid?.subs.length || !!cat3);
->>>>>>> Stashed changes
   const errTitle = !title.trim();
   const errDeadline = !deadline;
   const errBudget = !budgetTbd && !budget.trim();
@@ -153,18 +120,6 @@ export function QuoteRegisterModal({ onClose, official }: { onClose: () => void;
     setTried1(true);
     if (step1Errors.length === 0) setStep(2);
   }
-<<<<<<< Updated upstream
-=======
-  const npsCode = (() => {
-    if (!catOk || !cat1) return "";
-    const i1 = categoryTree.findIndex((c) => c.name === cat1);
-    const i2 = _top?.subs.findIndex((s) => s.name === cat2) ?? -1;
-    const i3 = _mid?.subs.findIndex((s) => s === cat3) ?? -1;
-    const pad = (n: number) => String(Math.max(0, n) + 1).padStart(2, "0");
-    return `${pad(i1)}${pad(i2)}${pad(i3)}000000`;
-  })();
-
->>>>>>> Stashed changes
   function setItem(i: number, patch: Partial<ItemRow>) {
     setItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
   }
@@ -211,12 +166,18 @@ export function QuoteRegisterModal({ onClose, official }: { onClose: () => void;
       });
       const data = await res.json() as { id?: string; error?: string };
       if (!res.ok) { alert(data.error ?? "등록 중 오류가 발생했습니다"); return; }
-      onClose();
-      router.push(`/quotes/${data.id}`);
-      router.refresh();
+      if (!data.id) { alert("등록 중 오류가 발생했습니다"); return; }
+      setSubmittedQuoteId(data.id);
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function handleViewSubmittedQuote() {
+    if (!submittedQuoteId) return;
+    onClose();
+    router.push(`/quotes/${submittedQuoteId}`);
+    router.refresh();
   }
 
   return (
@@ -251,8 +212,7 @@ export function QuoteRegisterModal({ onClose, official }: { onClose: () => void;
 
           {step === 1 && (
             <Step1
-              type={type} setType={changeType}
-              tree={categoryTree}
+              type={type} setType={setType}
               isGoods={isGoods}
               categories={categories}
               cat1={cat1} setCat1={setCat1}
@@ -266,7 +226,7 @@ export function QuoteRegisterModal({ onClose, official }: { onClose: () => void;
               naraOpen={naraOpen} setNaraOpen={setNaraOpen}
               naraResults={naraResults}
               naraLoading={naraLoading}
-              onPickNara={(r) => { setNpsCode(r.code); setNaraOpen(false); }}
+              onPickNara={(r) => { setNpsCode(r.classNo ?? ""); setNaraOpen(false); }}
               budgetErr={tried1 && errBudget}
               onNext={goStep2}
             />
@@ -299,6 +259,30 @@ export function QuoteRegisterModal({ onClose, official }: { onClose: () => void;
             />
           )}
         </div>
+        {submittedQuoteId && <QuoteSubmissionCompleteModal onViewQuote={handleViewSubmittedQuote} />}
+      </div>
+    </div>
+  );
+}
+
+function QuoteSubmissionCompleteModal({ onViewQuote }: { onViewQuote: () => void }) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="quote-submission-complete-title"
+      onClick={(e) => e.stopPropagation()}
+      style={{ position: "absolute", inset: 0, zIndex: 1, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", padding: "19.52px" }}
+    >
+      <div style={{ width: "390px", maxWidth: "100%", borderRadius: "19.52px", background: "#fff", padding: "29.28px", textAlign: "center", boxShadow: "0 2px 20px rgba(0,0,0,0.06)" }}>
+        <div className="flex items-center justify-center" style={{ width: "68px", height: "68px", borderRadius: "9999px", background: "#ECFDF5", color: "#10B981", margin: "0 auto" }}>
+          <SubmissionCompleteIcon />
+        </div>
+        <h2 id="quote-submission-complete-title" style={{ fontSize: "18px", fontWeight: 700, lineHeight: "25.2px", letterSpacing: "-0.504px", color: "#1D1D1F", margin: "19.52px 0 0" }}>견적 요청 제출 완료</h2>
+        <p style={{ fontSize: "13px", fontWeight: 400, lineHeight: "23.4px", letterSpacing: "-0.195px", color: "rgba(29,29,31,0.5)", margin: "4.88px 0 0" }}>견적 요청이 제출되었습니다.</p>
+        <button type="button" onClick={onViewQuote} style={{ width: "100%", marginTop: "24.4px", borderRadius: "14.64px", border: "none", background: "#1E3A5F", padding: "12.2px 19.52px", cursor: "pointer", fontSize: "13px", fontWeight: 600, lineHeight: "22.75px", letterSpacing: "-0.293px", color: "#fff" }}>
+          견적 요청서 보기
+        </button>
       </div>
     </div>
   );
@@ -348,7 +332,6 @@ function Stepper({ step }: { step: number }) {
 
 function Step1(p: {
   type: "물품 견적" | "용역 견적"; setType: (v: "물품 견적" | "용역 견적") => void;
-  tree: TopCat[];
   isGoods: boolean;
   categories: TopCat[];
   cat1: string; setCat1: (v: string) => void;
@@ -360,13 +343,12 @@ function Step1(p: {
   budget: string; setBudget: (v: string) => void;
   npsCode: string; setNpsCode: (v: string) => void;
   naraOpen: boolean; setNaraOpen: (v: boolean) => void;
-  naraResults: NaraResult[];
+  naraResults: NaraSearchResult[];
   naraLoading: boolean;
-  onPickNara: (r: NaraResult) => void;
+  onPickNara: (r: NaraSearchResult) => void;
   budgetErr: boolean;
   onNext: () => void;
 }) {
-<<<<<<< Updated upstream
   const top = p.categories.find((c) => c.name === p.cat1);
   const mid = top?.children.find((s) => s.name === p.cat2);
   const npsInputRef = useRef<HTMLInputElement>(null);
@@ -390,10 +372,6 @@ function Step1(p: {
       document.removeEventListener("keydown", onKey);
     };
   }, [p.naraOpen]);
-=======
-  const top = p.tree.find((c) => c.name === p.cat1);
-  const mid = top?.subs.find((s) => s.name === p.cat2);
->>>>>>> Stashed changes
 
   return (
     <>
@@ -414,11 +392,7 @@ function Step1(p: {
           <CatSelect
             value={p.cat1}
             placeholder="대분류"
-<<<<<<< Updated upstream
             options={p.categories.map((c) => c.name)}
-=======
-            options={p.tree.map((c) => c.name)}
->>>>>>> Stashed changes
             onChange={(v) => { p.setCat1(v); p.setCat2(""); p.setCat3(""); }}
           />
           <CatSelect
@@ -449,7 +423,7 @@ function Step1(p: {
 
       <div style={blockStyle} className="relative">
         <label style={{ ...labelStyle, marginBottom: "7.32px" }}>
-          물품식별번호{" "}
+          분류번호{" "}
           <span style={{ fontWeight: 400, color: "rgba(29,29,31,0.3)" }}>(조달청 나라장터 데이터 연동)</span>
         </label>
         <div className="flex items-center" style={{ height: "51px", boxSizing: "border-box", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.2)", background: "#FAFAFA", padding: "0 20.52px", gap: "9.76px" }}>
@@ -759,7 +733,7 @@ function CatSelect({ value, placeholder, options, onChange, disabled, groups }: 
   );
 }
 
-function NaraDropdown({ results, onPick, loading }: { results: NaraResult[]; onPick: (r: NaraResult) => void; loading: boolean }) {
+function NaraDropdown({ results, onPick, loading }: { results: NaraSearchResult[]; onPick: (r: NaraSearchResult) => void; loading: boolean }) {
   return (
     <div style={{ borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.4)", background: "#fff", overflow: "hidden", boxShadow: "0 10px 30px rgba(0,0,0,0.12)" }}>
       <div style={{ padding: "9.76px 14.64px 10.76px", background: "#F5F5F7" }}>
@@ -772,15 +746,13 @@ function NaraDropdown({ results, onPick, loading }: { results: NaraResult[]; onP
             <span style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "19.8px", color: "rgba(29,29,31,0.5)" }}>검색 중입니다 (최대 30초 소요)</span>
           </div>
         ) : results.map((r) => (
-          <button key={r.code} type="button" onClick={() => onPick(r)} className="flex w-full items-start justify-between text-left"
+          <button key={r.classNo ?? r.name} type="button" onClick={() => onPick(r)} className="flex w-full items-start justify-between text-left"
               style={{ padding: "12.2px 14.64px 13.2px", border: "none", background: "#fff", cursor: "pointer", gap: "12px" }}>
               <span className="min-w-0">
                 <span className="block" style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "#1D1D1F" }}>{r.name}</span>
-                {r.spec && <span className="block" style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.5)", marginTop: "2.44px" }}>{r.spec}</span>}
               </span>
               <span className="shrink-0 text-right">
-                <span className="block" style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.5)" }}>{r.code}</span>
-                {r.category && <span className="block" style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)" }}>{r.category}</span>}
+                {r.classNo && <span className="block" style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)" }}>{`분류번호 ${r.classNo}`}</span>}
               </span>
             </button>
         ))}
@@ -880,6 +852,14 @@ function AlertCircleIcon() {
   return (
     <svg width={10} height={10} viewBox="0 0 10 10" fill="none" aria-hidden xmlns="http://www.w3.org/2000/svg">
       <path d="M4.93125 10C4.2606 10 3.61954 9.87 3.00806 9.61C2.42289 9.35667 1.90182 8.99833 1.44486 8.535C0.987894 8.07167 0.634488 7.54333 0.384638 6.95C0.128212 6.33 0 5.68 0 5C0 4.32 0.128212 3.67 0.384638 3.05C0.634488 2.45667 0.987894 1.92833 1.44486 1.465C1.90182 1.00167 2.42289 0.643333 3.00806 0.39C3.61954 0.13 4.2606 0 4.93125 0C5.6019 0 6.24296 0.13 6.85444 0.39C7.43961 0.643333 7.96068 1.00167 8.41764 1.465C8.87461 1.92833 9.22801 2.45667 9.47786 3.05C9.73429 3.67 9.8625 4.32 9.8625 5C9.8625 5.68 9.73429 6.33 9.47786 6.95C9.22801 7.54333 8.87461 8.07167 8.41764 8.535C7.96068 8.99833 7.43961 9.35667 6.85444 9.61C6.24296 9.87 5.6019 10 4.93125 10ZM4.93125 9C5.64792 9 6.312 8.81667 6.92348 8.45C7.51523 8.09667 7.98534 7.62 8.33381 7.02C8.69544 6.4 8.87625 5.72667 8.87625 5C8.87625 4.27333 8.69544 3.6 8.33381 2.98C7.98534 2.38 7.51523 1.90333 6.92348 1.55C6.312 1.18333 5.64792 1 4.93125 1C4.21458 1 3.5505 1.18333 2.93903 1.55C2.34728 1.90333 1.87716 2.38 1.52869 2.98C1.16706 3.6 0.98625 4.27333 0.98625 5C0.98625 5.72667 1.16706 6.4 1.52869 7.02C1.87716 7.62 2.34728 8.09667 2.93903 8.45C3.5505 8.81667 4.21458 9 4.93125 9ZM4.43813 6.5H5.42438V7.5H4.43813V6.5ZM4.43813 2.5H5.42438V5.5H4.43813V2.5Z" fill="#EF4444" />
+    </svg>
+  );
+}
+function SubmissionCompleteIcon() {
+  return (
+    <svg width={32} height={32} viewBox="0 0 32 32" fill="none" aria-hidden>
+      <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="2" />
+      <path d="m9.5 16 4.25 4.25 8.75-8.75" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

@@ -65,32 +65,84 @@ const dash = (v: string | null | undefined) => (v && v.trim() ? v : "-");
 
 export async function loadPartnerSales(companyId: string): Promise<PartnerSalesData> {
   const settlements = await prisma.settlement.findMany({
-    where: { supplierCompanyId: companyId },
+    where: {
+      supplierCompanyId: companyId,
+      status: { in: ["PENDING", "PAID"] },
+    },
     orderBy: { periodStart: "desc" },
     include: { _count: { select: { orders: true } } },
   });
-  const monthly: SalesMonthlyRow[] = settlements.map((s) => ({
-    month: ymd(s.periodStart).slice(0, 7),
-    total: `${won(s.grossAmount ?? s.amount)}원`,
-    orders: `${s._count.orders}건`,
-    fee: s.fee != null && Number(s.fee) > 0 ? `${won(s.fee)}원` : "-",
-    payout: `${won(s.amount)}원`,
-    status: s.status === "PAID" ? "정산완료" : "정산대기",
-    payoutDate: ymd(s.scheduledPayoutDate ?? s.paidAt),
+  const monthlyGroups = new Map<
+    string,
+    {
+      gross: number;
+      pgFee: number;
+      payout: number;
+      orderIds: Set<string>;
+      legacyOrders: number;
+      allPaid: boolean;
+      payoutDate: Date | null;
+    }
+  >();
+  for (const settlement of settlements) {
+    const month = ymd(settlement.periodStart).slice(0, 7);
+    const group = monthlyGroups.get(month) ?? {
+      gross: 0,
+      pgFee: 0,
+      payout: 0,
+      orderIds: new Set<string>(),
+      legacyOrders: 0,
+      allPaid: true,
+      payoutDate: null,
+    };
+    group.gross += Number(settlement.grossAmount ?? settlement.amount);
+    group.pgFee += Number(settlement.pgFee ?? 0);
+    group.payout += Number(settlement.amount);
+    if (settlement.sourceOrderId) group.orderIds.add(settlement.sourceOrderId);
+    else group.legacyOrders += settlement._count.orders;
+    group.allPaid = group.allPaid && settlement.status === "PAID";
+    group.payoutDate ??= settlement.scheduledPayoutDate ?? settlement.paidAt;
+    monthlyGroups.set(month, group);
+  }
+  const monthly: SalesMonthlyRow[] = [...monthlyGroups].map(([month, group]) => ({
+    month,
+    total: `${won(group.gross)}원`,
+    orders: `${group.orderIds.size + group.legacyOrders}건`,
+    fee: group.pgFee > 0 ? `${won(group.pgFee)}원` : "-",
+    payout: `${won(group.payout)}원`,
+    status: group.allPaid ? "정산완료" : "정산대기",
+    payoutDate: ymd(group.payoutDate),
   }));
 
   const orders = await prisma.order.findMany({
     where: {
       status: { in: ["PAID", "CONTRACTED", "SHIPPING", "DELIVERED", "COMPLETED"] },
-      items: { some: { product: { supplierCompanyId: companyId } } },
+      payments: { some: { status: "PAID", paidAt: { not: null } } },
+      items: {
+        some: {
+          OR: [
+            { supplierCompanyId: companyId },
+            { product: { supplierCompanyId: companyId } },
+          ],
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
     include: {
       items: {
-        where: { product: { supplierCompanyId: companyId } },
+        where: {
+          OR: [
+            { supplierCompanyId: companyId },
+            { product: { supplierCompanyId: companyId } },
+          ],
+        },
         select: { name: true, quantity: true, amount: true, unitPrice: true, spec: true, product: { select: { unit: true } } },
       },
-      payments: { orderBy: { createdAt: "desc" }, take: 1 },
+      payments: {
+        where: { status: "PAID", paidAt: { not: null } },
+        orderBy: { paidAt: "desc" },
+        take: 1,
+      },
       buyer: { select: { organization: true } },
     },
   });
@@ -141,8 +193,12 @@ export async function loadPartnerSales(companyId: string): Promise<PartnerSalesD
   });
 
   const totalOrderAmount = orderRows.reduce((s, r) => s + Number(r.amount.replace(/,/g, "")), 0);
-  const pendingAmount = orderRows.filter((r) => r.status === "결제완료" || r.status === "배송/진행중").reduce((s, r) => s + Number(r.amount.replace(/,/g, "")), 0);
-  const completedAmount = orderRows.filter((r) => r.status === "완료").reduce((s, r) => s + Number(r.amount.replace(/,/g, "")), 0);
+  const pendingAmount = settlements
+    .filter((s) => s.status === "PENDING")
+    .reduce((sum, s) => sum + Number(s.amount), 0);
+  const completedAmount = settlements
+    .filter((s) => s.status === "PAID")
+    .reduce((sum, s) => sum + Number(s.amount), 0);
 
   const sub = await prisma.subscription.findFirst({
     where: { supplierCompanyId: companyId },

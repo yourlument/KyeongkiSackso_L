@@ -10,6 +10,11 @@ import type {
   ProductQuoteRow,
   QuoteRequestDetailView,
 } from "@/app/mypage/mypage-data";
+import {
+  isCancelledOrderPayment,
+  isIssuedVirtualAccount,
+  shouldShowPurchaseHistory,
+} from "@/lib/order-payment";
 
 function ymd(d: Date): string {
   const k = new Date(d.getTime() + 9 * 60 * 60 * 1000);
@@ -28,6 +33,7 @@ const PURCHASE_ST: Record<string, PurchaseStatus[]> = {
   SHIPPING: ["배송중"],
   DELIVERED: ["납품완료"],
   COMPLETED: ["납품완료", "구매확정"],
+  CANCELLED: ["결제취소"],
 };
 
 export type MyInquiryRow = {
@@ -42,6 +48,13 @@ export type MyDemandPost = { id: string; title: string; meta: string; status: "�
 export type MyInfoPost = { id: string; title: string; meta: string };
 export type MyDemandAnswer = { id: string; title: string; meta: string; supplier: string; answerDate: string; answer: string; status: "진행중" };
 export type MyBasicInfo = { email: string; org: string; dept: string; deptPhone: string };
+export type MyOfficialTaxInfo = {
+  organizationName: string;
+  businessRegistrationNo: string;
+  representativeName: string;
+  taxEmail: string;
+  address: string;
+};
 export type MySupplierField = { label: string; value: string };
 
 export type MyQuoteNoticeRow = QuoteNoticeRow & { id: string };
@@ -54,6 +67,7 @@ export type MyQuoteRequestDetailView = Omit<QuoteRequestDetailView, "attachments
 export type MyPageData = {
   headerSub: string;
   basicInfo: MyBasicInfo;
+  officialTaxInfo: MyOfficialTaxInfo;
   supplierFields: MySupplierField[];
   supplierName: string;
   demandPosts: MyDemandPost[];
@@ -85,7 +99,15 @@ export async function loadMyPage(userId: string, isSupplier: boolean): Promise<M
       where: { id: userId },
       select: {
         email: true, name: true, phone: true, departmentName: true,
-        organization: { select: { name: true } },
+        organization: {
+          select: {
+            name: true,
+            businessRegistrationNo: true,
+            representativeName: true,
+            taxEmail: true,
+            address: true,
+          },
+        },
         supplierCompany: {
           select: {
             name: true, businessRegistrationNo: true, representativeName: true,
@@ -116,7 +138,34 @@ export async function loadMyPage(userId: string, isSupplier: boolean): Promise<M
     isSupplier
       ? Promise.resolve([])
       : prisma.order.findMany({
-          where: { buyerId: userId, status: { not: "CANCELLED" } },
+          where: {
+            buyerId: userId,
+            OR: [
+              {
+                status: { in: ["PAID", "CONTRACTED", "SHIPPING", "DELIVERED", "COMPLETED"] },
+                payments: { some: { status: "PAID", paidAt: { not: null } } },
+              },
+              {
+                status: "PENDING",
+                payments: {
+                  some: {
+                    status: "READY",
+                    method: "가상계좌",
+                    transactionId: { not: null },
+                  },
+                },
+              },
+              {
+                status: "CANCELLED",
+                payments: {
+                  some: {
+                    status: { in: ["CANCELLED", "REFUNDED"] },
+                    transactionId: { not: null },
+                  },
+                },
+              },
+            ],
+          },
           orderBy: { createdAt: "desc" },
           include: {
             items: {
@@ -130,7 +179,7 @@ export async function loadMyPage(userId: string, isSupplier: boolean): Promise<M
                 supplierCompany: { select: { name: true } },
               },
             },
-            payments: { orderBy: { createdAt: "desc" }, take: 1 },
+            payments: { orderBy: { createdAt: "desc" } },
             buyer: { select: { organization: true } },
           },
         }),
@@ -160,7 +209,22 @@ export async function loadMyPage(userId: string, isSupplier: boolean): Promise<M
             targetSupplierCompany: { select: { name: true, phone: true } },
             items: { select: { name: true, quantity: true, unit: true, productId: true } },
             attachments: { select: { fileName: true, fileUrl: true } },
-            responses: { orderBy: { createdAt: "asc" }, take: 1, select: { totalAmount: true, memo: true, specSummary: true } },
+            responses: {
+              orderBy: { createdAt: "asc" },
+              take: 1,
+              select: {
+                id: true,
+                quoteNo: true,
+                totalAmount: true,
+                memo: true,
+                specSummary: true,
+                deliveryDate: true,
+                validUntil: true,
+                createdAt: true,
+                supplierCompany: { select: { name: true, phone: true } },
+                attachments: { select: { fileName: true, fileUrl: true } },
+              },
+            },
             _count: { select: { responses: true } },
           },
         }),
@@ -170,12 +234,37 @@ export async function loadMyPage(userId: string, isSupplier: boolean): Promise<M
   const email = user?.email ?? "";
   const org = user?.organization?.name ?? "";
   const dept = user?.departmentName ?? "";
+  const officialTaxInfo: MyOfficialTaxInfo = {
+    organizationName: org,
+    businessRegistrationNo: decrypt(user?.organization?.businessRegistrationNo) ?? "",
+    representativeName: decrypt(user?.organization?.representativeName) ?? "",
+    taxEmail: decrypt(user?.organization?.taxEmail) ?? "",
+    address: decrypt(user?.organization?.address) ?? "",
+  };
   const sc = user?.supplierCompany;
-  const supplierName = sc?.name ?? user?.name ?? "";
+  const supplierName = sc?.name ?? decrypt(user?.name) ?? "";
 
-  const purchases: PurchaseRow[] = orderRows.map((o) => {
+  const purchaseOrders = orderRows.flatMap((order) => {
+    const payment =
+      order.payments.find((row) =>
+        isCancelledOrderPayment(order.status, row),
+      ) ??
+      order.payments.find((row) => row.status === "PAID") ??
+      order.payments.find((row) =>
+        isIssuedVirtualAccount(order.status, row),
+      );
+    return shouldShowPurchaseHistory(order.status, payment)
+      ? [{ order, payment }]
+      : [];
+  });
+
+  const purchases: PurchaseRow[] = purchaseOrders.map(({ order: o, payment }) => {
     const first = o.items[0];
-    const statuses = [...(PURCHASE_ST[o.status] ?? ["결제완료"])];
+    const statuses = [
+      ...(isIssuedVirtualAccount(o.status, payment)
+        ? (["결제대기"] as PurchaseStatus[])
+        : (PURCHASE_ST[o.status] ?? ["결제완료"])),
+    ];
     if (o.taxInvoiceStatus === "ISSUED") statuses.push("세금계산서 발행완료");
     else if (o.taxInvoiceStatus === "REQUESTED") statuses.push("세금계산서 발행요청");
 
@@ -198,12 +287,11 @@ export async function loadMyPage(userId: string, isSupplier: boolean): Promise<M
   });
 
   const orderDetails: Record<string, OrderDetail> = {};
-  for (const o of orderRows) {
-    const pay = o.payments[0];
+  for (const { order: o, payment: pay } of purchaseOrders) {
     const o2 = o.buyer?.organization ?? null;
     orderDetails[o.orderNo] = {
       orderNo: o.orderNo,
-      payDate: ymd(pay?.paidAt ?? o.createdAt),
+      payDate: pay?.paidAt ? ymd(pay.paidAt) : "-",
       payMethod: dash(pay?.method),
       status: (PURCHASE_ST[o.status] ?? ["결제완료"])[0],
       items: o.items.map((it) => ({
@@ -243,15 +331,23 @@ export async function loadMyPage(userId: string, isSupplier: boolean): Promise<M
   const productQuotes: ProductQuoteRow[] = directQuotes.map((q) => {
     const r = q.responses[0];
     const item = q.items[0];
+    const responseSupplier = r?.supplierCompany;
     return {
       id: q.id,
       product: item?.name ?? q.title,
-      supplier: dash(q.targetSupplierCompany?.name),
-      phone: dash(decrypt(q.targetSupplierCompany?.phone) ?? q.contactPhone),
+      supplier: dash(responseSupplier?.name ?? q.targetSupplierCompany?.name),
+      phone: dash(decrypt(responseSupplier?.phone ?? q.targetSupplierCompany?.phone) ?? q.contactPhone),
       reqDate: ymd(q.createdAt),
       qty: item ? qtyLabel(item.quantity, item.unit) : "-",
       status: r ? "견적 도착" : "대기중",
-      offer: r ? { amount: won(r.totalAmount), note: dash(r.memo ?? r.specSummary) } : undefined,
+      offer: r
+        ? {
+            amount: won(r.totalAmount),
+            note: dash(r.specSummary ?? r.memo),
+            responseId: r.id,
+            pdfUrl: `/api/quotes/${q.id}/responses/${r.id}/pdf`,
+          }
+        : undefined,
     };
   });
 
@@ -259,15 +355,16 @@ export async function loadMyPage(userId: string, isSupplier: boolean): Promise<M
   for (const q of directQuotes) {
     const item = q.items[0];
     const r = q.responses[0];
+    const responseSupplier = r?.supplierCompany;
     const addr = [q.deliveryAddress, q.deliveryAddressDetail].filter(Boolean).join(" ");
     quoteDetails[q.id] = {
       productId: item?.productId ?? null,
       product: item?.name ?? q.title,
-      supplier: dash(q.targetSupplierCompany?.name),
+      supplier: dash(responseSupplier?.name ?? q.targetSupplierCompany?.name),
       org: dash(q.contactOrgName ?? org),
       dept: dash(q.contactDepartment ?? dept),
       email: dash(q.contactEmail ?? email),
-      phone: dash(q.contactPhone ?? decrypt(q.targetSupplierCompany?.phone)),
+      phone: dash(q.contactPhone ?? decrypt(responseSupplier?.phone ?? q.targetSupplierCompany?.phone)),
       qty: item ? qtyLabel(item.quantity, item.unit) : "-",
       wishDate: q.desiredDeliveryDate ? ymd(q.desiredDeliveryDate) : "-",
       address: addr || "-",
@@ -275,6 +372,20 @@ export async function loadMyPage(userId: string, isSupplier: boolean): Promise<M
       status: r ? "견적 도착" : "대기중",
       content: dash(q.description),
       attachments: q.attachments.map((a) => ({ name: a.fileName, fileUrl: a.fileUrl })),
+      response: r
+        ? {
+            id: r.id,
+            quoteNo: r.quoteNo ?? r.id,
+            submittedAt: ymd(r.createdAt),
+            totalAmount: won(r.totalAmount),
+            specSummary: dash(r.specSummary),
+            memo: dash(r.memo),
+            deliveryDate: r.deliveryDate ? ymd(r.deliveryDate) : "-",
+            validUntil: r.validUntil ? ymd(r.validUntil) : "-",
+            attachments: r.attachments.map((a) => ({ name: a.fileName, fileUrl: a.fileUrl })),
+            pdfUrl: `/api/quotes/${q.id}/responses/${r.id}/pdf`,
+          }
+        : undefined,
     };
   }
 
@@ -290,17 +401,18 @@ export async function loadMyPage(userId: string, isSupplier: boolean): Promise<M
       ? `${supplierName} · ${email}`
       : `${org}${dept ? ` · ${dept}` : ""} · ${email}`,
 
-    basicInfo: { email, org, dept, deptPhone: user?.phone ?? "-" },
+    basicInfo: { email, org, dept, deptPhone: dash(decrypt(user?.phone)) },
+    officialTaxInfo,
 
     supplierFields: [
-      { label: "상호(회사명)", value: sc?.name ?? "-" },
-      { label: "사업자등록번호", value: sc?.businessRegistrationNo ?? "-" },
-      { label: "대표자", value: sc?.representativeName ?? "-" },
-      { label: "사업장 주소", value: sc?.address ?? "-" },
-      { label: "업태", value: sc?.businessType ?? "-" },
-      { label: "업종", value: sc?.businessItem ?? "-" },
-      { label: "회사 전화", value: sc?.phone ?? "-" },
-      { label: "담당자명", value: sc?.managerName ?? user?.name ?? "-" },
+      { label: "상호(회사명)", value: dash(sc?.name) },
+      { label: "사업자등록번호", value: dash(decrypt(sc?.businessRegistrationNo)) },
+      { label: "대표자", value: dash(decrypt(sc?.representativeName)) },
+      { label: "사업장 주소", value: dash(decrypt(sc?.address)) },
+      { label: "업태", value: dash(sc?.businessType) },
+      { label: "업종", value: dash(sc?.businessItem) },
+      { label: "회사 전화", value: dash(decrypt(sc?.phone)) },
+      { label: "담당자명", value: dash(sc?.managerName ?? decrypt(user?.name)) },
     ],
 
     supplierName,

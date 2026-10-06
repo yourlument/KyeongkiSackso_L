@@ -4,6 +4,10 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getSupplierCompanyId } from "@/lib/auth/partner";
 import { createNotification } from "@/lib/notifications";
+import {
+  SUPPLIER_ACCOUNT_VERIFICATION_MESSAGE,
+  supplierCanTrade,
+} from "@/lib/supplier-trade-access";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +24,12 @@ const input = z.object({
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const companyId = await getSupplierCompanyId();
   if (!companyId) return NextResponse.json({ message: "로그인이 필요해요" }, { status: 401 });
+  if (!(await supplierCanTrade(companyId))) {
+    return NextResponse.json(
+      { message: SUPPLIER_ACCOUNT_VERIFICATION_MESSAGE },
+      { status: 403 },
+    );
+  }
   const { id } = await ctx.params;
 
   const reqRow = await prisma.quoteRequest.findUnique({
@@ -76,7 +86,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         type: "QUOTE_RESPONSE",
         title: "견적요청 답변",
         body: `'${reqRow.title}'에 ${company?.name ?? "공급업체"}가 견적을 제출했습니다.`,
-        link: `/quotes/${id}`,
+        link: `/quotes/${id}?tab=proposal`,
         category: "quoteNotice",
       });
     } catch {}

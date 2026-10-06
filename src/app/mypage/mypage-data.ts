@@ -30,7 +30,8 @@ export type PurchaseStatus =
   | "결제완료"
   | "배송중"
   | "결제대기"
-  | "세금계산서 발행요청";
+  | "세금계산서 발행요청"
+  | "결제취소";
 
 export type PurchaseAction =
   | { kind: "detail" }
@@ -110,6 +111,19 @@ export type QuoteNoticeRow = {
 };
 
 export type ProductQuoteStatus = "대기중" | "견적 도착";
+export type QuoteResponseAttachment = { name: string; fileUrl: string };
+export type ProductQuoteResponse = {
+  id: string;
+  quoteNo: string;
+  submittedAt: string;
+  totalAmount: string;
+  specSummary: string;
+  memo: string;
+  deliveryDate: string;
+  validUntil: string;
+  attachments: QuoteResponseAttachment[];
+  pdfUrl: string;
+};
 export type ProductQuoteRow = {
   id: string;
   product: string;
@@ -118,7 +132,7 @@ export type ProductQuoteRow = {
   reqDate: string;
   qty: string;
   status: ProductQuoteStatus;
-  offer?: { amount: string; note: string };
+  offer?: { amount: string; note: string; responseId: string; pdfUrl: string };
 };
 
 export type QuoteAttachment = { name: string };
@@ -136,6 +150,7 @@ export type QuoteRequestDetailView = {
   status: ProductQuoteStatus;
   content: string;
   attachments: QuoteAttachment[];
+  response?: ProductQuoteResponse;
 };
 
 export type DemandPostRow = { title: string; meta: string; status: "진행중" };
@@ -246,12 +261,6 @@ export const TERMS_OPTIONAL: Term[] = [
   { title: "개인정보 제3자 제공 동의", tag: { label: "결제", tone: "pay" }, required: false, on: true, desc: "공무원이 구매를 진행할 수 있도록, 세금계산서 발행 및 배송에 필요한 기관 데이터를 판매 업체에게 적법하게 전달하기 위한 동의 절차입니다." },
   { title: "전자금융거래 이용약관 및 환불 규정", tag: { label: "결제", tone: "pay" }, required: false, on: false, desc: "법인카드 결제 및 가상계좌 입금 과정의 안전성을 규정하고, 조달 거래 취소 시의 환불 기준을 확인받는 구간입니다." },
   { title: "민원 처리를 위한 개인정보 추가 수집 동의", tag: { label: "민원", tone: "civil" }, required: false, on: false, desc: "행정 문의나 납품 분쟁 해결을 위해 담당자 직통 연락처, 첨부 서류 등의 데이터를 수집하고 감사 대응을 위해 상담 이력을 보관하는 동의입니다." },
-];
-
-export const WITHDRAW_NOTES = [
-  "• 탈퇴 후 모든 개인 정보 및 구매 이력은 삭제됩니다.",
-  "• 진행 중인 구매/공급 요청은 자동 취소 처리됩니다.",
-  "• 탈퇴 후 동일 이메일로 30일간 재가입이 불가합니다.",
 ];
 
 export type DemandAnswerRow = {

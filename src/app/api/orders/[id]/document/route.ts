@@ -6,10 +6,11 @@ import { decrypt } from "@/lib/crypto/pii";
 import { getSupplierCompanyId } from "@/lib/auth/partner";
 import {
   buildPurchaseConfirmPdf,
-  buildSalesSlipPdf,
   buildTaxInvoicePdf,
   type ConfirmItemLine,
 } from "@/lib/pdf/documents";
+import { createNicepayReceiptUrl } from "@/lib/nicepay/payment";
+import { isPaidOrderPayment } from "@/lib/order-payment";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,7 @@ export async function GET(
           supplierCompany: { select: { name: true, businessRegistrationNo: true, representativeName: true } },
         },
       },
-      payments: { orderBy: { createdAt: "desc" }, take: 1 },
+      payments: { orderBy: { createdAt: "desc" } },
     },
   });
 
@@ -79,7 +80,42 @@ export async function GET(
 
   const supplier = order.items.find((it) => it.supplierCompany)?.supplierCompany ?? null;
   const supplierName = supplier?.name ?? "-";
-  const pay = order.payments[0];
+  const pay =
+    order.payments.find(
+      (payment) => payment.status === "PAID" && payment.paidAt,
+    ) ?? order.payments[0];
+  const paid = isPaidOrderPayment(order.status, pay);
+  if (type === "purchase" && !paid) {
+    return NextResponse.json(
+      { error: "결제대기 상태일 때는 거래명세서(구매확인용) 발급 불가" },
+      { status: 409 },
+    );
+  }
+  if (type === "sales") {
+    if (!paid || pay?.provider !== "NICEPAY" || !pay.transactionId) {
+      return NextResponse.json(
+        { error: "NICEPAY 매출 전표를 조회할 수 없습니다" },
+        { status: 409 },
+      );
+    }
+    try {
+      return NextResponse.redirect(
+        createNicepayReceiptUrl(pay.transactionId),
+        302,
+      );
+    } catch {
+      return NextResponse.json(
+        { error: "NICEPAY 매출 전표를 조회할 수 없습니다" },
+        { status: 409 },
+      );
+    }
+  }
+  if (type === "tax" && !paid) {
+    return NextResponse.json(
+      { error: "세금계산서가 아직 발행되지 않았습니다" },
+      { status: 409 },
+    );
+  }
   const payMethod = pay?.method ?? "-";
   const paidAt = ymd(pay?.paidAt ?? order.createdAt);
   const issuedAt = ymd(new Date());
@@ -105,26 +141,7 @@ export async function GET(
         "-",
       deliveryDeadline: ymd(order.deliveryDeadline),
     });
-    fileName = `구매확인서_${order.orderNo}.pdf`;
-  } else if (type === "sales") {
-    const total = new Prisma.Decimal(order.totalAmount);
-    const supply = total.div(new Prisma.Decimal(1.1)).toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP);
-    const vat = total.sub(supply);
-    pdf = await buildSalesSlipPdf({
-      orderNo: order.orderNo,
-      issuedAt,
-      supplierName,
-      supplierBusinessNo: decrypt(supplier?.businessRegistrationNo) ?? "-",
-      buyerOrgName: order.recipientOrgName ?? "-",
-      buyerName: order.recipientName ?? "-",
-      items,
-      supplyAmount: won(supply),
-      vatAmount: won(vat),
-      totalAmount: won(total),
-      payMethod,
-      paidAt,
-    });
-    fileName = `매출전표_${order.orderNo}.pdf`;
+    fileName = `거래명세서(구매확인용)_${order.orderNo}.pdf`;
   } else {
     if (order.taxInvoiceStatus !== "ISSUED") {
       return NextResponse.json({ error: "세금계산서가 아직 발행되지 않았습니다" }, { status: 409 });

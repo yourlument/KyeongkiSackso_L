@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionClaims } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
+import { notifyQuoteRequestPublished } from "@/lib/quote-request-notifications";
 
 export async function POST(req: NextRequest) {
   const claims = await getSessionClaims();
@@ -60,6 +61,9 @@ export async function POST(req: NextRequest) {
   const isDirect = kind === "DIRECT";
 
   if (!title?.trim()) return NextResponse.json({ error: "공고 제목을 입력하세요" }, { status: 400 });
+  if (isDirect && !targetSupplierCompanyId) {
+    return NextResponse.json({ error: "대상 공급업체를 선택하세요" }, { status: 400 });
+  }
   if (!isDirect && !deadline) return NextResponse.json({ error: "마감 일시를 선택하세요" }, { status: 400 });
   if (!isDirect && !budgetTbd && !budget?.trim()) return NextResponse.json({ error: "예산을 입력하세요" }, { status: 400 });
   if (!items?.length) return NextResponse.json({ error: "품목을 1개 이상 입력하세요" }, { status: 400 });
@@ -76,56 +80,61 @@ export async function POST(req: NextRequest) {
     categoryId = resolved ? parentId : null;
   }
 
-  const quoteRequest = await prisma.quoteRequest.create({
-    data: {
-      officialId: claims.sub,
-      title: title.trim(),
-      status: "OPEN",
-      kind: isDirect ? "DIRECT" : "OPEN_BID",
-      targetSupplierCompanyId: isDirect ? (targetSupplierCompanyId || null) : null,
-      quoteType: quoteType === "용역 견적" ? "SERVICE" : "GOODS",
-      categoryId,
-      npsCode: npsCode || null,
-      budget: !budgetTbd && budget ? parseFloat(budget.replace(/,/g, "")) : null,
-      budgetTbd: !!budgetTbd,
-      deadline: deadline ? new Date(deadline) : null,
-      dueDate: dueDate ? new Date(dueDate) : null,
-      deliveryCondition: deliveryCondition || null,
-      deliveryAddress: deliveryAddress || null,
-      deliveryAddressDetail: deliveryAddressDetail || null,
-      desiredDeliveryDate: desiredDeliveryDate ? new Date(desiredDeliveryDate) : null,
-      contactOrgName: contactOrgName?.trim() || null,
-      contactDepartment: contactDepartment?.trim() || null,
-      contactEmail: contactEmail?.trim() || null,
-      contactPhone: contactPhone?.trim() || null,
-      description: description?.trim() || null,
-      items: {
-        create: items
-          .filter((it) => it.name?.trim())
-          .map((it, i) => ({
-            productId: isDirect && i === 0 && productId ? productId : null,
-            name: it.name.trim(),
-            quantity: parseInt(it.qty) || 1,
-            unit: it.unit || null,
-            spec: it.spec?.trim() || null,
-          })),
+  const quoteRequest = await prisma.$transaction(async (tx) => {
+    const created = await tx.quoteRequest.create({
+      data: {
+        officialId: claims.sub,
+        title: title.trim(),
+        status: "OPEN",
+        kind: isDirect ? "DIRECT" : "OPEN_BID",
+        targetSupplierCompanyId: isDirect ? (targetSupplierCompanyId || null) : null,
+        quoteType: quoteType === "용역 견적" ? "SERVICE" : "GOODS",
+        categoryId,
+        npsCode: npsCode?.trim() || null,
+        budget: !budgetTbd && budget ? parseFloat(budget.replace(/,/g, "")) : null,
+        budgetTbd: !!budgetTbd,
+        deadline: deadline ? new Date(deadline) : null,
+        dueDate: dueDate ? new Date(dueDate) : null,
+        deliveryCondition: deliveryCondition || null,
+        deliveryAddress: deliveryAddress || null,
+        deliveryAddressDetail: deliveryAddressDetail || null,
+        desiredDeliveryDate: desiredDeliveryDate ? new Date(desiredDeliveryDate) : null,
+        contactOrgName: contactOrgName?.trim() || null,
+        contactDepartment: contactDepartment?.trim() || null,
+        contactEmail: contactEmail?.trim() || null,
+        contactPhone: contactPhone?.trim() || null,
+        description: description?.trim() || null,
+        items: {
+          create: items
+            .filter((it) => it.name?.trim())
+            .map((it, i) => ({
+              productId: isDirect && i === 0 && productId ? productId : null,
+              name: it.name.trim(),
+              quantity: parseInt(it.qty) || 1,
+              unit: it.unit || null,
+              spec: it.spec?.trim() || null,
+            })),
+        },
       },
-    },
-    select: { id: true },
-  });
+      select: { id: true },
+    });
 
-  if (attachments?.length) {
-    const validAttachments = attachments.filter((a) => a.url && a.name);
-    if (validAttachments.length) {
-      await prisma.quoteRequestAttachment.createMany({
-        data: validAttachments.map((a) => ({
-          quoteRequestId: quoteRequest.id,
-          fileUrl: a.url,
-          fileName: a.name,
-        })),
-      });
+    if (attachments?.length) {
+      const validAttachments = attachments.filter((a) => a.url && a.name);
+      if (validAttachments.length) {
+        await tx.quoteRequestAttachment.createMany({
+          data: validAttachments.map((a) => ({
+            quoteRequestId: created.id,
+            fileUrl: a.url,
+            fileName: a.name,
+          })),
+        });
+      }
     }
-  }
+
+    await notifyQuoteRequestPublished(created.id, tx);
+    return created;
+  });
 
   return NextResponse.json({ id: quoteRequest.id });
 }

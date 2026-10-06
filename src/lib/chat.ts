@@ -238,7 +238,7 @@ export async function sendMessage(
         type: "CHAT",
         title: "새 채팅 메시지",
         body: preview,
-        link: `/quotes/${thread.quoteRequestId}?thread=${threadId}`,
+        link: `/quotes/${thread.quoteRequestId}?tab=chat&thread=${threadId}`,
       });
     }
   } catch {}

@@ -78,10 +78,10 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 }
 
 const OVERVIEW_STAT_CONFIG = [
-  { icon: <ProductIcon />, iconBg: "rgba(30,58,95,0.12)", label: "등록 상품", key: "products" as const },
-  { icon: <ProgressOrderIcon />, iconBg: undefined, label: "진행 주문", key: "inProgress" as const },
-  { icon: <RevenueIcon />, iconBg: undefined, label: "이번달 매출", key: "thisMonthRevenue" as const },
-  { icon: <CompletedOrderIcon />, iconBg: undefined, label: "완료 주문", key: "completed" as const },
+  { icon: <ProductIcon />, iconBg: "rgba(30,58,95,0.12)", label: "등록 상품", key: "products" as const, href: "/partner/products" },
+  { icon: <ProgressOrderIcon />, iconBg: undefined, label: "진행 주문", key: "inProgress" as const, href: "/partner/orders" },
+  { icon: <RevenueIcon />, iconBg: undefined, label: "이번달 매출", key: "thisMonthRevenue" as const, href: "/partner/sales" },
+  { icon: <CompletedOrderIcon />, iconBg: undefined, label: "완료 주문", key: "completed" as const, href: "/partner/orders?status=납품완료" },
 ];
 
 type OrderStatus = { label: string; bg: string; border: string; color: string };
@@ -105,7 +105,13 @@ function OverviewTab({ overview }: { overview: DashboardOverview }) {
     <div>
       <div className="flex" style={{ gap: "19.52px", paddingBottom: "29.28px" }}>
         {OVERVIEW_STAT_CONFIG.map((s) => (
-          <div key={s.label} style={{ ...CARD, width: "267px", padding: "20.52px" }}>
+          <button
+            key={s.label}
+            type="button"
+            onClick={() => router.push(s.href)}
+            className="text-left"
+            style={{ ...CARD, width: "267px", padding: "20.52px", cursor: "pointer" }}
+          >
             <div style={{ paddingBottom: "14.64px" }}>
               <div className="flex items-center justify-center" style={{ width: "44px", height: "44px", borderRadius: "14.64px", background: s.iconBg }}>
                 {s.icon}
@@ -113,7 +119,7 @@ function OverviewTab({ overview }: { overview: DashboardOverview }) {
             </div>
             <div style={{ fontWeight: 700, fontSize: "20px", letterSpacing: "-0.3px", lineHeight: "36px", color: INK }}>{statValue[s.key]}</div>
             <div style={{ marginTop: "4.88px", fontWeight: 400, fontSize: "12px", letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>{s.label}</div>
-          </div>
+          </button>
         ))}
       </div>
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSessionClaims } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
+import { notifyQuoteRequestPublished } from "@/lib/quote-request-notifications";
 import { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +50,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!ALLOWED.includes(body.status)) {
       return NextResponse.json({ error: "유효하지 않은 상태입니다" }, { status: 400 });
     }
-    await prisma.quoteRequest.update({ where: { id }, data: { status: body.status as never } });
+    await prisma.$transaction(async (tx) => {
+      await tx.quoteRequest.update({
+        where: { id },
+        data: { status: body.status as never },
+      });
+                                                                           
+                                                                         
+      if (body.status === "OPEN" && quote.status !== "OPEN") {
+        await notifyQuoteRequestPublished(id, tx);
+      }
+    });
     return NextResponse.json({ ok: true });
   }
 

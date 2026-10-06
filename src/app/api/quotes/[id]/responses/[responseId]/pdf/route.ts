@@ -4,6 +4,8 @@ import { getSupplierCompanyId } from "@/lib/auth/partner";
 import { prisma } from "@/lib/db";
 import { decrypt } from "@/lib/crypto/pii";
 import { buildQuotePdf, type QuoteItemLine } from "@/lib/pdf/documents";
+import { quoteSealImageDataUri } from "@/lib/quote-seal-image";
+import { storage } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +41,15 @@ export async function GET(
         },
       },
       supplierCompany: {
-        select: { id: true, name: true, representativeName: true, businessRegistrationNo: true, phone: true },
+        select: {
+          id: true,
+          name: true,
+          quoteSealCompanyName: true,
+          quoteSealImageKey: true,
+          representativeName: true,
+          businessRegistrationNo: true,
+          phone: true,
+        },
       },
       items: {
         include: { quoteRequestItem: { select: { name: true, spec: true, quantity: true, unit: true } } },
@@ -100,6 +110,9 @@ export async function GET(
   const phone = response.supplierCompany.phone
     ? decrypt(response.supplierCompany.phone) ?? "-"
     : "-";
+  const sealImage = response.supplierCompany.quoteSealImageKey
+    ? await storage.read(response.supplierCompany.quoteSealImageKey)
+    : null;
 
   const pdf = await buildQuotePdf({
     quoteNo: response.quoteNo ?? response.id,
@@ -107,6 +120,8 @@ export async function GET(
     requestTitle: response.quoteRequest.title,
     orgName: orgLabel,
     supplierName: response.supplierCompany.name,
+    supplierSealCompanyName: response.supplierCompany.quoteSealCompanyName,
+    supplierSealImageDataUri: quoteSealImageDataUri(sealImage),
     supplierRepresentative: decrypt(response.supplierCompany.representativeName) ?? "-",
     supplierBusinessNo: decrypt(response.supplierCompany.businessRegistrationNo) ?? "-",
     supplierPhone: phone,

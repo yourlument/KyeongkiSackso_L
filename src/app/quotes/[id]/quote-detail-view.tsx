@@ -10,11 +10,30 @@ import { EditNoticeModal, QuotePreviewModal, ProposalStatusModal, DeleteNoticeMo
 const NAVY = "#1E3A5F";
 const TEXT = "#1D1D1F";
 
-const TABS = ["개요", "제안서", "실시간 상담", "제안서 비교"] as const;
+const TABS = ["개요", "견적서", "실시간 상담", "견적서 비교"] as const;
 type Tab = (typeof TABS)[number];
 
-export function QuoteDetailView({ id, data }: { id: string; data: QuoteDetailData }) {
-  const [tab, setTab] = useState<Tab>("개요");
+const TAB_BY_QUERY: Record<string, Tab> = {
+  overview: TABS[0],
+  proposal: TABS[1],
+  chat: TABS[2],
+  compare: TABS[3],
+};
+
+export function QuoteDetailView({
+  id,
+  data,
+  initialTabKey = null,
+  initialThreadId = null,
+}: {
+  id: string;
+  data: QuoteDetailData;
+  initialTabKey?: string | null;
+  initialThreadId?: string | null;
+}) {
+  const [tab, setTab] = useState<Tab>(
+    (initialTabKey ? TAB_BY_QUERY[initialTabKey] : null) ?? (initialThreadId ? TABS[2] : TABS[0]),
+  );
   const [modal, setModal] = useState<null | "edit" | "quote" | "status" | "delete" | "noticeStatus" | "order">(null);
   const [selectedProposal, setSelectedProposal] = useState<QuoteDetailProposal | null>(null);
   const awardedProposal = data.awardedResponseId ? (data.proposals.find((p) => p.id === data.awardedResponseId) ?? null) : null;
@@ -197,7 +216,6 @@ export function QuoteDetailView({ id, data }: { id: string; data: QuoteDetailDat
               ) : (
                 <div className="flex flex-col" style={{ gap: "7.32px" }}>
                   {data.attachments.map((a, i) => (
-<<<<<<< Updated upstream
                     <a
                       key={i}
                       href={a.url}
@@ -219,11 +237,6 @@ export function QuoteDetailView({ id, data }: { id: string; data: QuoteDetailDat
                       <span className="flex shrink-0 items-center justify-center" style={{ width: "36px", height: "36px" }}>
                         <DownloadIcon />
                       </span>
-=======
-                    <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" download className="flex items-center" style={{ gap: "9.76px", borderRadius: "14.64px", border: `1px solid rgba(210,210,215,0.2)`, padding: "12.2px 15.64px", textDecoration: "none" }}>
-                      <AttachIcon />
-                      <span style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.7)" }}>{a.name}</span>
->>>>>>> Stashed changes
                     </a>
                   ))}
                 </div>
@@ -244,12 +257,12 @@ export function QuoteDetailView({ id, data }: { id: string; data: QuoteDetailDat
             </div>
           </section>
         </>
-      ) : tab === "제안서" ? (
-        <ProposalsPanel proposals={data.proposals} onQuote={openQuote} onStatus={(p) => { setSelectedProposal(p); setModal("status"); }} onChat={() => setTab("실시간 상담")} onCompare={() => setTab("제안서 비교")} />
+      ) : tab === "견적서" ? (
+        <ProposalsPanel proposals={data.proposals} awarded={data.awardedResponseId != null} onQuote={openQuote} onStatus={(p) => { setSelectedProposal(p); setModal("status"); }} onChat={() => setTab("실시간 상담")} onCompare={() => setTab("견적서 비교")} />
       ) : tab === "실시간 상담" ? (
-        <ChatPanel id={id} proposals={data.proposals} onQuote={openQuote} />
+        <ChatPanel id={id} proposals={data.proposals} onQuote={openQuote} initialThreadId={initialThreadId} />
       ) : (
-        <ComparePanel proposals={data.proposals} budgetAmount={data.budgetAmount} onQuote={openQuote} onStatus={(p) => { setSelectedProposal(p); setModal("status"); }} onChat={() => setTab("실시간 상담")} onBack={() => setTab("제안서")} />
+        <ComparePanel proposals={data.proposals} budgetAmount={data.budgetAmount} awarded={data.awardedResponseId != null} onQuote={openQuote} onStatus={(p) => { setSelectedProposal(p); setModal("status"); }} onChat={() => setTab("실시간 상담")} onBack={() => setTab("견적서")} />
       )}
       {modal === "edit" && <EditNoticeModal onClose={() => setModal(null)} quoteId={id} title={data.title} budget={data.budgetAmount} dueDate={data.dueDate} deliveryCondition={data.deliveryCondition} />}
       {modal === "noticeStatus" && <NoticeStatusModal onClose={() => setModal(null)} quoteId={id} current={data.rawStatus} />}
@@ -273,15 +286,15 @@ export function QuoteDetailView({ id, data }: { id: string; data: QuoteDetailDat
 }
 
 const PROP_COLS = [
-  { label: "업체명", width: "11.25%" },
+  { label: "업체명", width: "17%" },
   { label: "연락처", width: "11.71%" },
   { label: "제안 금액", width: "12.61%" },
   { label: "규격 요약", width: "25.95%" },
   { label: "상태", width: "8.8%" },
-  { label: "작업", width: "29.66%" },
+  { label: "작업", width: "23.91%" },
 ];
 
-function ProposalsPanel({ proposals, onQuote, onStatus, onChat, onCompare }: { proposals: QuoteDetailProposal[]; onQuote: (p: QuoteDetailProposal) => void; onStatus: (p: QuoteDetailProposal) => void; onChat: () => void; onCompare: () => void }) {
+function ProposalsPanel({ proposals, awarded, onQuote, onStatus, onChat, onCompare }: { proposals: QuoteDetailProposal[]; awarded: boolean; onQuote: (p: QuoteDetailProposal) => void; onStatus: (p: QuoteDetailProposal) => void; onChat: () => void; onCompare: () => void }) {
   return (
     <div style={{ paddingBottom: "58.6px" }}>
       <div style={{ borderRadius: "19.52px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff", overflow: "hidden" }}>
@@ -316,7 +329,9 @@ function ProposalsPanel({ proposals, onQuote, onStatus, onChat, onCompare }: { p
             <div className="flex items-center" style={{ width: PROP_COLS[5].width, padding: "19.52px 24.4px", gap: "9.76px" }}>
               <button type="button" onClick={() => onQuote(p)} style={chipBtn()}><QuoteIcon /><span>견적서</span></button>
               <button type="button" onClick={onChat} style={chipBtn()}><ChatBubbleIcon /><span>대화</span></button>
-              <button type="button" onClick={() => onStatus(p)} style={chipBtn()}><StatusIcon /><span>상태 변경</span></button>
+              {!awarded && (
+                <button type="button" onClick={() => onStatus(p)} style={chipBtn()}><StatusIcon /><span>상태 변경</span></button>
+              )}
             </div>
           </div>
         ))}
@@ -325,7 +340,7 @@ function ProposalsPanel({ proposals, onQuote, onStatus, onChat, onCompare }: { p
       <div className="flex justify-end" style={{ paddingTop: "19.52px" }}>
         <button type="button" onClick={onCompare} style={compareViewerBtn()}>
           <CompareIcon />
-          <span>제안서 비교 뷰어</span>
+          <span>견적서 비교 뷰어</span>
         </button>
       </div>
     </div>
@@ -334,8 +349,9 @@ function ProposalsPanel({ proposals, onQuote, onStatus, onChat, onCompare }: { p
 
 const CHAT_SYSTEM_NOTE = "견적 문의 채팅방이 개설되었습니다. 기술 문의 및 추가 자료 전송이 가능합니다.";
 
-function ChatPanel({ id, proposals, onQuote }: { id: string; proposals: QuoteDetailProposal[]; onQuote: (p: QuoteDetailProposal) => void }) {
+function ChatPanel({ id, proposals, onQuote, initialThreadId = null }: { id: string; proposals: QuoteDetailProposal[]; onQuote: (p: QuoteDetailProposal) => void; initialThreadId?: string | null }) {
   const [threadMap, setThreadMap] = useState<Record<string, string>>({});
+  const [threadsLoaded, setThreadsLoaded] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -343,20 +359,26 @@ function ChatPanel({ id, proposals, onQuote }: { id: string; proposals: QuoteDet
     fetch(`/api/chat/by-request/${id}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (!active || !d) return;
+        if (!active) return;
         const map: Record<string, string> = {};
-        for (const t of (d.threads ?? []) as { supplierCompanyId: string; threadId: string }[]) {
+        for (const t of ((d?.threads ?? []) as { supplierCompanyId: string; threadId: string }[])) {
           map[t.supplierCompanyId] = t.threadId;
         }
         setThreadMap(map);
+        setThreadsLoaded(true);
       })
-      .catch(() => {});
+      .catch(() => { if (active) setThreadsLoaded(true); });
     return () => { active = false; };
   }, [id]);
 
   useEffect(() => {
-    if (selectedId === null && proposals.length > 0) setSelectedId(proposals[0].supplierCompanyId);
-  }, [proposals, selectedId]);
+    if (selectedId !== null || proposals.length === 0) return;
+    if (initialThreadId && !threadsLoaded) return;
+    const matched = initialThreadId
+      ? proposals.find((p) => threadMap[p.supplierCompanyId] === initialThreadId)
+      : undefined;
+    setSelectedId((matched ?? proposals[0]).supplierCompanyId);
+  }, [proposals, selectedId, initialThreadId, threadsLoaded, threadMap]);
 
   const selected = proposals.find((p) => p.supplierCompanyId === selectedId) ?? null;
   const threadId = selected ? threadMap[selected.supplierCompanyId] ?? null : null;
@@ -533,7 +555,7 @@ function BuyerChatRoom({ threadId, company, totalAmount, statusLabel, onQuote }:
   );
 }
 
-function ComparePanel({ proposals, budgetAmount, onQuote, onStatus, onChat, onBack }: { proposals: QuoteDetailProposal[]; budgetAmount: number | null; onQuote: (p: QuoteDetailProposal) => void; onStatus: (p: QuoteDetailProposal) => void; onChat: () => void; onBack: () => void }) {
+function ComparePanel({ proposals, budgetAmount, awarded, onQuote, onStatus, onChat, onBack }: { proposals: QuoteDetailProposal[]; budgetAmount: number | null; awarded: boolean; onQuote: (p: QuoteDetailProposal) => void; onStatus: (p: QuoteDetailProposal) => void; onChat: () => void; onBack: () => void }) {
   const LABEL_W = "175.7px";
   const amounts = proposals.map((p) => p.amount);
   const minAmount = amounts.length ? Math.min(...amounts) : 0;
@@ -625,7 +647,9 @@ function ComparePanel({ proposals, budgetAmount, onQuote, onStatus, onChat, onBa
                 <div key={p.id} className="flex flex-col items-center justify-center" style={{ flex: 1, minWidth: "175.7px", padding: "17.08px 14.64px", gap: "7.32px" }}>
                   <button type="button" onClick={() => onQuote(p)} style={compareActionBtn()}><QuoteIcon /><span>견적서</span></button>
                   <button type="button" onClick={onChat} style={compareActionBtn()}><ChatBubbleIcon /><span>대화</span></button>
-                  <button type="button" onClick={() => onStatus(p)} style={compareActionBtn()}><StatusIcon /><span>상태 변경</span></button>
+                  {!awarded && (
+                    <button type="button" onClick={() => onStatus(p)} style={compareActionBtn()}><StatusIcon /><span>상태 변경</span></button>
+                  )}
                 </div>
               ))}
             </div>

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSessionClaims } from "@/lib/auth/session";
 import { decrypt } from "@/lib/crypto/pii";
 import { hasPurchasedProduct } from "@/lib/reviews";
+import { certificationMarksFromNames } from "@/lib/certification-marks";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { KakaoChat } from "@/components/kakao-chat";
@@ -20,7 +21,15 @@ export default async function ProductDetailPage({
   const product = await prisma.product.findUnique({
     where: { id },
     include: {
-      supplierCompany: true,
+      supplierCompany: {
+        include: {
+          certificationRequests: {
+            where: { status: "APPROVED" },
+            orderBy: [{ submittedAt: "asc" }, { id: "asc" }],
+            select: { name: true },
+          },
+        },
+      },
       category: true,
       images: { orderBy: { sortOrder: "asc" } },
       inventory: true,
@@ -59,7 +68,9 @@ export default async function ProductDetailPage({
     registeredCount,
     dealCount: company.dealCount ?? undefined,
     phone: decrypt(company.phone) ?? undefined,
-    certifications: company.certifications,
+    certifications: certificationMarksFromNames(
+      company.certificationRequests.map((certification) => certification.name),
+    ),
     description: company.description ?? undefined,
     portfolioFileName: company.portfolioFileName ?? undefined,
   };
@@ -128,7 +139,7 @@ export default async function ProductDetailPage({
             supplierCompanyName={company.name}
             rating={product.rating ?? undefined}
             reviewCount={product.reviewCount ?? undefined}
-            badges={product.badges}
+            badges={certificationMarksFromNames(product.badges)}
             minOrderQty={product.minOrderQty ?? undefined}
             deliveryDays={product.deliveryDays ?? undefined}
             deliveryCondition={product.deliveryCondition ?? undefined}

@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/db";
-import type { NotificationType } from "@prisma/client";
+import type { NotificationType, PrismaClient } from "@prisma/client";
 
 export type NotificationCategory = "orderPayment" | "quoteNotice" | "delivery" | "marketing";
 
 export type NotificationInput = {
+                                                                                
+  id?: string;
   userId: string;
   type: NotificationType;
   title: string;
@@ -11,6 +13,11 @@ export type NotificationInput = {
   link?: string | null;
   category?: NotificationCategory | null;
 };
+
+type NotificationClient = Pick<
+  PrismaClient,
+  "notification" | "userNotificationSetting"
+>;
 
 type CategoryFlags = {
   orderPayment: boolean;
@@ -55,15 +62,19 @@ function formatKst(d: Date): string {
   return kstFormatter.format(d).replace(",", "");
 }
 
-export async function createNotification(input: NotificationInput): Promise<void> {
+export async function createNotification(
+  input: NotificationInput,
+  db: NotificationClient = prisma,
+): Promise<void> {
   if (input.category) {
-    const setting = (await prisma.userNotificationSetting.findUnique({
+    const setting = (await db.userNotificationSetting.findUnique({
       where: { userId: input.userId },
     })) ?? undefined;
     if (!categoryEnabled(setting, input.category)) return;
   }
-  await prisma.notification.create({
+  await db.notification.create({
     data: {
+      ...(input.id ? { id: input.id } : {}),
       userId: input.userId,
       type: input.type,
       title: input.title,
@@ -73,25 +84,33 @@ export async function createNotification(input: NotificationInput): Promise<void
   });
 }
 
-export async function createNotifications(inputs: NotificationInput[]): Promise<void> {
+export async function createNotifications(
+  inputs: NotificationInput[],
+  db: NotificationClient = prisma,
+): Promise<void> {
   if (inputs.length === 0) return;
   let allow = inputs;
   const gated = inputs.filter((i) => i.category);
   if (gated.length > 0) {
     const ids = Array.from(new Set(gated.map((i) => i.userId)));
-    const rows = await prisma.userNotificationSetting.findMany({ where: { userId: { in: ids } } });
+    const rows = await db.userNotificationSetting.findMany({ where: { userId: { in: ids } } });
     const map = new Map(rows.map((r) => [r.userId, r as CategoryFlags]));
     allow = inputs.filter((i) => !i.category || categoryEnabled(map.get(i.userId), i.category));
   }
   if (allow.length === 0) return;
-  await prisma.notification.createMany({
+  await db.notification.createMany({
     data: allow.map((i) => ({
+      ...(i.id ? { id: i.id } : {}),
       userId: i.userId,
       type: i.type,
       title: i.title,
       body: i.body ?? null,
       link: i.link ?? null,
     })),
+                                                                             
+                                                                           
+                                        
+    skipDuplicates: true,
   });
 }
 

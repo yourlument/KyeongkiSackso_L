@@ -1,4 +1,8 @@
 import { prisma } from "@/lib/db";
+import {
+  certificationMarkOptions,
+  normalizeCertificationMark,
+} from "@/lib/certification-options";
 
 export type CertStatus = "등록 완료" | "심사 진행중" | "반려";
 export type CertRow = {
@@ -14,6 +18,7 @@ export type CertRow = {
 export type PartnerCertificationsData = {
   rows: CertRow[];
   stats: { approved: number; reviewing: number; total: number };
+  nameOptions: string[];
 };
 
 const ST: Record<string, CertStatus> = { APPROVED: "등록 완료", REVIEWING: "심사 진행중", REJECTED: "반려" };
@@ -25,14 +30,23 @@ function ymd(d: Date | null | undefined): string {
 }
 
 export async function loadPartnerCertifications(companyId: string): Promise<PartnerCertificationsData> {
-  const certs = await prisma.supplierCertification.findMany({
-    where: { supplierCompanyId: companyId },
-    orderBy: { submittedAt: "desc" },
-  });
+  const [certs, approvedCertificationNames] = await Promise.all([
+    prisma.supplierCertification.findMany({
+      where: { supplierCompanyId: companyId },
+      orderBy: { submittedAt: "desc" },
+    }),
+    prisma.supplierCertification.findMany({
+      where: {
+        status: "APPROVED",
+        supplierCompany: { approvalStatus: "APPROVED" },
+      },
+      select: { name: true },
+    }),
+  ]);
 
   const rows: CertRow[] = certs.map((c) => ({
     id: c.id,
-    name: c.name,
+    name: normalizeCertificationMark(c.name),
     status: ST[c.status] ?? "심사 진행중",
     desc: c.description ?? "",
     file: c.fileName ?? "첨부 파일 없음",
@@ -47,5 +61,9 @@ export async function loadPartnerCertifications(companyId: string): Promise<Part
     total: rows.length,
   };
 
-  return { rows, stats };
+  const nameOptions = certificationMarkOptions(
+    approvedCertificationNames.map((certification) => certification.name),
+  );
+
+  return { rows, stats, nameOptions };
 }

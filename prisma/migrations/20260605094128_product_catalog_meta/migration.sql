@@ -1,4 +1,4 @@
--- AlterTable
+             
 ALTER TABLE "products" ADD COLUMN     "badges" TEXT[],
 ADD COLUMN     "delivery_condition" TEXT,
 ADD COLUMN     "delivery_days" INTEGER,

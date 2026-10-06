@@ -1,12 +1,17 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { KakaoChat } from "@/components/kakao-chat";
+import { productSearchQuery } from "@/lib/product-search-params";
+import {
+  parseProductSearchRegion,
+  type ProductSearchRegionOptions,
+} from "@/lib/product-search-regions";
 
 const SORT_OPTIONS = [
   { value: "relevance", label: "관련도순" },
@@ -60,6 +65,12 @@ const S_FILTER_BTN: React.CSSProperties = {
 };
 const DIVIDER = "1px solid rgba(210,210,215,0.2)";
 
+const CERT_COLLATOR = new Intl.Collator("ko-KR", { numeric: true, sensitivity: "base" });
+
+function certScriptRank(v: string): number {
+  return /^[\u3131-\u318E\uAC00-\uD7A3]/.test(v.trim()) ? 0 : 1;
+}
+
 const S_CHIP: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
@@ -68,6 +79,10 @@ const S_CHIP: React.CSSProperties = {
   backgroundColor: "rgba(29,29,31,0.05)",
   whiteSpace: "nowrap" as const,
 };
+
+function selectedCerts(params: { getAll(name: string): string[] }): string[] {
+  return Array.from(new Set([...params.getAll("cert"), ...params.getAll("certification")]));
+}
 
 function SearchInner() {
   const router = useRouter();
@@ -80,10 +95,20 @@ function SearchInner() {
   );
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
+  const [certs, setCerts] = useState<string[]>(selectedCerts(params));
+  const [regionSido, setRegionSido] = useState(params.get("regionSido") ?? "");
+  const [regionSigungu, setRegionSigungu] = useState(params.get("regionSigungu") ?? "");
   const [showFilters, setShowFilters] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [catTree, setCatTree] = useState<CatNode[]>([]);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [certOptions, setCertOptions] = useState<string[]>([]);
+  const [regionOptions, setRegionOptions] = useState<ProductSearchRegionOptions>({
+    sido: [],
+    sigunguBySido: {},
+  });
+  const revalidatingRef = useRef(false);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -98,33 +123,108 @@ function SearchInner() {
     const q = params.get("q") ?? "";
     const cat = params.get("category") ?? "";
     const s = (params.get("sort") as SortKey) ?? "relevance";
+    const cm = selectedCerts(params);
+    const legacyRegion = params.get("region") ?? "";
+    const legacySelection = parseProductSearchRegion(legacyRegion);
+    const selectedRegionSido = params.get("regionSido") ?? legacySelection.sido;
+    const selectedRegionSigungu = selectedRegionSido
+      ? params.get("regionSigungu") ?? (params.has("regionSido") ? "" : legacySelection.sigungu)
+      : "";
     setKeyword(q);
     setCategory(cat);
     setSort(s);
+    setCerts(cm);
+    setRegionSido(selectedRegionSido);
+    setRegionSigungu(selectedRegionSigungu);
+
+    if (params.get("classNo") !== null || params.get("region") !== null) {
+      const normalized = productSearchQuery(params.toString(), {
+        q,
+        category: cat,
+        sort: s,
+        certs: cm,
+        regionSido: selectedRegionSido,
+        regionSigungu: selectedRegionSigungu,
+      });
+      router.replace(`/search${normalized.toString() ? `?${normalized.toString()}` : ""}`);
+      return;
+    }
 
     const ac = new AbortController();
-    setLoading(true);
-    const qs = new URLSearchParams();
-    if (q) qs.set("q", q);
-    if (cat) qs.set("category", cat);
-    if (s && s !== "relevance") qs.set("sort", s);
-    fetch(`/api/products/search?${qs.toString()}`, { signal: ac.signal })
+    if (revalidatingRef.current) {
+      revalidatingRef.current = false;
+    } else {
+      setLoading(true);
+    }
+    const qs = productSearchQuery(params.toString(), {
+      q,
+      category: cat,
+      sort: s,
+      certs: cm,
+      regionSido: selectedRegionSido,
+      regionSigungu: selectedRegionSigungu,
+    });
+    fetch(`/api/products/search?${qs.toString()}`, { signal: ac.signal, cache: "no-store" })
       .then((r) => r.json())
-      .then((data: { results: Product[] }) => setProducts(data.results ?? []))
+      .then((data: { results: Product[]; certifications?: string[]; regions?: ProductSearchRegionOptions }) => {
+        setProducts(data.results ?? []);
+        setCertOptions(data.certifications ?? []);
+        setRegionOptions(data.regions ?? { sido: [], sigunguBySido: {} });
+      })
       .catch(() => {  })
       .finally(() => setLoading(false));
     return () => ac.abort();
-  }, [params]);
+  }, [params, router, reloadKey]);
 
-  function pushParams(next: { q?: string; category?: string; sort?: SortKey }) {
-    const qs = new URLSearchParams();
+  useEffect(() => {
+    let lastAt = 0;
+    function revalidate() {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastAt < 1000) return;
+      lastAt = now;
+      revalidatingRef.current = true;
+      setReloadKey((v) => v + 1);
+    }
+    window.addEventListener("focus", revalidate);
+    document.addEventListener("visibilitychange", revalidate);
+    return () => {
+      window.removeEventListener("focus", revalidate);
+      document.removeEventListener("visibilitychange", revalidate);
+    };
+  }, []);
+
+  function pushParams(next: {
+    q?: string;
+    category?: string;
+    sort?: SortKey;
+    certs?: string[];
+    regionSido?: string;
+    regionSigungu?: string;
+  }) {
     const q = next.q !== undefined ? next.q : keyword;
     const cat = next.category !== undefined ? next.category : category;
     const s = next.sort !== undefined ? next.sort : sort;
-    if (q) qs.set("q", q);
-    if (cat) qs.set("category", cat);
-    if (s && s !== "relevance") qs.set("sort", s);
+    const c = next.certs !== undefined ? next.certs : certs;
+    const selectedRegionSido = next.regionSido !== undefined ? next.regionSido : regionSido;
+    const selectedRegionSigungu = selectedRegionSido
+      ? next.regionSigungu !== undefined ? next.regionSigungu : regionSigungu
+      : "";
+    const qs = productSearchQuery(params.toString(), {
+      q,
+      category: cat,
+      sort: s,
+      certs: c,
+      regionSido: selectedRegionSido,
+      regionSigungu: selectedRegionSigungu,
+    });
     router.push(`/search${qs.toString() ? `?${qs.toString()}` : ""}`);
+  }
+
+  function toggleCert(mark: string) {
+    const next = certs.includes(mark) ? certs.filter((c) => c !== mark) : [...certs, mark];
+    setCerts(next);
+    pushParams({ certs: next });
   }
 
   const visible = useMemo(() => {
@@ -139,6 +239,25 @@ function SearchInner() {
 
   const count = visible.length;
 
+  const certDisplayList = useMemo(
+    () =>
+      Array.from(new Set([...certOptions, ...certs])).sort(
+        (a, b) => certScriptRank(a) - certScriptRank(b) || CERT_COLLATOR.compare(a, b)
+      ),
+    [certOptions, certs]
+  );
+  const sidoDisplayList = useMemo(
+    () => Array.from(new Set([...regionOptions.sido, ...(regionSido ? [regionSido] : [])])).sort(CERT_COLLATOR.compare),
+    [regionOptions.sido, regionSido],
+  );
+  const sigunguDisplayList = useMemo(
+    () => Array.from(new Set([
+      ...(regionOptions.sigunguBySido[regionSido] ?? []),
+      ...(regionSigungu ? [regionSigungu] : []),
+    ])).sort(CERT_COLLATOR.compare),
+    [regionOptions.sigunguBySido, regionSido, regionSigungu],
+  );
+
   const [topId, midId, leafId] = useMemo(() => {
     const p = findCatPath(catTree, category);
     return [p[0] ?? "", p[1] ?? "", p[2] ?? ""];
@@ -149,6 +268,19 @@ function SearchInner() {
   function selectCategory(id: string) {
     setCategory(id);
     pushParams({ category: id });
+  }
+
+  function resetFilters() {
+    setKeyword("");
+    setCategory("");
+    setSort("relevance");
+    setMinPrice("");
+    setMaxPrice("");
+    setCerts([]);
+    setRegionSido("");
+    setRegionSigungu("");
+    setReloadKey((v) => v + 1);
+    router.replace("/search");
   }
 
   return (
@@ -174,7 +306,7 @@ function SearchInner() {
               <input
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
-                placeholder="물품식별번호, 품명, 키워드를 입력하세요"
+                placeholder="품명, 키워드를 입력하세요"
                 aria-label="검색어"
                 className="search-input flex-1 bg-transparent outline-none"
                 style={{
@@ -207,6 +339,24 @@ function SearchInner() {
               <img src="/icons/srch-filter.svg" alt="" width={11} height={11} aria-hidden="true" />
               필터
             </button>
+
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="flex shrink-0 items-center transition-opacity hover:opacity-80"
+              style={{
+                ...S_FILTER_BTN,
+                gap: "7.32px",
+                padding: "13.2px 20.52px",
+                fontSize: "13px",
+                fontWeight: 500,
+                lineHeight: "22.75px",
+                letterSpacing: "-0.29px",
+                color: "#1E3A5F",
+              }}
+            >
+              필터 초기화
+            </button>
           </div>
         </div>
       </div>
@@ -216,7 +366,7 @@ function SearchInner() {
         <div className="mx-auto w-full max-w-[1440px] px-[95.36px]">
           <div className="flex flex-wrap items-center px-[48.8px] py-[24.4px]" style={{ gap: "14.64px" }}>
 
-            <div className="relative" style={{ width: "219px", height: "49px" }}>
+            <div className="relative" style={{ width: "180px", height: "49px" }}>
               <select
                 value={topId}
                 onChange={(e) => selectCategory(e.target.value)}
@@ -233,7 +383,7 @@ function SearchInner() {
                 className="pointer-events-none absolute right-[15.64px] top-1/2 -translate-y-1/2" />
             </div>
 
-            <div className="relative" style={{ width: "219px", height: "49px", opacity: topNode ? 1 : 0.5 }}>
+            <div className="relative" style={{ width: "180px", height: "49px", opacity: topNode ? 1 : 0.5 }}>
               <select
                 disabled={!topNode}
                 value={midId}
@@ -251,7 +401,7 @@ function SearchInner() {
                 className="pointer-events-none absolute right-[15.64px] top-1/2 -translate-y-1/2" />
             </div>
 
-            <div className="relative" style={{ width: "219px", height: "49px", opacity: midNode ? 1 : 0.5 }}>
+            <div className="relative" style={{ width: "180px", height: "49px", opacity: midNode ? 1 : 0.5 }}>
               <select
                 disabled={!midNode}
                 value={leafId}
@@ -267,6 +417,52 @@ function SearchInner() {
               </select>
               <img src="/icons/srch-chevron.svg" alt="" width={8} height={4} aria-hidden="true"
                 className="pointer-events-none absolute right-[15.64px] top-1/2 -translate-y-1/2" />
+            </div>
+
+            <div className="flex shrink-0 items-center" style={{ gap: "14.64px" }}>
+              <div className="relative" style={{ width: "180px", height: "49px" }}>
+                <select
+                  value={regionSido}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setRegionSido(next);
+                    setRegionSigungu("");
+                    pushParams({ regionSido: next, regionSigungu: "" });
+                  }}
+                  aria-label="시·도"
+                  className="h-full w-full cursor-pointer appearance-none outline-none"
+                  style={{ ...S_FIELD, padding: "13.2px 34px 13.2px 15.64px", fontSize: "13px", fontWeight: 400, lineHeight: "19px", letterSpacing: "-0.29px", color: "#1D1D1F" }}
+                >
+                  <option value="">전체 시·도</option>
+                  {sidoDisplayList.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+                <img src="/icons/srch-chevron.svg" alt="" width={8} height={4} aria-hidden="true"
+                  className="pointer-events-none absolute right-[15.64px] top-1/2 -translate-y-1/2" />
+              </div>
+
+              <div className="relative" style={{ width: "180px", height: "49px", opacity: regionSido ? 1 : 0.5 }}>
+                <select
+                  disabled={!regionSido}
+                  value={regionSigungu}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setRegionSigungu(next);
+                    pushParams({ regionSigungu: next });
+                  }}
+                  aria-label="시·군·구"
+                  className={`h-full w-full appearance-none outline-none ${regionSido ? "cursor-pointer" : "cursor-not-allowed"}`}
+                  style={{ ...S_FIELD, padding: "13.2px 34px 13.2px 15.64px", fontSize: "13px", fontWeight: 400, lineHeight: "19px", letterSpacing: "-0.29px", color: regionSido ? "#1D1D1F" : "rgba(29,29,31,0.5)" }}
+                >
+                  <option value="">전체 시·군·구</option>
+                  {sigunguDisplayList.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+                <img src="/icons/srch-chevron.svg" alt="" width={8} height={4} aria-hidden="true"
+                  className="pointer-events-none absolute right-[15.64px] top-1/2 -translate-y-1/2" />
+              </div>
             </div>
 
             <div className="flex items-center" style={{ gap: "9.76px" }}>
@@ -307,6 +503,50 @@ function SearchInner() {
                 className="pointer-events-none absolute right-[15.64px] top-1/2 -translate-y-1/2" />
             </div>
           </div>
+
+          {certDisplayList.length > 0 && (
+            <div className="px-[48.8px]" style={{ paddingBottom: "24.4px" }}>
+              <div style={{ borderTop: DIVIDER, paddingTop: "14.64px" }}>
+                <span
+                  id="cert-mark-group-label"
+                  style={{ display: "block", fontSize: "13px", fontWeight: 400, lineHeight: "19px", letterSpacing: "-0.29px", color: "rgba(29,29,31,0.5)" }}
+                >
+                  인증 마크
+                </span>
+                <div
+                  role="group"
+                  aria-labelledby="cert-mark-group-label"
+                  className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+                  style={{
+                    marginTop: "9.76px",
+                    maxHeight: "105.28px",
+                    overflowY: "auto",
+                    overscrollBehavior: "contain",
+                    gridAutoRows: "19px",
+                    columnGap: "14.64px",
+                    rowGap: "9.76px",
+                  }}
+                >
+                  {certDisplayList.map((mark) => (
+                    <label key={mark} className="flex min-w-0 items-center" style={{ gap: "9.76px", cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={certs.includes(mark)}
+                        onChange={() => toggleCert(mark)}
+                        style={{ width: "16px", height: "16px", accentColor: "#1E3A5F", margin: 0, flexShrink: 0, cursor: "pointer" }}
+                      />
+                      <span
+                        title={mark}
+                        style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "13px", fontWeight: 400, lineHeight: "19px", letterSpacing: "-0.29px", color: "#1D1D1F" }}
+                      >
+                        {mark}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       )}

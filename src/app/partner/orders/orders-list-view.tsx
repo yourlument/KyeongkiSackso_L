@@ -21,12 +21,14 @@ const GRID = "162px 261px 115px 150px 224px 129px 84px";
 export function OrdersListView({
   rows: allRows,
   stats,
+  initialFilter = "전체",
 }: {
   rows: OrderRow[];
   stats: { total: number; paid: number; shipping: number; delivered: number };
+  initialFilter?: OrderFilter;
 }) {
   const router = useRouter();
-  const [filter, setFilter] = useState<OrderFilter>("전체");
+  const [filter, setFilter] = useState<OrderFilter>(initialFilter);
   const [invoiceFor, setInvoiceFor] = useState<OrderRow | null>(null);
   const [confirmFor, setConfirmFor] = useState<{ order: OrderRow; next: OrderStatus } | null>(null);
 

@@ -16,33 +16,51 @@ function won(v: { toString(): string } | number | null | undefined): string {
   return `${Number(v).toLocaleString("ko-KR")}원`;
 }
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
   const companyId = await getSupplierCompanyId();
-  if (!companyId) return NextResponse.json({ message: "로그인이 필요해요" }, { status: 401 });
+  if (!companyId)
+    return NextResponse.json({ message: "로그인이 필요해요" }, { status: 401 });
 
   const { id } = await params;
   const payment = await prisma.subscriptionPayment.findUnique({
     where: { id },
     include: {
       subscription: {
-        select: { supplierCompanyId: true, planName: true, payMethod: true, supplierCompany: { select: { name: true } } },
+        select: {
+          supplierCompanyId: true,
+          planName: true,
+          payMethod: true,
+          supplierCompany: { select: { name: true } },
+        },
       },
     },
   });
   if (!payment || payment.subscription.supplierCompanyId !== companyId) {
-    return NextResponse.json({ message: "영수증을 찾을 수 없어요" }, { status: 404 });
+    return NextResponse.json(
+      { message: "영수증을 찾을 수 없어요" },
+      { status: 404 },
+    );
   }
 
   const paid = payment.paidAt;
-  const end = paid ? new Date(paid.getTime() + 30 * 24 * 60 * 60 * 1000) : null;
+  const periodStart = payment.periodStart ?? paid;
+  const periodEnd =
+    payment.periodEnd ??
+    (paid ? new Date(paid.getTime() + 30 * 24 * 60 * 60 * 1000) : null);
   const pdf = await buildSubscriptionReceiptPdf({
-    receiptNo: payment.id,
+    receiptNo: payment.transactionId ?? payment.id,
     issuedAt: ymd(new Date()),
     supplierName: payment.subscription.supplierCompany.name,
     planName: payment.subscription.planName,
     payMethod: payment.subscription.payMethod ?? "-",
     paidAt: ymd(paid),
-    billingPeriod: paid && end ? `${ymd(paid)} ~ ${ymd(end)}` : "-",
+    billingPeriod:
+      periodStart && periodEnd
+        ? `${ymd(periodStart)} ~ ${ymd(periodEnd)}`
+        : "-",
     amount: won(payment.amount),
   });
 

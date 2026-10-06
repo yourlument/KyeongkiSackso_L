@@ -22,6 +22,9 @@ export function CommunityDetailView({ post, viewer }: { post: CommunityDetailPos
   const addReply = (commentId: string, reply: { name: string; date: string; body: string }) => {
     setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, reply } : c)));
   };
+  const updateAnswer = (commentId: string, body: string) => {
+    setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, body } : c)));
+  };
 
   return (
     <div style={{ maxWidth: "839px", margin: "0 auto" }}>
@@ -89,7 +92,7 @@ export function CommunityDetailView({ post, viewer }: { post: CommunityDetailPos
 
         <div className="flex flex-col">
           {comments.map((c, i) => (
-            <CommentRow key={c.id} c={c} index={i} viewer={viewer} postId={post.id} onReply={addReply} />
+            <CommentRow key={c.id} c={c} index={i} viewer={viewer} postId={post.id} active={active} onReply={addReply} onUpdate={updateAnswer} />
           ))}
         </div>
 
@@ -114,13 +117,17 @@ export function CommunityDetailView({ post, viewer }: { post: CommunityDetailPos
   );
 }
 
-function CommentRow({ c, index, viewer, postId, onReply }: {
-  c: CommunityDetailComment; index: number; viewer: DetailViewer; postId: string;
+function CommentRow({ c, index, viewer, postId, active, onReply, onUpdate }: {
+  c: CommunityDetailComment; index: number; viewer: DetailViewer; postId: string; active: boolean;
   onReply: (commentId: string, reply: { name: string; date: string; body: string }) => void;
+  onUpdate: (commentId: string, body: string) => void;
 }) {
   const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const canEdit = viewer === "supplier" && !!c.mine && active;
 
   const submitReply = async () => {
     if (!replyText.trim() || submitting) return;
@@ -155,10 +162,25 @@ function CommentRow({ c, index, viewer, postId, onReply }: {
                   {showForm ? "취소" : "답글 달기"}
                 </button>
               )}
+              {canEdit && (
+                <button type="button" onClick={() => setEditing((v) => !v)}
+                  style={{ fontSize: "11px", fontWeight: 400, color: NAVY, background: "none", border: "none", cursor: "pointer", padding: 0, letterSpacing: "-0.165px" }}>
+                  {editing ? "취소" : "수정"}
+                </button>
+              )}
               <span style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)" }}>{c.date}</span>
             </div>
           </div>
-          <p style={{ fontSize: "13px", fontWeight: 400, lineHeight: "21.125px", letterSpacing: "-0.195px", color: "rgba(29,29,31,0.7)", margin: 0, whiteSpace: "pre-wrap" }}>{c.body}</p>
+          {canEdit && editing ? (
+            <AnswerForm
+              postId={postId}
+              editing={{ id: c.id, body: c.body }}
+              containerStyle={{}}
+              onUpdate={(commentId, body) => { onUpdate(commentId, body); setEditing(false); }}
+            />
+          ) : (
+            <p style={{ fontSize: "13px", fontWeight: 400, lineHeight: "21.125px", letterSpacing: "-0.195px", color: "rgba(29,29,31,0.7)", margin: 0, whiteSpace: "pre-wrap" }}>{c.body}</p>
+          )}
         </div>
       </div>
 
@@ -200,31 +222,46 @@ function CommentRow({ c, index, viewer, postId, onReply }: {
   );
 }
 
-function AnswerForm({ postId, onSubmit }: {
+function AnswerForm({ postId, editing, containerStyle, onSubmit, onUpdate }: {
   postId: string;
-  onSubmit: (c: CommunityDetailComment) => void;
+  editing?: { id: string; body: string };
+  containerStyle?: React.CSSProperties;
+  onSubmit?: (c: CommunityDetailComment) => void;
+  onUpdate?: (commentId: string, body: string) => void;
 }) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(editing?.body ?? "");
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async () => {
     if (!text.trim() || submitting) return;
     setSubmitting(true);
-    const res = await fetch(`/api/community/${postId}/comments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: text }),
-    });
+    const res = editing
+      ? await fetch(`/api/community/${postId}/comments/${editing.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: text }),
+        })
+      : await fetch(`/api/community/${postId}/comments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: text }),
+        });
     if (res.ok) {
-      const data = await res.json();
-      onSubmit({ id: data.id, company: data.name, date: data.date, body: text, mine: true });
-      setText("");
+      if (editing) {
+        onUpdate?.(editing.id, text);
+      } else {
+        const data = await res.json();
+        onSubmit?.({ id: data.id, company: data.name, date: data.date, body: text, mine: true });
+        setText("");
+      }
+    } else {
+      alert("저장 중 오류가 발생했습니다");
     }
     setSubmitting(false);
   };
 
   return (
-    <div style={{ borderTop: "1px solid rgba(210,210,215,0.15)", padding: "20.52px 29.28px" }}>
+    <div style={containerStyle ?? { borderTop: "1px solid rgba(210,210,215,0.15)", padding: "20.52px 29.28px" }}>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -234,7 +271,7 @@ function AnswerForm({ postId, onSubmit }: {
       <div style={{ marginTop: "9.76px", textAlign: "right" }}>
         <button type="button" onClick={submit} disabled={submitting || !text.trim()}
           style={{ borderRadius: "14.64px", background: NAVY, color: "#fff", border: "none", padding: "9.76px 24.4px", fontSize: "13px", fontWeight: 600, cursor: "pointer", opacity: (!text.trim() || submitting) ? 0.5 : 1 }}>
-          {submitting ? "등록 중..." : "답변 등록"}
+          {submitting ? "등록 중..." : editing ? "수정" : "답변 등록"}
         </button>
       </div>
     </div>

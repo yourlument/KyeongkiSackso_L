@@ -111,7 +111,7 @@ export function ContentsView({ data }: { data: AdminContentsData }) {
                   setQ(e.target.value);
                   setProductPage(1);
                 }}
-                placeholder="업체명, 품명, 물품번호로 검색"
+                placeholder="업체명, 품명, 분류번호로 검색"
                 className="min-w-0 flex-1"
                 style={{
                   border: "none",
@@ -130,7 +130,7 @@ export function ContentsView({ data }: { data: AdminContentsData }) {
 
           <div style={{ background: "#fff", borderRadius: "19.52px", border: "1px solid rgba(210,210,215,0.2)", overflow: "hidden" }}>
             <div className="grid" style={{ gridTemplateColumns: GRID, background: "rgba(29,29,31,0.02)", borderBottom: "1px solid rgba(210,210,215,0.1)" }}>
-              {["물품번호", "품명", "업체", "카테고리", "가격", "상태", ""].map((h, i) => (
+              {["분류번호", "품명", "업체", "카테고리", "가격", "상태", ""].map((h, i) => (
                 <div key={i} className="flex items-center" style={{ padding: "17.13px 24.4px" }}>
                   <span style={{ fontSize: "12px", fontWeight: 600, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)" }}>{h}</span>
                 </div>
@@ -145,7 +145,7 @@ export function ContentsView({ data }: { data: AdminContentsData }) {
                 <div className="flex items-center" style={{ padding: "17.13px 24.4px", gap: "12.2px" }}>
                   <div className="overflow-hidden" style={{ width: "39px", height: "39px", borderRadius: "14.64px", background: "rgba(29,29,31,0.03)", flexShrink: 0 }}>
                     <img
-                      src={`/admin/products/${p.itemNo}.png`}
+                      src={`/api/files/admin-product-${p.itemNo}.png`}
                       alt=""
                       width={39}
                       height={39}

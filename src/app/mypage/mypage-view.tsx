@@ -10,17 +10,16 @@ import {
   InfoSharePostIcon,
   InquiryIcon,
   AlarmIcon,
-  WithdrawIcon,
   TermCheckIcon,
   AlarmCheckIcon,
   ConfirmCheckIcon,
   CompanyAvatarIcon,
+  WithdrawIcon,
 } from "./mypage-icons";
 import {
   OFFICIAL_TABS,
   SUPPLIER_TABS,
   ALARM_LABELS,
-  WITHDRAW_NOTES,
   type OfficialTabKey,
   type SupplierTabKey,
   type PurchaseStatus,
@@ -36,15 +35,17 @@ import {
   TERMS_OPTIONAL,
   type Term,
 } from "./mypage-data";
-import type { MyPageData, MyDemandPost, MyInfoPost, MyInquiryRow, MyBasicInfo, MySupplierField, MyDemandAnswer, MyQuoteNoticeRow, MyQuoteRequestDetailView } from "@/lib/mypage";
+import type { MyPageData, MyDemandPost, MyInfoPost, MyInquiryRow, MyBasicInfo, MyOfficialTaxInfo, MySupplierField, MyDemandAnswer, MyQuoteNoticeRow, MyQuoteRequestDetailView } from "@/lib/mypage";
 
 const NAVY = "#1E3A5F";
 const INK = "#1D1D1F";
 
 type Role = "official" | "supplier";
 
-export function MyPageView({ role = "official", data }: { role?: Role; data: MyPageData }) {
-  return role === "supplier" ? <SupplierView data={data} /> : <OfficialView data={data} />;
+export function MyPageView({ role = "official", data, initialTab = null }: { role?: Role; data: MyPageData; initialTab?: string | null }) {
+  return role === "supplier"
+    ? <SupplierView data={data} initialTab={initialTab} />
+    : <OfficialView data={data} initialTab={initialTab} />;
 }
 
 function PageShell({
@@ -153,6 +154,7 @@ const PURCHASE_BADGE: Record<PurchaseStatus, BadgeT> = {
   배송중: { bg: "#F0F9FF", border: "#BAE6FD", color: "#0369A1" },
   결제대기: { bg: "rgba(29,29,31,0.05)", border: "rgba(210,210,215,0.2)", color: "rgba(29,29,31,0.5)" },
   "세금계산서 발행요청": { bg: "#FFFBEB", border: "#FDE68A", color: "#B45309" },
+  결제취소: { bg: "#FEF2F2", border: "#FECACA", color: "#DC2626" },
 };
 const QUOTE_BADGE: Record<QuoteNoticeStatus, BadgeT> = {
   공고중: { bg: "rgba(30,58,95,0.1)", border: "rgba(30,58,95,0.2)", color: NAVY },
@@ -202,18 +204,20 @@ function Pill({ t, children }: { t: BadgeT; children: React.ReactNode }) {
   );
 }
 
-function OfficialView({ data }: { data: MyPageData }) {
-  const [tab, setTab] = useState<OfficialTabKey>("purchase");
+function OfficialView({ data, initialTab = null }: { data: MyPageData; initialTab?: string | null }) {
+  const [tab, setTab] = useState<OfficialTabKey>(
+    OFFICIAL_TABS.some((t) => t.key === initialTab) ? (initialTab as OfficialTabKey) : "purchase",
+  );
   return (
     <PageShell headerSub={data.headerSub} sidebar={<Sidebar items={OFFICIAL_TABS} active={tab} onSelect={setTab} />}>
-      {tab === "info" && <InfoTab basicInfo={data.basicInfo} />}
+      {tab === "info" && <InfoTab basicInfo={data.basicInfo} officialTaxInfo={data.officialTaxInfo} />}
       {tab === "purchase" && <PurchaseTab purchases={data.purchases} orderDetails={data.orderDetails} />}
       {tab === "quote" && <QuoteTab notices={data.quoteNotices} products={data.productQuotes} details={data.quoteDetails} />}
       {tab === "demand" && <DemandTab posts={data.demandPosts} />}
       {tab === "infoshare" && <InfoShareTab posts={data.infoPosts} />}
       {tab === "inquiry" && <InquiryTab items={data.inquiries} />}
       {tab === "alarm" && <AlarmTab values={data.alarmSettings} />}
-      {tab === "withdraw" && <WithdrawTab />}
+      {tab === "withdraw" && <WithdrawalControl />}
     </PageShell>
   );
 }
@@ -315,6 +319,8 @@ const solidBtn: React.CSSProperties = {
 };
 
 function OrderDetailModal({ d, onClose }: { d: OrderDetail; onClose: () => void }) {
+  const documentsLocked = d.status === "결제대기" || d.status === "결제취소";
+
   return (
     <ModalOverlay onClose={onClose}>
       <div style={{ width: "625px", maxWidth: "calc(100vw - 40px)", maxHeight: "90vh", overflowY: "auto", borderRadius: "19.52px", background: "#fff", border: `1px solid rgba(210,210,215,0.2)` }}>
@@ -375,9 +381,9 @@ function OrderDetailModal({ d, onClose }: { d: OrderDetail; onClose: () => void 
           <p style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.275px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)", margin: "24px 0 4px" }}>증빙 서류 출력</p>
           <p style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)", margin: "0 0 12px" }}>클릭 시 새 창에서 열립니다.</p>
           <div className="grid" style={{ gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
-            <DocBtn label="구매확인서" href={`/api/orders/${encodeURIComponent(d.orderNo)}/document?type=purchase`} />
-            <DocBtn label="매출 전표" href={`/api/orders/${encodeURIComponent(d.orderNo)}/document?type=sales`} />
-            <DocBtn label="세금 계산서" locked={!d.taxIssued} href={`/api/orders/${encodeURIComponent(d.orderNo)}/document?type=tax`} />
+            <DocBtn label="거래명세서(구매확인용)" locked={documentsLocked} href={`/api/orders/${encodeURIComponent(d.orderNo)}/document?type=purchase`} />
+            <DocBtn label="매출 전표" locked={documentsLocked} href={`/api/orders/${encodeURIComponent(d.orderNo)}/document?type=sales`} />
+            <DocBtn label="세금 계산서" locked={documentsLocked || !d.taxIssued} href={`/api/orders/${encodeURIComponent(d.orderNo)}/document?type=tax`} />
           </div>
         </div>
       </div>
@@ -582,7 +588,8 @@ function QuoteNoticeList({ notices }: { notices: MyQuoteNoticeRow[] }) {
 }
 
 function ProductQuoteList({ products, details }: { products: ProductQuoteRow[]; details: Record<string, MyQuoteRequestDetailView> }) {
-  const [detailId, setDetailId] = useState<string | null>(null);
+  const [requestDetailId, setRequestDetailId] = useState<string | null>(null);
+  const [responseDetailId, setResponseDetailId] = useState<string | null>(null);
   return (
     <>
       <div style={{ padding: "24.4px 29.28px 25.4px" }}>
@@ -590,15 +597,38 @@ function ProductQuoteList({ products, details }: { products: ProductQuoteRow[]; 
       </div>
       <div style={{ padding: "0 29.28px 8px" }}>
         {products.map((r, i) => (
-          <ProductQuoteRowView key={r.id} r={r} first={i === 0} onView={() => setDetailId(r.id)} />
+          <ProductQuoteRowView
+            key={r.id}
+            r={r}
+            first={i === 0}
+            onViewRequest={() => setRequestDetailId(r.id)}
+            onViewResponse={() => setResponseDetailId(r.id)}
+          />
         ))}
       </div>
-      {detailId && details[detailId] && <QuoteRequestModal detail={details[detailId]} onClose={() => setDetailId(null)} />}
+      {requestDetailId && details[requestDetailId] && <QuoteRequestModal detail={details[requestDetailId]} onClose={() => setRequestDetailId(null)} />}
+      {responseDetailId && details[responseDetailId]?.response && (
+        <SupplierQuoteResponseModal
+          detail={details[responseDetailId]}
+          response={details[responseDetailId].response}
+          onClose={() => setResponseDetailId(null)}
+        />
+      )}
     </>
   );
 }
 
-function ProductQuoteRowView({ r, first, onView }: { r: ProductQuoteRow; first: boolean; onView: () => void }) {
+function ProductQuoteRowView({
+  r,
+  first,
+  onViewRequest,
+  onViewResponse,
+}: {
+  r: ProductQuoteRow;
+  first: boolean;
+  onViewRequest: () => void;
+  onViewResponse: () => void;
+}) {
   return (
     <div style={{ padding: "20px 0", borderTop: first ? "none" : `1px solid rgba(210,210,215,0.1)` }}>
       <div className="flex items-start justify-between" style={{ gap: "16px" }}>
@@ -616,9 +646,86 @@ function ProductQuoteRowView({ r, first, onView }: { r: ProductQuoteRow; first: 
         </div>
         <div className="flex flex-col items-end" style={{ gap: "12px", flexShrink: 0 }}>
           <Pill t={PRODUCT_BADGE[r.status]}>{r.status}</Pill>
-          <button type="button" onClick={onView} style={linkBtn(NAVY)}>견적 요청서 보기</button>
+          {r.offer && <button type="button" onClick={onViewResponse} style={linkBtn(NAVY)}>업체 견적서 보기</button>}
+          <button type="button" onClick={onViewRequest} style={linkBtn(NAVY)}>견적 요청서 보기</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SupplierQuoteResponseModal({
+  detail,
+  response,
+  onClose,
+}: {
+  detail: MyQuoteRequestDetailView;
+  response: NonNullable<MyQuoteRequestDetailView["response"]>;
+  onClose: () => void;
+}) {
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div style={{ width: "625px", maxWidth: "calc(100vw - 40px)", maxHeight: "90vh", overflowY: "auto", borderRadius: "19.52px", background: "#fff", border: `1px solid rgba(210,210,215,0.2)` }}>
+        <div className="flex items-center justify-between" style={{ padding: "19.52px 24.4px 20.52px", borderBottom: `1px solid rgba(210,210,215,0.1)` }}>
+          <div>
+            <h3 style={{ fontSize: "15px", fontWeight: 700, letterSpacing: "-0.42px", lineHeight: "18.75px", color: INK, margin: 0 }}>업체 견적서</h3>
+            <p style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)", margin: "3px 0 0" }}>{detail.supplier} · {response.quoteNo}</p>
+          </div>
+          <button type="button" onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "rgba(29,29,31,0.4)", display: "inline-flex" }} aria-label="닫기">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4l10 10M14 4L4 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+          </button>
+        </div>
+        <div style={{ padding: "24.4px" }}>
+          <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "18px 40px" }}>
+            <KV label="상품명" value={detail.product} />
+            <KV label="제안 금액" value={response.totalAmount} />
+            <KV label="견적 제출일" value={response.submittedAt} />
+            <KV label="납품 가능일" value={response.deliveryDate} />
+            <KV label="견적 유효기간" value={response.validUntil} />
+            <KV label="요청 수량" value={detail.qty} />
+          </div>
+
+          <ResponseDetailSection label="제안 사양" value={response.specSummary} />
+          <ResponseDetailSection label="견적 내용 / 비고" value={response.memo} />
+
+          <p style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.275px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)", margin: "24px 0 0" }}>견적 첨부파일</p>
+          {response.attachments.length > 0 ? (
+            <div className="flex flex-col" style={{ gap: "9.76px", marginTop: "9.76px" }}>
+              {response.attachments.map((file) => (
+                <QuoteResponseAttachmentRow key={`${file.name}-${file.fileUrl}`} name={file.name} fileUrl={file.fileUrl} />
+              ))}
+            </div>
+          ) : (
+            <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)", margin: "9.76px 0 0" }}>첨부된 견적 파일이 없습니다.</p>
+          )}
+
+          <div className="flex" style={{ gap: "14.64px", marginTop: "24.4px" }}>
+            <button type="button" onClick={onClose} style={{ flex: 1, height: "49px", borderRadius: "14.64px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "rgba(29,29,31,0.6)", cursor: "pointer" }}>닫기</button>
+            <a href={response.pdfUrl} target="_blank" rel="noopener noreferrer" style={{ flex: 1, height: "49px", borderRadius: "14.64px", border: "none", background: NAVY, fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>견적서 PDF 보기</a>
+          </div>
+        </div>
+      </div>
+    </ModalOverlay>
+  );
+}
+
+function ResponseDetailSection({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ marginTop: "24px" }}>
+      <p style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.275px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)", margin: 0 }}>{label}</p>
+      <div style={{ marginTop: "9.76px", borderRadius: "14.64px", background: "rgba(29,29,31,0.01)", border: `1px solid rgba(210,210,215,0.2)`, padding: "20.52px" }}>
+        <p style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "21.125px", color: "rgba(29,29,31,0.7)", margin: 0, whiteSpace: "pre-wrap" }}>{value || "-"}</p>
+      </div>
+    </div>
+  );
+}
+
+function QuoteResponseAttachmentRow({ name, fileUrl }: { name: string; fileUrl: string }) {
+  return (
+    <div className="flex items-center" style={{ gap: "9.76px", borderRadius: "14.64px", background: "rgba(29,29,31,0.01)", border: `1px solid rgba(210,210,215,0.2)`, padding: "13.19px 18.08px" }}>
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}><path d="M9.5 2.5L4 8a2.5 2.5 0 003.5 3.5l5-5a4 4 0 00-5.66-5.66l-5 5a5.5 5.5 0 007.78 7.78L13 9" stroke="rgba(29,29,31,0.5)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      <span style={{ flex: 1, minWidth: 0, fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "rgba(29,29,31,0.7)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
+      <a href={fileUrl} download={name} target="_blank" rel="noopener noreferrer" style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)", whiteSpace: "nowrap", textDecoration: "none" }}>다운로드</a>
     </div>
   );
 }
@@ -806,64 +913,7 @@ function AlarmTab({ values }: { values: boolean[] }) {
   );
 }
 
-function WithdrawTab() {
-  const [confirm, setConfirm] = useState(false);
-  return (
-    <>
-      <Panel>
-        <PanelHead title="회원 탈퇴" />
-        <div style={{ padding: "13px 29.28px 29.28px" }}>
-          <div style={{ borderRadius: "14.64px", background: "#FEF2F2", border: "1px solid #FECACA", padding: "20.52px" }}>
-            <p style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.195px", lineHeight: "21px", color: "#DC2626", margin: 0 }}>회원 탈퇴 시 유의사항</p>
-            <ul style={{ margin: "12px 0 0", padding: 0, listStyle: "none" }}>
-              {WITHDRAW_NOTES.map((t, i) => (
-                <li key={i} style={{ fontSize: "12px", fontWeight: 400, lineHeight: "21.6px", letterSpacing: "-0.18px", color: "#DC2626" }}>{t}</li>
-              ))}
-            </ul>
-          </div>
-          <button type="button" onClick={() => setConfirm(true)} style={{ marginTop: "20px", borderRadius: "14.64px", background: "#fff", color: "#EF4444", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "22.75px", border: "1px solid #FCA5A5", padding: "10.76px 25.4px", cursor: "pointer" }}>회원 탈퇴</button>
-        </div>
-      </Panel>
-      {confirm && <WithdrawConfirmModal onClose={() => setConfirm(false)} />}
-    </>
-  );
-}
-
-function WithdrawConfirmModal({ onClose }: { onClose: () => void }) {
-  const [saving, setSaving] = useState(false);
-  const submit = async () => {
-    setSaving(true);
-    try {
-      const res = await fetch("/api/mypage/withdraw", { method: "POST" });
-      if (res.ok) {
-        window.location.href = "/";
-      } else {
-        setSaving(false);
-      }
-    } catch {
-      setSaving(false);
-    }
-  };
-  return (
-    <ModalOverlay onClose={onClose}>
-      <div style={{ width: "468px", maxWidth: "calc(100vw - 40px)", borderRadius: "19.52px", background: "#fff", border: `1px solid rgba(210,210,215,0.2)`, padding: "30.28px" }}>
-        <div className="flex justify-center" style={{ marginBottom: "19.52px" }}>
-          <div style={{ width: "59px", height: "59px", borderRadius: "9999px", background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", color: "#EF4444" }}>
-            <WithdrawIcon className="" />
-          </div>
-        </div>
-        <p style={{ fontSize: "15px", fontWeight: 700, letterSpacing: "-0.225px", lineHeight: "27px", color: INK, textAlign: "center", margin: "0 0 9.76px" }}>정말 탈퇴하시겠습니까?</p>
-        <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.5)", textAlign: "center", margin: "0 0 29.28px" }}>탈퇴 후 모든 데이터가 삭제되며 복구할 수 없습니다.</p>
-        <div className="flex" style={{ gap: "14.64px" }}>
-          <button type="button" onClick={onClose} disabled={saving} style={{ flex: 1, height: "49px", borderRadius: "14.64px", border: `1px solid rgba(210,210,215,0.2)`, background: "#fff", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", color: "rgba(29,29,31,0.6)", cursor: "pointer" }}>취소</button>
-          <button type="button" onClick={submit} disabled={saving} style={{ flex: 1, height: "49px", borderRadius: "14.64px", border: "none", background: "#EF4444", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", color: "#fff", cursor: "pointer" }}>탈퇴하기</button>
-        </div>
-      </div>
-    </ModalOverlay>
-  );
-}
-
-function InfoTab({ basicInfo, supplierFields, supplier = false }: { basicInfo?: MyBasicInfo; supplierFields?: MySupplierField[]; supplier?: boolean }) {
+function InfoTab({ basicInfo, officialTaxInfo, supplierFields, supplier = false }: { basicInfo?: MyBasicInfo; officialTaxInfo?: MyOfficialTaxInfo; supplierFields?: MySupplierField[]; supplier?: boolean }) {
   const [termView, setTermView] = useState<{ title: string; body: string } | null>(null);
   const [dbTerms, setDbTerms] = useState<Array<{ title: string; content: string }>>([]);
   async function openTerm(t: Term) {
@@ -897,6 +947,8 @@ function InfoTab({ basicInfo, supplierFields, supplier = false }: { basicInfo?: 
         </div>
         <p style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "rgba(29,29,31,0.3)", margin: "20px 0 0" }}>* 기본 정보 변경은 관리자에게 문의하세요.</p>
       </div>
+
+      {!supplier && officialTaxInfo && <OfficialTaxInvoiceSection taxInfo={officialTaxInfo} />}
 
       <PasswordSection />
 
@@ -935,6 +987,243 @@ function InfoTab({ basicInfo, supplierFields, supplier = false }: { basicInfo?: 
             </div>
             <div style={{ padding: "16px 29.28px 24px" }}>
               <button type="button" onClick={() => setTermView(null)} style={{ width: "100%", height: "49px", borderRadius: "14.64px", border: "none", background: NAVY, fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", color: "#fff", cursor: "pointer" }}>확인했습니다</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OfficialTaxInvoiceSection({ taxInfo }: { taxInfo: MyOfficialTaxInfo }) {
+  const router = useRouter();
+  const [form, setForm] = useState({
+    orgRepresentativeName: taxInfo.representativeName,
+    orgTaxEmail: taxInfo.taxEmail,
+    orgAddress: taxInfo.address,
+  });
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+
+  function setField(key: keyof typeof form, value: string) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function save() {
+    if (saving) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/mypage/official-tax-info", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) {
+        setMessage({ ok: false, text: data.message ?? "세금계산서 정보 저장에 실패했습니다." });
+        return;
+      }
+      setMessage({ ok: true, text: "세금계산서 발행 정보가 저장되었습니다." });
+      router.refresh();
+    } catch {
+      setMessage({ ok: false, text: "세금계산서 정보 저장에 실패했습니다." });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ borderRadius: "19.52px", background: "#fff", border: `1px solid rgba(210,210,215,0.2)`, padding: "30.28px" }}>
+      <h2 style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "-0.392px", lineHeight: "17.5px", color: INK, margin: 0 }}>세금계산서 발행 정보</h2>
+      <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)", margin: "6px 0 0" }}>
+        세금계산서 발행에 사용할 기관 정보를 수정할 수 있습니다.
+      </p>
+
+      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "20px 40px", marginTop: "20px" }}>
+        <Field label="기관명(상호)" value={taxInfo.organizationName || "-"} />
+        <Field label="사업자등록번호" value={taxInfo.businessRegistrationNo || "-"} />
+        <TaxInfoInput
+          label="대표자(기관장) 성함"
+          value={form.orgRepresentativeName}
+          onChange={(value) => setField("orgRepresentativeName", value)}
+          placeholder="기관장 성함"
+        />
+        <TaxInfoInput
+          label="세금계산서 수신용 이메일"
+          value={form.orgTaxEmail}
+          onChange={(value) => setField("orgTaxEmail", value)}
+          placeholder="세금계산서 전자발송 받을 이메일"
+          type="email"
+        />
+      </div>
+      <div style={{ marginTop: "20px" }}>
+        <TaxInfoInput
+          label="사업장 주소"
+          value={form.orgAddress}
+          onChange={(value) => setField("orgAddress", value)}
+          placeholder="기관 소재지 도로명 주소"
+        />
+      </div>
+
+      {message && (
+        <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: message.ok ? "#047857" : "#EF4444", margin: "14px 0 0" }}>
+          {message.text}
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={save}
+        disabled={saving}
+        style={{ marginTop: "14.64px", borderRadius: "14.64px", background: NAVY, color: "#fff", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.195px", border: "none", padding: "9.76px 24.4px", cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}
+      >
+        {saving ? "저장 중…" : "저장"}
+      </button>
+    </div>
+  );
+}
+
+function TaxInfoInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  type?: "text" | "email";
+}) {
+  return (
+    <div>
+      <label style={{ display: "block", fontSize: "11px", fontWeight: 500, letterSpacing: "0.275px", lineHeight: "19.8px", color: "rgba(29,29,31,0.4)", margin: "0 0 6px" }}>{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        style={{ width: "100%", height: "49px", borderRadius: "14.64px", border: `1px solid rgba(210,210,215,0.3)`, padding: "13.19px 18.08px", fontSize: "13px", color: INK, outline: "none", background: "#fff" }}
+      />
+    </div>
+  );
+}
+
+function WithdrawalControl() {
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  async function withdraw() {
+    if (withdrawing) return;
+    setWithdrawing(true);
+    try {
+      const res = await fetch("/api/mypage/withdraw", { method: "POST" });
+      if (res.ok) window.location.href = "/";
+    } finally {
+      setWithdrawing(false);
+      setConfirmOpen(false);
+    }
+  }
+
+  return (
+    <div style={{ borderRadius: "19.52px", background: "#fff", border: "1px solid rgba(210,210,215,0.2)", boxShadow: "0px 1px 1px rgba(0,0,0,0.05)", padding: "30.28px" }}>
+      <h2 style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "-0.392px", lineHeight: "17.5px", color: INK, margin: "0 0 24.4px" }}>회원 탈퇴</h2>
+
+      <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "14.64px", padding: "20.52px" }}>
+        <p style={{ fontFamily: "Roboto, sans-serif", fontSize: "12px", fontWeight: 600, lineHeight: "16px", letterSpacing: "-0.18px", color: "#B91C1C", margin: 0 }}>회원 탈퇴 시 유의사항</p>
+        <p style={{ fontFamily: "Roboto, sans-serif", fontSize: "12px", fontWeight: 400, lineHeight: "16px", letterSpacing: "-0.18px", color: "#B91C1C", margin: 0, paddingTop: "4px" }}>• 탈퇴 후 모든 개인 정보 및 구매 이력은 삭제됩니다.</p>
+        <p style={{ fontFamily: "Roboto, sans-serif", fontSize: "12px", fontWeight: 400, lineHeight: "16px", letterSpacing: "-0.18px", color: "#B91C1C", margin: 0, paddingTop: "4px" }}>• 진행 중인 구매/공급 요청은 자동 취소 처리됩니다.</p>
+        <p style={{ fontFamily: "Roboto, sans-serif", fontSize: "12px", fontWeight: 400, lineHeight: "16px", letterSpacing: "-0.18px", color: "#B91C1C", margin: 0, paddingTop: "4px" }}>• 탈퇴 후 동일 이메일로 30일간 재가입이 불가합니다.</p>
+        <p style={{ fontFamily: "Roboto, sans-serif", fontSize: "12px", fontWeight: 400, lineHeight: "16px", letterSpacing: "-0.18px", color: "#B91C1C", margin: 0, paddingTop: "4px" }}>• 법적 증빙 자료는 관련 법령에 따라 일정 기간 보관될 수 있습니다.</p>
+      </div>
+
+      <div style={{ paddingTop: "24.4px" }}>
+        <button
+          type="button"
+          onClick={() => setConfirmOpen(true)}
+          disabled={withdrawing}
+          style={{ width: "100.391px", height: "44.25px", background: "transparent", border: "1px solid #FCA5A5", borderRadius: "14.64px", padding: "10.76px 25.4px", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#EF4444", cursor: withdrawing ? "default" : "pointer", opacity: withdrawing ? 0.6 : 1 }}
+        >
+          회원 탈퇴
+        </button>
+      </div>
+
+      {confirmOpen && (
+        <div
+          onClick={() => !withdrawing && setConfirmOpen(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "468.469px",
+              maxWidth: "100%",
+              height: "275.328px",
+              background: "#fff",
+              border: "1px solid rgba(210,210,215,0.2)",
+              borderRadius: "19.52px",
+              padding: "30.28px",
+              overflow: "hidden",
+              boxShadow: "0px 8px 10px -6px rgba(0,0,0,0.1), 0px 20px 25px -5px rgba(0,0,0,0.1)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
+            <div style={{ paddingBottom: "19.52px", display: "flex", justifyContent: "center" }}>
+              <div style={{ width: "58.547px", height: "58.547px", borderRadius: "9999px", background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <WithdrawIcon style={{ width: "18.555px", height: "21.870px", color: "#EF4444" }} />
+              </div>
+            </div>
+            <p style={{ paddingBottom: "9.76px", textAlign: "center", fontWeight: 700, fontSize: "15px", lineHeight: "27px", letterSpacing: "-0.225px", color: INK, margin: 0 }}>정말 탈퇴하시겠습니까?</p>
+            <p style={{ paddingBottom: "29.28px", textAlign: "center", fontWeight: 400, fontSize: "12px", lineHeight: "21.6px", letterSpacing: "-0.18px", color: "rgba(29,29,31,0.5)", margin: 0 }}>
+              탈퇴 후 모든 데이터가 삭제되며 복구할 수 없습니다.
+            </p>
+            <div style={{ display: "flex", width: "407.938px", maxWidth: "100%", height: "49.125px", gap: "14.64px" }}>
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(false)}
+                disabled={withdrawing}
+                style={{
+                  width: "196.656px",
+                  height: "49.125px",
+                  borderRadius: "14.64px",
+                  border: "1px solid rgba(210,210,215,0.2)",
+                  background: "#fff",
+                  padding: "13.2px 0",
+                  fontWeight: 400,
+                  fontSize: "13px",
+                  lineHeight: "22.75px",
+                  letterSpacing: "-0.2928px",
+                  color: "rgba(29,29,31,0.6)",
+                  cursor: withdrawing ? "default" : "pointer",
+                }}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={withdraw}
+                disabled={withdrawing}
+                style={{
+                  width: "196.656px",
+                  height: "49.125px",
+                  borderRadius: "14.64px",
+                  border: "1px solid #FCA5A5",
+                  background: "#fff",
+                  padding: "13.2px 0",
+                  fontWeight: 600,
+                  fontSize: "13px",
+                  lineHeight: "22.75px",
+                  letterSpacing: "-0.2928px",
+                  color: "#EF4444",
+                  cursor: withdrawing ? "default" : "pointer",
+                  opacity: withdrawing ? 0.6 : 1,
+                }}
+              >
+                탈퇴하기
+              </button>
             </div>
           </div>
         </div>
@@ -1063,15 +1352,17 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
   );
 }
 
-function SupplierView({ data }: { data: MyPageData }) {
-  const [tab, setTab] = useState<SupplierTabKey>("answer");
+function SupplierView({ data, initialTab = null }: { data: MyPageData; initialTab?: string | null }) {
+  const [tab, setTab] = useState<SupplierTabKey>(
+    SUPPLIER_TABS.some((t) => t.key === initialTab) ? (initialTab as SupplierTabKey) : "answer",
+  );
   return (
     <PageShell headerSub={data.headerSub} sidebar={<Sidebar items={SUPPLIER_TABS} active={tab} onSelect={setTab} />}>
       {tab === "info" && <InfoTab supplierFields={data.supplierFields} supplier />}
       {tab === "answer" && <DemandAnswerTab answers={data.demandAnswers} />}
       {tab === "inquiry" && <InquiryTab items={data.inquiries} badge={SUPPLIER_INQUIRY_BADGE} />}
       {tab === "alarm" && <AlarmTab values={data.alarmSettings} />}
-      {tab === "withdraw" && <WithdrawTab />}
+      {tab === "withdraw" && <WithdrawalControl />}
     </PageShell>
   );
 }

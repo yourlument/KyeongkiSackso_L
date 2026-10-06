@@ -4,10 +4,11 @@ import { randomBytes } from "crypto";
 import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/auth/password";
 import { sendMail } from "@/lib/mail";
+import { decrypt } from "@/lib/crypto/pii";
 
 function tempPasswordEmail(tempPassword: string): { subject: string; html: string } {
   return {
-    subject: "[KORINK] 임시 비밀번호가 발급되었습니다",
+    subject: "[KORLINK] 임시 비밀번호가 발급되었습니다",
     html: `<div style="max-width:480px;margin:0 auto;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#1D1D1F">
   <h2 style="font-size:18px;font-weight:700;color:#1E3A5F;margin:0 0 16px">임시 비밀번호 안내</h2>
   <p style="font-size:14px;line-height:24px;color:#1D1D1F;margin:0 0 16px">요청하신 임시 비밀번호가 발급되었습니다. 아래 비밀번호로 로그인하신 후 반드시 비밀번호를 변경해 주세요.</p>
@@ -63,7 +64,7 @@ export async function POST(req: Request) {
     } else if (data.portal === "SUPPLIER" && user.role === "SUPPLIER") {
       matched =
         user.supplierCompany?.name === data.companyName &&
-        user.supplierCompany?.representativeName === data.representativeName;
+        decrypt(user.supplierCompany?.representativeName) === data.representativeName;
     }
   }
 

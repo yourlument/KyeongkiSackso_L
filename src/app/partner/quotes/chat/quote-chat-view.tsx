@@ -19,6 +19,7 @@ const CHAT_SYSTEM_NOTE = "견적 문의 채팅방이 개설되었습니다. 기�
 export function QuoteChatView() {
   const searchParams = useSearchParams();
   const requestParam = searchParams.get("request");
+  const threadParam = searchParams.get("thread");
   const [threads, setThreads] = useState<ChatThreadView[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const selectedRef = useRef<string | null>(null);
@@ -30,12 +31,12 @@ export function QuoteChatView() {
     const data = (await res.json()) as { threads: ChatThreadView[] };
     setThreads(data.threads);
     if (selectedRef.current === null) {
-      const target = requestParam
-        ? (data.threads.find((t) => t.quoteRequestId === requestParam) ?? data.threads[0])
-        : data.threads[0];
+      const byThread = threadParam ? data.threads.find((t) => t.id === threadParam) : undefined;
+      const byRequest = requestParam ? data.threads.find((t) => t.quoteRequestId === requestParam) : undefined;
+      const target = byThread ?? byRequest ?? data.threads[0];
       if (target) setSelected(target.id);
     }
-  }, [requestParam]);
+  }, [requestParam, threadParam]);
 
   useEffect(() => {
     loadThreads();

@@ -1,9 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { embedPostcode, type DaumPostcodeResult } from "@/lib/daum-postcode";
 import type { QuoteDetailData, QuoteDetailProposal } from "@/lib/quotes";
+import {
+  createBrowserUuid,
+  NicepayWindowClosedError,
+  openNicepayPayment,
+  type NicepayBrowserPayload,
+} from "@/lib/nicepay/browser";
 
 const NAVY = "#1E3A5F";
 const TEXT = "#1D1D1F";
@@ -166,11 +172,14 @@ const STATUS_DB: Record<string, string> = {
   "접수": "SUBMITTED", "검토중": "UNDER_REVIEW", "선정": "AWARDED", "탈락": "REJECTED",
 };
 
+const AWARD_CONFIRM_NOTICE = "선정 시 취소 또는 변경이 불가하오니 신중하게 선택해주시기 바랍니다.";
+
 export function ProposalStatusModal({ onClose, quoteId, responseId, company, totalAmount, current = "접수" }: { onClose: () => void; quoteId: string; responseId: string; company: string; totalAmount: string; current?: string }) {
   const router = useRouter();
   const [selected, setSelected] = useState(current);
   const [saving, setSaving] = useState(false);
-  const changed = selected !== current;
+  const [confirmAward, setConfirmAward] = useState(false);
+  const locked = current === "선정";
 
   async function handleSave() {
     setSaving(true);
@@ -186,9 +195,17 @@ export function ProposalStatusModal({ onClose, quoteId, responseId, company, tot
     } finally { setSaving(false); }
   }
 
+  const canSave = !saving && !locked;
+
+  function requestSave() {
+    if (!canSave) return;
+    if (selected === "선정") { setConfirmAward(true); return; }
+    handleSave();
+  }
+
   return (
     <Overlay onClose={onClose} width="547px">
-      <ModalHeader title="제안서 상태 변경" onClose={onClose} />
+      <ModalHeader title="견적서 상태 변경" onClose={onClose} />
       <div style={{ overflowY: "auto" }}>
         <div style={{ borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.2)", padding: "15.64px" }}>
           <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", color: "rgba(29,29,31,0.4)", margin: 0 }}>업체명</p>
@@ -206,8 +223,8 @@ export function ProposalStatusModal({ onClose, quoteId, responseId, company, tot
               "탈락": { bg: "#FEF2F2", bd: "#FECACA", tc: "#EF4444", to: 1, dco: 0.36 },
             } as Record<string, { bg: string; bd: string; tc: string; to: number; dco: number }>)[o.key];
             return (
-              <button key={o.key} type="button" onClick={() => setSelected(o.key)}
-                style={{ textAlign: "left", borderRadius: "14.64px", border: on ? `2px solid ${TH.bd}` : "1px solid rgba(210,210,215,0.2)", background: on ? TH.bg : "#fff", cursor: "pointer", padding: on ? "16.64px 21.52px" : "15.64px 20.52px" }}>
+              <button key={o.key} type="button" disabled={locked} onClick={() => setSelected(o.key)}
+                style={{ textAlign: "left", borderRadius: "14.64px", border: on ? `2px solid ${TH.bd}` : "1px solid rgba(210,210,215,0.2)", background: on ? TH.bg : "#fff", cursor: locked ? "default" : "pointer", padding: on ? "16.64px 21.52px" : "15.64px 20.52px" }}>
                 <span style={{ display: "block", fontSize: "13px", fontWeight: 600, letterSpacing: "-0.195px", color: on ? TH.tc : TEXT, opacity: on ? TH.to : 1 }}>{o.key}</span>
                 <span style={{ display: "block", fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", color: on ? TH.tc : TEXT, opacity: on ? TH.dco : 0.36, marginTop: "2.44px" }}>{o.desc}</span>
               </button>
@@ -224,12 +241,32 @@ export function ProposalStatusModal({ onClose, quoteId, responseId, company, tot
         )}
         <div className="flex items-center" style={{ gap: "14.64px", marginTop: selected === "선정" ? "19.52px" : "24.4px" }}>
           <button type="button" onClick={onClose} style={outlineBtn()}>취소</button>
-          <button type="button" onClick={handleSave} disabled={!changed || saving}
-            style={{ ...primaryBtn(), background: changed && !saving ? NAVY : "rgba(30,58,95,0.4)", color: changed && !saving ? "#fff" : "rgba(255,255,255,0.16)", cursor: changed && !saving ? "pointer" : "default" }}>
+          <button type="button" onClick={requestSave} disabled={!canSave}
+            style={{ ...primaryBtn(), background: canSave ? NAVY : "rgba(30,58,95,0.4)", color: canSave ? "#fff" : "rgba(255,255,255,0.16)", cursor: canSave ? "pointer" : "default" }}>
             {saving ? "저장 중..." : "상태 저장"}
           </button>
         </div>
       </div>
+      {confirmAward && (
+        <Overlay onClose={() => setConfirmAward(false)} width="547px">
+          <div className="flex justify-center" style={{ paddingBottom: "19.52px" }}>
+            <span className="flex items-center justify-center" style={{ width: "59px", height: "59px", borderRadius: "9999px", background: "#FFFBEB", flexShrink: 0 }}>
+              <WarnTriIcon size={20} color="#B45309" />
+            </span>
+          </div>
+          <p style={{ textAlign: "center", fontSize: "17px", fontWeight: 700, letterSpacing: "-0.476px", lineHeight: "21.25px", color: TEXT, margin: "0 0 9.76px" }}>견적서 상태 변경</p>
+          <div style={{ paddingBottom: "29.28px" }}>
+            <p style={{ textAlign: "center", margin: 0, fontSize: "14px", fontWeight: 400, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "rgba(29,29,31,0.6)" }}>{AWARD_CONFIRM_NOTICE}</p>
+          </div>
+          <div className="flex items-center" style={{ gap: "14.64px" }}>
+            <button type="button" onClick={() => setConfirmAward(false)} style={outlineBtn()}>취소</button>
+            <button type="button" onClick={handleSave} disabled={saving}
+              style={{ ...primaryBtn(), background: saving ? "rgba(30,58,95,0.4)" : NAVY, color: saving ? "rgba(255,255,255,0.16)" : "#fff", cursor: saving ? "default" : "pointer" }}>
+              {saving ? "저장 중..." : "상태 저장"}
+            </button>
+          </div>
+        </Overlay>
+      )}
     </Overlay>
   );
 }
@@ -328,11 +365,11 @@ export function NoticeStatusModal({ onClose, quoteId, current }: { onClose: () =
 }
 
 export function QuoteOrderModal({ onClose, responseId, company, totalAmount }: { onClose: () => void; responseId: string; company: string; totalAmount: string }) {
-  const router = useRouter();
   const [f, setF] = useState({ name: "", phone: "", org: "", dept: "", addr: "", memo: "" });
-  const [pay, setPay] = useState<"card" | "virtual">("card");
+  const [pay, setPay] = useState<"card" | "bank">("card");
   const [submitting, setSubmitting] = useState(false);
   const [addrOpen, setAddrOpen] = useState(false);
+  const checkoutKey = useRef<string | null>(null);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
   const canPay = f.name.trim() && f.phone.trim() && f.org.trim() && f.dept.trim() && f.addr.trim() && !submitting;
 
@@ -345,15 +382,26 @@ export function QuoteOrderModal({ onClose, responseId, company, totalAmount }: {
     if (!canPay) return;
     setSubmitting(true);
     try {
+      checkoutKey.current ??= createBrowserUuid();
       const res = await fetch(`/api/orders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pay, quoteResponseId: responseId, recipient: { name: f.name, phone: f.phone, org: f.org, dept: f.dept, address: f.addr, memo: f.memo } }),
+        body: JSON.stringify({ pay, checkoutKey: checkoutKey.current, quoteResponseId: responseId, recipient: { name: f.name, phone: f.phone, org: f.org, dept: f.dept, address: f.addr, memo: f.memo } }),
       });
-      if (!res.ok) { const d = await res.json().catch(() => ({})) as { message?: string }; alert(d.message ?? "결제 처리 중 오류가 발생했습니다"); setSubmitting(false); return; }
-      onClose();
-      router.push("/mypage");
-    } catch {
+      const data = await res.json().catch(() => ({})) as {
+        message?: string;
+        payment?: NicepayBrowserPayload;
+      };
+      if (!res.ok || !data.payment) {
+        alert(data.message ?? "결제 준비 중 오류가 발생했습니다");
+        return;
+      }
+      await openNicepayPayment(data.payment);
+    } catch (error) {
+      if (!(error instanceof NicepayWindowClosedError)) {
+        alert("NICEPAY 결제창을 열지 못했습니다");
+      }
+    } finally {
       setSubmitting(false);
     }
   }
@@ -389,7 +437,7 @@ export function QuoteOrderModal({ onClose, responseId, company, totalAmount }: {
           <label style={editLabel}>결제 수단</label>
           <div className="flex" style={{ gap: "9.76px" }}>
             <button type="button" onClick={() => setPay("card")} style={payOpt(pay === "card")}>법인/신용카드</button>
-            <button type="button" onClick={() => setPay("virtual")} style={payOpt(pay === "virtual")}>가상계좌</button>
+            <button type="button" onClick={() => setPay("bank")} style={payOpt(pay === "bank")}>계좌이체</button>
           </div>
         </div>
         <div className="flex items-center" style={{ gap: "14.64px", marginTop: "9.76px" }}>

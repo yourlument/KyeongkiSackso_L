@@ -56,6 +56,7 @@ const emptyForm = {
 type Form = typeof emptyForm;
 
 const PW_RE = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function SignupPage() {
   const router = useRouter();
@@ -66,6 +67,7 @@ export default function SignupPage() {
   const [agreed, setAgreed] = useState<Set<string>>(new Set());
   const [fileName, setFileName] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string; passwordConfirm?: string }>({});
   const [submitting, setSubmitting] = useState(false);
@@ -74,6 +76,7 @@ export default function SignupPage() {
   const set = (k: keyof Form, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const clearFieldError = (k: "email" | "password" | "passwordConfirm") =>
     setFieldErrors((e) => ({ ...e, [k]: undefined }));
+  const biz = useBizNoVerify(portal === "OFFICIAL" ? form.organizationBizNo : form.businessRegistrationNo);
 
   useEffect(() => {
     fetch(`/api/terms?portal=${portal}&context=agreement`)
@@ -87,6 +90,7 @@ export default function SignupPage() {
     setStep(0);
     setAgreed(new Set());
     setError(null);
+    biz.reset();
   }
 
   const lastFormStep = STEP_LABELS[portal].length - (portal === "SUPPLIER" ? 2 : 1);
@@ -96,9 +100,24 @@ export default function SignupPage() {
       if (portal === "OFFICIAL") {
         if (!form.organizationBizNo || !form.organizationName || !form.departmentName || !form.departmentPhone)
           return "필수 기관 정보를 모두 입력하세요";
+        if (!form.name.trim()) return "성명을 입력하세요";
+        if (!form.position.trim()) return "직책을 입력하세요";
       } else {
-        if (!form.companyName || !form.representativeName || !form.businessRegistrationNo || !form.address || !form.phone)
+        if (
+          !form.companyName ||
+          !form.representativeName ||
+          !form.businessRegistrationNo ||
+          !form.businessType ||
+          !form.businessItem ||
+          !form.businessLicenseFileUrl ||
+          !form.address ||
+          !form.phone
+        )
           return "필수 기업 정보를 모두 입력하세요";
+      }
+      if (!biz.result) return "사업자 등록번호 진위 확인을 진행하세요";
+      if (biz.result !== "ok" && !BIZ_ALLOW_UNVERIFIED[portal].includes(biz.status)) {
+        return biz.message || "사업자 등록번호 진위 확인을 진행하세요";
       }
     }
     return null;
@@ -108,6 +127,7 @@ export default function SignupPage() {
     if (step === 0) {
       const fe: typeof fieldErrors = {};
       if (!form.email) fe.email = "이메일을 입력하세요";
+      else if (!EMAIL_RE.test(form.email)) fe.email = "이메일 형식이 올바르지 않습니다";
       if (!form.password) fe.password = "비밀번호를 입력하세요";
       else if (!PW_RE.test(form.password)) fe.password = "영문, 숫자, 특수문자 조합 8자 이상으로 입력하세요";
       if (!form.passwordConfirm) fe.passwordConfirm = "비밀번호 확인을 입력하세요";
@@ -130,22 +150,28 @@ export default function SignupPage() {
     }
     const v = validateStep();
     if (v) return setError(v);
+    setFieldErrors({});
     setError(null);
     setStep((s) => s + 1);
   }
 
   async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const input = e.target;
+    const file = input.files?.[0];
     if (!file) return;
     setUploading(true);
+    setUploadError(null);
     setError(null);
     try {
       const saved = await uploadFile(file);
       set("businessLicenseFileUrl", saved.url);
-      setFileName(file.name);
+      setFileName(saved.name);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "업로드 실패");
+      set("businessLicenseFileUrl", "");
+      setFileName("");
+      setUploadError(err instanceof Error ? err.message : "업로드 실패");
     } finally {
+      input.value = "";
       setUploading(false);
     }
   }
@@ -189,6 +215,7 @@ export default function SignupPage() {
               orgRepresentativeName: form.orgRepresentativeName,
               orgTaxEmail: form.orgTaxEmail,
               orgAddress: form.orgAddress,
+              bizVerifyToken: biz.token,
               termIds: [...agreed],
             }
           : {
@@ -198,12 +225,13 @@ export default function SignupPage() {
               companyName: form.companyName,
               representativeName: form.representativeName,
               businessRegistrationNo: form.businessRegistrationNo,
-              businessLicenseFileUrl: form.businessLicenseFileUrl || undefined,
+              businessLicenseFileUrl: form.businessLicenseFileUrl,
               corporateRegistrationNo: form.corporateRegistrationNo,
               businessType: form.businessType,
               businessItem: form.businessItem,
               address: form.address,
               phone: form.phone,
+              bizVerifyToken: biz.token,
               termIds: [...agreed],
             };
       const res = await fetch("/api/auth/signup", {
@@ -246,16 +274,18 @@ export default function SignupPage() {
           <AccountStep form={form} set={set} errors={fieldErrors} clearError={clearFieldError} />
         )}
         {step === 1 && portal === "OFFICIAL" && (
-          <OfficialInfoStep form={form} set={set} onSearch={() => searchAddress("orgAddress")} />
+          <OfficialInfoStep form={form} set={set} biz={biz} onSearch={() => searchAddress("orgAddress")} />
         )}
         {step === 1 && portal === "SUPPLIER" && (
           <SupplierInfoStep
             form={form}
             set={set}
+            biz={biz}
             onSearch={() => searchAddress("address")}
             onUpload={onUpload}
             uploading={uploading}
             fileName={fileName}
+            uploadError={uploadError}
           />
         )}
         {step === lastFormStep && (
@@ -289,7 +319,8 @@ export default function SignupPage() {
           {step < lastFormStep ? (
             <button
               onClick={next}
-              className="flex-1 rounded-[14.64px] bg-navy py-[14.64px] text-[14px] font-semibold tracking-[-0.2928px] text-white hover:bg-navy-hover"
+              disabled={validateStep() !== null}
+              className="flex-1 rounded-[14.64px] bg-navy py-[14.64px] text-[14px] font-semibold tracking-[-0.2928px] text-white hover:bg-navy-hover disabled:opacity-60"
             >
               다음
             </button>
@@ -413,12 +444,19 @@ function AccountStep({
   );
 }
 
+const BIZ_ALLOW_UNVERIFIED: Record<Portal, string[]> = {
+  OFFICIAL: ["미등록"],
+  SUPPLIER: [],
+};
+
 function useBizNoVerify(value: string) {
   const [result, setResult] = useState<"ok" | "fail" | null>(null);
   const [message, setMessage] = useState("");
+  const [status, setStatus] = useState("");
+  const [token, setToken] = useState("");
   const [checking, setChecking] = useState(false);
   const ready = value.replace(/\D/g, "").length === 10;
-  const reset = () => { setResult(null); setMessage(""); };
+  const reset = () => { setResult(null); setMessage(""); setStatus(""); setToken(""); };
   async function check() {
     if (!ready || checking) return;
     setChecking(true);
@@ -428,17 +466,21 @@ function useBizNoVerify(value: string) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bizNo: value }),
       });
-      const d = (await res.json()) as { valid?: boolean; message?: string };
+      const d = (await res.json()) as { valid?: boolean; message?: string; status?: string; token?: string };
       setResult(d.valid ? "ok" : "fail");
       setMessage(d.message ?? "");
+      setStatus(d.status ?? "");
+      setToken(d.token ?? "");
     } catch {
       setResult("fail");
-      setMessage("진위확인 중 오류가 발생했습니다");
+      setMessage("국세청 진위확인 서버 장애로 확인하지 못했습니다. 잠시 후 다시 시도해 주세요");
+      setStatus("오류");
+      setToken("");
     } finally {
       setChecking(false);
     }
   }
-  return { result, message, checking, ready, reset, check };
+  return { result, message, status, token, checking, ready, reset, check };
 }
 
 function BizNoVerifyButton({ label, biz }: { label: string; biz: ReturnType<typeof useBizNoVerify> }) {
@@ -468,13 +510,14 @@ function BizNoResult({ result, message }: { result: "ok" | "fail" | null; messag
 function OfficialInfoStep({
   form,
   set,
+  biz,
   onSearch,
 }: {
   form: Form;
   set: (k: keyof Form, v: string) => void;
+  biz: ReturnType<typeof useBizNoVerify>;
   onSearch: () => void;
 }) {
-  const biz = useBizNoVerify(form.organizationBizNo);
 
   return (
     <>
@@ -515,13 +558,13 @@ function OfficialInfoStep({
         />
       </Field>
 
-      <p className="mb-2 mt-6 text-[12px] tracking-[-0.18px] text-ink/30">선택 입력 항목</p>
+      <p className="mb-2 mt-6 text-[12px] tracking-[-0.18px] text-ink/30">담당자 정보</p>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="성명 (선택)">
-          <TextInput value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="실명 입력" />
+        <Field label="성명" required>
+          <TextInput value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="실명 입력" required />
         </Field>
-        <Field label="직책 (선택)">
-          <TextInput value={form.position} onChange={(e) => set("position", e.target.value)} placeholder="예: 주무관, 대리" />
+        <Field label="직책" required>
+          <TextInput value={form.position} onChange={(e) => set("position", e.target.value)} placeholder="예: 주무관, 대리" required />
         </Field>
       </div>
 
@@ -558,19 +601,22 @@ function OfficialInfoStep({
 function SupplierInfoStep({
   form,
   set,
+  biz,
   onSearch,
   onUpload,
   uploading,
   fileName,
+  uploadError,
 }: {
   form: Form;
   set: (k: keyof Form, v: string) => void;
+  biz: ReturnType<typeof useBizNoVerify>;
   onSearch: () => void;
   onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   uploading: boolean;
   fileName: string;
+  uploadError: string | null;
 }) {
-  const biz = useBizNoVerify(form.businessRegistrationNo);
 
   return (
     <>
@@ -595,23 +641,24 @@ function SupplierInfoStep({
         </div>
         <BizNoResult result={biz.result} message={biz.message} />
       </Field>
-      <Field label="사업자등록증 업로드">
+      <Field label="사업자등록증 업로드" required>
         <label className="flex cursor-pointer flex-col items-center justify-center rounded-[14.64px] border-2 border-dashed border-line/50 py-8 text-center hover:bg-field">
           <span className="text-ink/30">⬆</span>
           <span className="mt-1 text-[14px] tracking-[-0.21px] text-ink/50">{uploading ? "업로드 중…" : fileName || "클릭하여 파일 선택"}</span>
           <span className="mt-0.5 text-[12px] tracking-[-0.18px] text-ink/30">PDF, JPG, PNG 지원</span>
           <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={onUpload} className="hidden" />
         </label>
+        {uploadError && <FieldError msg={uploadError} />}
       </Field>
       <Field label="법인 등록번호">
         <TextInput value={form.corporateRegistrationNo} onChange={(e) => set("corporateRegistrationNo", e.target.value)} placeholder="법인 사업자의 경우 필수 (개인 사업자 제외)" />
       </Field>
       <div className="grid grid-cols-2 gap-[14.64px]">
-        <Field label="업태">
-          <TextInput value={form.businessType} onChange={(e) => set("businessType", e.target.value)} placeholder="사업자등록증 업태" />
+        <Field label="업태" required>
+          <TextInput required value={form.businessType} onChange={(e) => set("businessType", e.target.value)} placeholder="사업자등록증 업태" />
         </Field>
-        <Field label="종목">
-          <TextInput value={form.businessItem} onChange={(e) => set("businessItem", e.target.value)} placeholder="사업자등록증 종목" />
+        <Field label="종목" required>
+          <TextInput required value={form.businessItem} onChange={(e) => set("businessItem", e.target.value)} placeholder="사업자등록증 종목" />
         </Field>
       </div>
       <Field label="사업장 소재지" required>

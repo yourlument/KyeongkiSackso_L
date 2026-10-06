@@ -19,7 +19,7 @@ export default async function CartPage() {
             장바구니
           </h1>
           <p style={{ fontSize: "13px", fontWeight: 400, letterSpacing: "-0.195px", color: "rgba(29,29,31,0.4)", margin: "9.76px 0 0" }}>
-            다중 수량 조절 및 법인카드/가상계좌 결제 지원
+            다중 수량 조절 및 법인카드/계좌이체 결제 지원
           </p>
           <div style={{ marginTop: "29.28px", borderTop: "1px solid rgba(210,210,215,0.4)" }} />
 

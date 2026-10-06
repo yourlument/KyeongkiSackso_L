@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { BellIcon, BagIcon } from "@/components/icons";
 import { NotificationPopup, type NotiItem } from "@/components/notification-popup";
 
@@ -26,6 +26,7 @@ const NAV_SUPPLIER = [
 
 export function SiteHeader({ variant = "official" }: { variant?: "official" | "supplier" } = {}) {
   const router = useRouter();
+  const pathname = usePathname();
   const [notiOpen, setNotiOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [auth, setAuth] = useState<Auth | null>(null);
@@ -143,7 +144,7 @@ export function SiteHeader({ variant = "official" }: { variant?: "official" | "s
 
   function handleOpenSettings() {
     setNotiOpen(false);
-    router.push("/mypage");
+    router.push("/mypage?tab=alarm");
   }
 
   async function handleLogout() {
@@ -180,15 +181,15 @@ export function SiteHeader({ variant = "official" }: { variant?: "official" | "s
   const supplier = variant === "supplier";
   const loggedIn = auth?.authenticated === true;
   const isSupplierRole = auth?.role === "SUPPLIER";
-<<<<<<< Updated upstream
   const nav = supplier || isSupplierRole
-=======
-  const nav = supplier
->>>>>>> Stashed changes
     ? NAV_SUPPLIER
-    : loggedIn && !isSupplierRole
+    : loggedIn
       ? [...NAV_BASE, NAV_INFO, NAV_NEWS]
       : [...NAV_BASE, NAV_NEWS];
+
+  function isNavActive(href: string): boolean {
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
 
   return (
     <header className="sticky top-0 z-40 h-[61px] border-b border-line bg-surface">
@@ -198,15 +199,21 @@ export function SiteHeader({ variant = "official" }: { variant?: "official" | "s
         </Link>
 
         <nav className="hidden items-center gap-[4.88px] lg:flex">
-          {nav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="whitespace-nowrap rounded-full px-[14.64px] py-[7.32px] text-[14px] font-medium tracking-[-0.21px] text-ink/70 transition-colors hover:bg-field"
-            >
-              {item.label}
-            </Link>
-          ))}
+          {nav.map((item) => {
+            const active = isNavActive(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={`whitespace-nowrap rounded-full px-[14.64px] py-[7.32px] text-[14px] font-medium leading-[24.5px] tracking-[-0.21px] transition-colors ${
+                  active ? "bg-[#F5F5F7] text-[#1D1D1F]" : "text-ink/70 hover:bg-field"
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="hidden items-center gap-[9.76px] lg:flex">
@@ -308,17 +315,21 @@ export function SiteHeader({ variant = "official" }: { variant?: "official" | "s
             style={{ boxShadow: "0 8px 24px rgba(0,0,0,0.08)" }}
           >
             <nav className="flex flex-col" style={{ padding: "19.52px 29.28px" }}>
-              {nav.map((item, idx) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMenuOpen(false)}
-                  className="transition-colors hover:bg-field"
-                  style={{ marginTop: idx === 0 ? 0 : "4.88px", padding: "12.2px 19.52px", borderRadius: "9.76px", fontSize: "15px", fontWeight: 500, lineHeight: "27px", letterSpacing: "-0.225px", color: "rgba(29,29,31,0.7)" }}
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {nav.map((item, idx) => {
+                const active = isNavActive(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMenuOpen(false)}
+                    aria-current={active ? "page" : undefined}
+                    className={active ? "transition-colors" : "transition-colors hover:bg-field"}
+                    style={{ marginTop: idx === 0 ? 0 : "4.88px", padding: "12.2px 19.52px", borderRadius: "9.76px", fontSize: "15px", fontWeight: 500, lineHeight: "27px", letterSpacing: "-0.225px", background: active ? "#F5F5F7" : "transparent", color: active ? "#1D1D1F" : "rgba(29,29,31,0.7)" }}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
               {!supplier && (
                 <div className="flex flex-col" style={{ marginTop: "4.88px", paddingTop: "10.76px", borderTop: "1px solid rgba(210,210,215,0.4)" }}>
                   {isSupplierRole ? (

@@ -2,14 +2,15 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSupplierCompanyId } from "@/lib/auth/partner";
+import { certificationNameSchema } from "@/lib/certification-schema";
 
 export const dynamic = "force-dynamic";
 
 const input = z.object({
-  name: z.string().min(1),
+  name: certificationNameSchema,
   description: z.string().nullable().optional(),
-  fileUrl: z.string().nullable().optional(),
-  fileName: z.string().nullable().optional(),
+  fileUrl: z.string().min(1),
+  fileName: z.string().min(1),
 });
 
 export async function POST(req: Request) {
@@ -26,8 +27,8 @@ export async function POST(req: Request) {
       supplierCompanyId: companyId,
       name: d.name,
       description: d.description ?? null,
-      fileUrl: d.fileUrl ?? null,
-      fileName: d.fileName ?? null,
+      fileUrl: d.fileUrl,
+      fileName: d.fileName,
       status: "REVIEWING",
     },
     select: { id: true },

@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { getSessionClaims } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { ProductsView, type ProductListItem } from "./products-view";
-import { CERT_MARKS } from "./products-data";
+import { certificationMarksFromNames } from "@/lib/certification-marks";
+import { getSettlementAccountVerificationStatus } from "@/lib/supplier-account-verification";
 
 export const dynamic = "force-dynamic";
 
@@ -13,17 +14,41 @@ export default async function PartnerProductsPage() {
 
   const user = await prisma.user.findUnique({
     where: { id: claims.sub },
-    select: { supplierCompanyId: true },
+    select: {
+      supplierCompanyId: true,
+      supplierCompany: {
+        select: {
+          bankVerifiedAt: true,
+          bankOtpRequestedAt: true,
+          pendingBankName: true,
+          pendingBankCode: true,
+          pendingBankAccountNo: true,
+          pendingBankAccountHolder: true,
+        },
+      },
+    },
   });
   const companyId = user?.supplierCompanyId ?? null;
+  const accountVerificationStatus = getSettlementAccountVerificationStatus(
+    user?.supplierCompany ?? {
+      bankVerifiedAt: null,
+      bankOtpRequestedAt: null,
+      pendingBankName: null,
+      pendingBankCode: null,
+      pendingBankAccountNo: null,
+      pendingBankAccountHolder: null,
+    },
+  );
+  const canTrade = accountVerificationStatus === "VERIFIED";
 
   const approvedCerts = companyId
     ? await prisma.supplierCertification.findMany({
         where: { supplierCompanyId: companyId, status: "APPROVED" },
+        orderBy: [{ submittedAt: "asc" }, { id: "asc" }],
         select: { name: true },
       })
     : [];
-  const availableMarks = CERT_MARKS.filter((m) => approvedCerts.some((c) => c.name.includes(m)));
+  const availableMarks = certificationMarksFromNames(approvedCerts.map((c) => c.name));
 
   const products = companyId
     ? await prisma.product.findMany({
@@ -49,5 +74,12 @@ export default async function PartnerProductsPage() {
     image: p.images[0]?.url ?? "",
   }));
 
-  return <ProductsView initial={rows} availableMarks={availableMarks} />;
+  return (
+    <ProductsView
+      initial={rows}
+      availableMarks={availableMarks}
+      canTrade={canTrade}
+      accountVerificationStatus={accountVerificationStatus}
+    />
+  );
 }

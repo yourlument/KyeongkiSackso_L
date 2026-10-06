@@ -9,6 +9,7 @@ import {
   UploadPartCommand,
   CompleteMultipartUploadCommand,
   AbortMultipartUploadCommand,
+  DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 
 export interface SavedFile {
@@ -24,6 +25,7 @@ export interface UploadedPart {
 export interface StorageAdapter {
   save(input: { bytes: Buffer; filename: string; contentType: string }): Promise<SavedFile>;
   read(key: string): Promise<{ bytes: Buffer; contentType: string } | null>;
+  remove(key: string): Promise<void>;
   createMultipart(input: { filename: string; contentType: string }): Promise<{ uploadId: string; key: string }>;
   uploadPart(input: { key: string; uploadId: string; partNumber: number; bytes: Buffer }): Promise<UploadedPart>;
   completeMultipart(input: {
@@ -67,26 +69,56 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 4): Promise<T> {
   throw lastErr;
 }
 
-class R2StorageAdapter implements StorageAdapter {
+type ObjectStorageDriver = "r2" | "s3";
+
+class ObjectStorageAdapter implements StorageAdapter {
   private _client: S3Client | null = null;
   private bucket = "";
   private publicBase = "";
 
+  constructor(private readonly driver: ObjectStorageDriver) {}
+
   private get client(): S3Client {
     if (this._client) return this._client;
-    const accountId = process.env.R2_ACCOUNT_ID;
-    const bucket = process.env.R2_BUCKET;
-    const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
-    if (!accountId || !bucket || !accessKeyId || !secretAccessKey) {
-      throw new Error("R2 storage is not configured: set R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY");
+
+    if (this.driver === "r2") {
+      const accountId = process.env.R2_ACCOUNT_ID;
+      const bucket = process.env.R2_BUCKET;
+      const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+      const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+      if (!accountId || !bucket || !accessKeyId || !secretAccessKey) {
+        throw new Error("R2 storage is not configured: set R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY");
+      }
+      this.bucket = bucket;
+      this.publicBase = (process.env.R2_PUBLIC_BASE ?? "").replace(/\/$/, "");
+      this._client = new S3Client({
+        region: "auto",
+        endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+        credentials: { accessKeyId, secretAccessKey },
+        maxAttempts: 5,
+      });
+      return this._client;
     }
+
+    const region = process.env.S3_REGION ?? process.env.AWS_REGION;
+    const bucket = process.env.S3_BUCKET;
+    if (!region || !bucket) {
+      throw new Error("S3 storage is not configured: set S3_REGION and S3_BUCKET");
+    }
+
+    const accessKeyId = process.env.S3_ACCESS_KEY_ID;
+    const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY;
+    if (Boolean(accessKeyId) !== Boolean(secretAccessKey)) {
+      throw new Error("S3 static credentials are incomplete: set both S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY or neither");
+    }
+
     this.bucket = bucket;
-    this.publicBase = (process.env.R2_PUBLIC_BASE ?? "").replace(/\/$/, "");
+    this.publicBase = (process.env.S3_PUBLIC_BASE ?? "").replace(/\/$/, "");
     this._client = new S3Client({
-      region: "auto",
-      endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-      credentials: { accessKeyId, secretAccessKey },
+      region,
+      ...(process.env.S3_ENDPOINT ? { endpoint: process.env.S3_ENDPOINT } : {}),
+      ...(accessKeyId && secretAccessKey ? { credentials: { accessKeyId, secretAccessKey } } : {}),
+      ...(process.env.S3_FORCE_PATH_STYLE?.toLowerCase() === "true" ? { forcePathStyle: true } : {}),
       maxAttempts: 5,
     });
     return this._client;
@@ -104,6 +136,7 @@ class R2StorageAdapter implements StorageAdapter {
       Key: key,
       Body: bytes,
       ContentType: contentType,
+      ...(this.driver === "s3" ? { ServerSideEncryption: "AES256" as const } : {}),
     })));
     return { key, url: this.urlFor(key) };
   }
@@ -121,6 +154,13 @@ class R2StorageAdapter implements StorageAdapter {
     }
   }
 
+  async remove(rawKey: string) {
+    const client = this.client;
+    const key = safeKey(rawKey);
+    if (!key) return;
+    await withRetry(() => client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key })));
+  }
+
   async createMultipart({ filename, contentType }: { filename: string; contentType: string }) {
     const client = this.client;
     const key = newKey(filename);
@@ -128,6 +168,7 @@ class R2StorageAdapter implements StorageAdapter {
       Bucket: this.bucket,
       Key: key,
       ContentType: contentType,
+      ...(this.driver === "s3" ? { ServerSideEncryption: "AES256" as const } : {}),
     })));
     return { uploadId: out.UploadId!, key };
   }
@@ -199,6 +240,16 @@ class LocalStorageAdapter implements StorageAdapter {
     }
   }
 
+  async remove(rawKey: string) {
+    const key = safeKey(rawKey);
+    if (!key) return;
+    const trashDir = path.join(this.dir, ".trash");
+    await fsp.mkdir(trashDir, { recursive: true });
+    const suffix = `${Date.now()}-${crypto.randomUUID()}`;
+    await fsp.rename(this.filePath(key), path.join(trashDir, `${suffix}-${key}`)).catch(() => {});
+    await fsp.rename(this.ctPath(key), path.join(trashDir, `${suffix}-${key}.ct`)).catch(() => {});
+  }
+
   async createMultipart({ filename }: { filename: string; contentType: string }) {
     const key = newKey(filename);
     const uploadId = crypto.randomUUID();
@@ -237,4 +288,32 @@ class LocalStorageAdapter implements StorageAdapter {
 }
 
 const STORAGE_DRIVER = (process.env.STORAGE_DRIVER ?? "local").toLowerCase();
-export const storage: StorageAdapter = STORAGE_DRIVER === "r2" ? new R2StorageAdapter() : new LocalStorageAdapter();
+export const storage: StorageAdapter = STORAGE_DRIVER === "r2" || STORAGE_DRIVER === "s3"
+  ? new ObjectStorageAdapter(STORAGE_DRIVER)
+  : new LocalStorageAdapter();
+
+export function storageKeyFromUrl(value: string): string | null {
+  const directPrefix = "/api/files/";
+  let rawKey: string | null = null;
+  if (value.startsWith(directPrefix)) {
+    try {
+      const parsed = new URL(value, "http://korlink.local");
+      rawKey = decodeURIComponent(parsed.pathname.slice(directPrefix.length));
+    } catch {
+      return null;
+    }
+  }
+
+  if (!rawKey) {
+    const publicBase = (
+      process.env.S3_PUBLIC_BASE ?? process.env.R2_PUBLIC_BASE ?? ""
+    ).replace(/\/$/, "");
+    if (publicBase && value.startsWith(`${publicBase}/`)) {
+      rawKey = decodeURIComponent(value.slice(publicBase.length + 1));
+    }
+  }
+
+  if (!rawKey) return null;
+  const key = safeKey(rawKey);
+  return key && key === rawKey ? key : null;
+}

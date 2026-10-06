@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { certificationMarksFromNames } from "@/lib/certification-marks";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -40,7 +41,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     npsCode: product.npsCode,
     rating: product.rating,
     reviewCount: product.reviewCount,
-    badges: product.badges,
+    badges: certificationMarksFromNames(product.badges),
     minOrderQty: product.minOrderQty,
     deliveryDays: product.deliveryDays,
     deliveryCondition: product.deliveryCondition,

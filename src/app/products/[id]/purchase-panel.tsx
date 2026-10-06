@@ -71,12 +71,13 @@ export function ProductPurchasePanel({
   const [tab, setTab] = useState<Tab>("제품 상세");
   const [showLogin, setShowLogin] = useState(false);
   const [showQuote, setShowQuote] = useState(false);
+  const [submittedQuoteId, setSubmittedQuoteId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
 
   const blocked = isSupplier;
 
-  async function handleCart(goCart: boolean) {
+  async function handleCart() {
     if (!isLoggedIn) { setShowLogin(true); return; }
     if (blocked) return;
     setAdding(true);
@@ -89,16 +90,34 @@ export function ProductPurchasePanel({
       if (res.status === 401) { setShowLogin(true); return; }
       if (!res.ok) return;
       if (typeof window !== "undefined") window.dispatchEvent(new Event("cart:changed"));
-      if (goCart) { router.push("/cart"); return; }
       setAdded(true);
       setTimeout(() => setAdded(false), 1600);
     } finally { setAdding(false); }
+  }
+
+  function handleBuyNow() {
+    if (!isLoggedIn) { setShowLogin(true); return; }
+    if (blocked) return;
+    router.push(`/checkout?productId=${encodeURIComponent(productId)}&quantity=${qty}`);
   }
 
   function handleQuote() {
     if (!isLoggedIn) { setShowLogin(true); return; }
     if (blocked) return;
     setShowQuote(true);
+  }
+
+  function handleQuoteSubmitted(quoteId: string) {
+    setShowQuote(false);
+    setSubmittedQuoteId(quoteId);
+  }
+
+  function handleViewSubmittedQuote() {
+    if (!submittedQuoteId) return;
+    const quoteId = submittedQuoteId;
+    setSubmittedQuoteId(null);
+    router.push(`/quotes/${quoteId}`);
+    router.refresh();
   }
 
   const HERO_SPECS: Spec[] = [
@@ -195,7 +214,7 @@ export function ProductPurchasePanel({
           <button
             type="button"
             disabled={blocked || adding}
-            onClick={() => handleCart(false)}
+            onClick={handleCart}
             className="flex flex-1 flex-col items-center justify-center"
             style={{ height: "77px", borderRadius: "14.64px", border: "1px solid rgba(210,210,215,0.4)", background: "#fff", gap: "4px", cursor: blocked ? "not-allowed" : "pointer", opacity: blocked ? 0.4 : 1 }}
           >
@@ -206,7 +225,7 @@ export function ProductPurchasePanel({
           <button
             type="button"
             disabled={blocked || adding}
-            onClick={() => handleCart(true)}
+            onClick={handleBuyNow}
             className="flex flex-1 flex-col items-center justify-center"
             style={{ height: "77px", borderRadius: "14.64px", background: blocked ? "rgba(30,58,95,0.4)" : "#1E3A5F", border: "none", gap: "4px", cursor: blocked ? "not-allowed" : "pointer" }}
           >
@@ -287,8 +306,11 @@ export function ProductPurchasePanel({
           price={price}
           unit={unit}
           onClose={() => setShowQuote(false)}
+          onSubmitted={handleQuoteSubmitted}
         />
       )}
+
+      {submittedQuoteId && <ProductQuoteSubmissionCompleteModal onViewQuote={handleViewSubmittedQuote} />}
 
       {showLogin && (
         <LoginModal onClose={() => setShowLogin(false)} onSignup={() => router.push("/signup")} />
@@ -650,6 +672,7 @@ function QuoteModal({
   price,
   unit,
   onClose,
+  onSubmitted,
 }: {
   productId: string;
   supplierCompanyId: string;
@@ -658,8 +681,8 @@ function QuoteModal({
   price: number;
   unit: string;
   onClose: () => void;
+  onSubmitted: (quoteId: string) => void;
 }) {
-  const router = useRouter();
   const [organ, setOrgan] = useState("");
   const [dept, setDept] = useState("");
   const [email, setEmail] = useState("");
@@ -669,7 +692,6 @@ function QuoteModal({
   const [addr, setAddr] = useState("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
   const [attachments, setAttachments] = useState<{ url: string; name: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -691,7 +713,7 @@ function QuoteModal({
     setAttachments((prev) => prev.filter((_, idx) => idx !== i));
   }
 
-  const canSubmit = organ.trim() && dept.trim() && email.trim() && phone.trim() && qty.trim() && date.trim() && addr.trim() && !submitting && !done && !uploading;
+  const canSubmit = organ.trim() && dept.trim() && email.trim() && phone.trim() && qty.trim() && date.trim() && addr.trim() && !submitting && !uploading;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -718,20 +740,21 @@ function QuoteModal({
           attachments,
         }),
       });
+      const data = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
       if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        const d = data;
         alert(d.error ?? "견적 요청 중 오류가 발생했습니다");
         return;
       }
-      setDone(true);
-      onClose();
-      router.push("/quotes");
-      router.refresh();
+      if (!data.id) {
+        alert("견적 요청 중 오류가 발생했습니다");
+        return;
+      }
+      onSubmitted(data.id);
     } finally {
       setSubmitting(false);
     }
   }
-  void done;
 
   const inputClass = "w-full box-border outline-none placeholder:text-[#1d1d1f]/30";
   const inputStyle: React.CSSProperties = {
@@ -878,6 +901,37 @@ function QuoteModal({
         </div>
       </div>
     </div>
+  );
+}
+
+function ProductQuoteSubmissionCompleteModal({ onViewQuote }: { onViewQuote: () => void }) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="product-quote-submission-complete-title"
+      style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", padding: "19.52px" }}
+    >
+      <div style={{ width: "390px", maxWidth: "100%", borderRadius: "19.52px", background: "#fff", padding: "29.28px", textAlign: "center", boxShadow: "0 2px 20px rgba(0,0,0,0.06)" }}>
+        <div className="flex items-center justify-center" style={{ width: "68px", height: "68px", borderRadius: "9999px", background: "#ECFDF5", color: "#10B981", margin: "0 auto" }}>
+          <ProductQuoteSubmissionCompleteIcon />
+        </div>
+        <h2 id="product-quote-submission-complete-title" style={{ fontSize: "18px", fontWeight: 700, lineHeight: "25.2px", letterSpacing: "-0.504px", color: "#1D1D1F", margin: "19.52px 0 0" }}>견적 요청 제출 완료</h2>
+        <p style={{ fontSize: "13px", fontWeight: 400, lineHeight: "23.4px", letterSpacing: "-0.195px", color: "rgba(29,29,31,0.5)", margin: "4.88px 0 0" }}>상품 견적 요청이 제출되었습니다.</p>
+        <button type="button" onClick={onViewQuote} style={{ width: "100%", marginTop: "24.4px", borderRadius: "14.64px", border: "none", background: "#1E3A5F", padding: "12.2px 19.52px", cursor: "pointer", fontSize: "13px", fontWeight: 600, lineHeight: "22.75px", letterSpacing: "-0.293px", color: "#fff" }}>
+          견적 요청서 보기
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ProductQuoteSubmissionCompleteIcon() {
+  return (
+    <svg width={32} height={32} viewBox="0 0 32 32" fill="none" aria-hidden>
+      <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="2" />
+      <path d="m9.5 16 4.25 4.25 8.75-8.75" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 

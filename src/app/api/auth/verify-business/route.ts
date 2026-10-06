@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyBusinessNo } from "@/lib/nts";
+import { signBizVerification } from "@/lib/nts-token";
 
 export const dynamic = "force-dynamic";
 
@@ -13,5 +14,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ valid: false, status: "형식오류", message: "사업자등록번호를 입력해 주세요" }, { status: 400 });
   }
   const result = await verifyBusinessNo(parsed.data.bizNo);
-  return NextResponse.json(result);
+  if (!result.valid) return NextResponse.json(result);
+  const token = await signBizVerification(parsed.data.bizNo, result.status);
+  return NextResponse.json({ ...result, token });
 }

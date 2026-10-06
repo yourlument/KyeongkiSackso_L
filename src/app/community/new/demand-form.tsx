@@ -189,7 +189,7 @@ export function DemandForm({ initial }: { initial?: DemandInitial } = {}) {
                 style={{ ...inputBaseStyle, border: inputBorder(false) }}
               />
               <p style={{ ...helperStyle, marginTop: "7.32px" }}>
-                YouTube URL 입력 시 게시글 상단에 동영상이 노출됩니다. (예: https://www.youtube.com/embed/...)
+                YouTube URL 입력 시 게시글 상단에 동영상이 노출됩니다. (예: https:                            
               </p>
             </>
           ) : (

@@ -1336,7 +1336,7 @@ function NewsComposeView({ editId, onBack }: { editId: string | null; onBack: ()
               style={inputStyle}
             />
             <p style={{ ...hintStyle, margin: "7.32px 0 0" }}>
-              YouTube URL 입력 시 게시글 상단에 동영상이 노출됩니다. (예: https://www.youtube.com/embed/...)
+              YouTube URL 입력 시 게시글 상단에 동영상이 노출됩니다. (예: https:                            
             </p>
           </>
         ) : (

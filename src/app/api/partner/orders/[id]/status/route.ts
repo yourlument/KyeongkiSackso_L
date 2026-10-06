@@ -20,7 +20,17 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   const order = await prisma.order.findFirst({
     where: { id, items: { some: { OR: [{ supplierCompanyId: companyId }, { product: { supplierCompanyId: companyId } }] } } },
-    select: { id: true, status: true, buyerId: true, items: { select: { name: true } } },
+    select: {
+      id: true,
+      status: true,
+      buyerId: true,
+      items: { select: { name: true } },
+      payments: {
+        where: { status: "PAID", paidAt: { not: null } },
+        select: { id: true },
+        take: 1,
+      },
+    },
   });
   if (!order) return NextResponse.json({ message: "주문을 찾을 수 없습니다" }, { status: 404 });
 
@@ -28,8 +38,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const parsed = input.safeParse(body);
   if (!parsed.success) return NextResponse.json({ message: "입력값을 확인해 주세요" }, { status: 400 });
   const d = parsed.data;
+  const paid = order.payments.length > 0;
 
   if (d.taxInvoiceStatus === "ISSUED") {
+    if (!paid) {
+      return NextResponse.json({ message: "결제완료 상태에서만 처리할 수 있습니다" }, { status: 409 });
+    }
     await prisma.order.update({
       where: { id },
       data: { taxInvoiceStatus: "ISSUED" },
@@ -38,7 +52,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   }
 
   if (d.status === "SHIPPING") {
-    if (!["PAID", "CONTRACTED"].includes(order.status)) {
+    if (!paid || !["PAID", "CONTRACTED"].includes(order.status)) {
       return NextResponse.json({ message: "결제완료 상태에서만 배송 처리할 수 있습니다" }, { status: 409 });
     }
     if (!d.courier?.trim() || !d.trackingNo?.trim()) {
@@ -69,7 +83,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       type: "ORDER_STATUS",
       title: "주문 상태 변경",
       body: `'${label}' 주문이 ${statusLabel} 처리되었습니다.`,
-      link: "/mypage",
+      link: "/mypage?tab=purchase",
       category: "delivery",
     });
   } catch {}

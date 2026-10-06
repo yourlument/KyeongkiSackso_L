@@ -15,7 +15,7 @@ type CartItem = {
   supplierCompanyName: string;
 };
 
-type PayMethod = "card" | "virtual";
+type PayMethod = "card" | "bank";
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 
@@ -140,9 +140,9 @@ export function CartView() {
             <span style={{ marginLeft: "9.76px", fontSize: "13px", fontWeight: pay === "card" ? 500 : 400, color: pay === "card" ? "#1E3A5F" : "rgba(29,29,31,0.6)" }}>법인/신용카드</span>
           </button>
           <div style={{ height: "9.76px" }} />
-          <button type="button" onClick={() => setPay("virtual")} className="flex w-full items-center" style={payOption(pay === "virtual")}>
-            <BankIcon active={pay === "virtual"} />
-            <span style={{ marginLeft: "9.76px", fontSize: "13px", fontWeight: pay === "virtual" ? 500 : 400, color: pay === "virtual" ? "#1E3A5F" : "rgba(29,29,31,0.6)" }}>가상계좌</span>
+          <button type="button" onClick={() => setPay("bank")} className="flex w-full items-center" style={payOption(pay === "bank")}>
+            <BankIcon active={pay === "bank"} />
+            <span style={{ marginLeft: "9.76px", fontSize: "13px", fontWeight: pay === "bank" ? 500 : 400, color: pay === "bank" ? "#1E3A5F" : "rgba(29,29,31,0.6)" }}>계좌이체</span>
           </button>
         </div>
 

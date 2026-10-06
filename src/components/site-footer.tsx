@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { FooterLogo } from "@/components/footer-logo";
 import { TermContent } from "@/components/term-content";
+import { ReportModal, type ReportKind } from "@/components/report-modal";
 
 const PORTAL_OFFICIAL = [
   { label: "물품 검색", href: "/search" },
@@ -17,7 +18,7 @@ const PORTAL_SUPPLIER = [
   { label: "견적대응", href: "/partner/quotes" },
   { label: "판매통계", href: "/partner/sales" },
 ];
-const SUPPORT = ["Tel: 051-291-0265~7", "Fax: 051-203-0178", "서울: 031-421-1081~3", "평일 09:00 ~ 18:00"];
+const SUPPORT = ["고객센터 : 010-4875-2022", "이메일 : korlink2026@gmail.com"];
 
 type Term = {
   id: string;
@@ -106,6 +107,7 @@ export function SiteFooter() {
   const [activeTerm, setActiveTerm] = useState<Term | null>(null);
   const [terms, setTerms] = useState<Term[]>([]);
   const [role, setRole] = useState<string | null>(null);
+  const [reportKind, setReportKind] = useState<ReportKind | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -168,13 +170,14 @@ export function SiteFooter() {
                 </li>
               ))}
               <li>
-                <Link
-                  href="/report?type=신고"
-                  className="inline-flex items-center gap-[4.88px] whitespace-nowrap text-[13px] font-normal leading-[23.4px] tracking-[-0.293px] text-[#0071e3]"
+                <button
+                  type="button"
+                  onClick={() => setReportKind("신고")}
+                  className="inline-flex cursor-pointer items-center gap-[4.88px] whitespace-nowrap text-[13px] font-normal leading-[23.4px] tracking-[-0.293px] text-[#0071e3]"
                 >
                   <img src="/icons/land-footer-report.svg" alt="" aria-hidden="true" width={18} height={18} />
                   신고 / 문의하기
-                </Link>
+                </button>
               </li>
             </ul>
           </div>
@@ -182,17 +185,22 @@ export function SiteFooter() {
 
         <div className="mt-[58.56px] border-t border-line pt-[40.04px]">
           <div className="flex flex-col gap-[14.64px]">
-            <div className="flex flex-col">
-              <p className="flex items-center text-[12px] leading-[21.6px] tracking-[-0.18px]">
-                <span className="whitespace-nowrap font-medium text-ink/60">(주) KORLINK</span>
-                <span className="mx-[10px] font-normal text-line">|</span>
-                <span className="font-normal text-ink/40">
-                  Copyright © 2026 KORLINK CO., LTD All Rights Reserved.
-                </span>
+            <div className="flex flex-col text-[12px] font-normal leading-[21.6px] tracking-[-0.18px] text-ink/40">
+              <p>
+                <span className="font-medium text-ink/60">대정켐</span>
+                <span className="mx-[10px] text-line">|</span>
+                <span>대표자 : 김상현</span>
               </p>
-              <p className="pt-[7.32px] text-[12px] font-normal leading-[21.6px] tracking-[-0.18px] text-ink/40">
-                본사 : 부산광역시 사하구 을숙도대로526
+              <p>본사 : 부산광역시 사하구 을숙도대로 526</p>
+              <p>사업장 주소 : 부산시 해운대구 해운대로38번길 60, 103-3005</p>
+              <p>사업자등록번호 : 690-43-00794</p>
+              <p>통신판매업신고번호 : 제 2026-부산해운대-1058 호</p>
+              <p>고객센터 : 010-4875-2022 | 이메일 : korlink2026@gmail.com</p>
+              <p>호스팅 서비스 제공자 : 주식회사 아마존웹서비스(AWS)</p>
+              <p className="pt-[14.64px]">
+                고객님은 안전거래를 위해 현금 등으로 결제 시 저희 쇼핑몰에서 가입한 NICE정보통신의 구매안전(에스크로) 서비스를 이용하실 수 있습니다.
               </p>
+              <p className="pt-[7.32px]">Copyright @ 2026 KORLINK CO., LTD All Rights Reserved.</p>
             </div>
             <nav className="flex items-center gap-[19.52px]">
               <button
@@ -214,6 +222,7 @@ export function SiteFooter() {
         </div>
       </div>
       {activeTerm && <TermDetailModal term={activeTerm} onClose={() => setActiveTerm(null)} />}
+      {reportKind && <ReportModal kind={reportKind} onKind={setReportKind} onClose={() => setReportKind(null)} />}
     </footer>
   );
 }

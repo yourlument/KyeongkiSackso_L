@@ -8,7 +8,9 @@ import {
   AlertTriangleIcon,
   TabProfileIcon,
   TabCardIcon,
+  TabSealIcon,
   BuildingIcon,
+  SealNavyIcon,
   UserIcon,
   PlusIcon,
   RemoveIcon,
@@ -26,13 +28,14 @@ import {
   StepThreeIcon,
   SelectChevronIcon,
 } from "./profile-icons";
-import { REMITTANCE_ACCOUNT, type Performance, type Equipment } from "./profile-data";
+import { type Performance, type Equipment } from "./profile-data";
 
 const NAVY = "#1E3A5F";
 const INK = "#1D1D1F";
 
-type Tab = "profile" | "account";
+type Tab = "profile" | "seal" | "account";
 type ModalStep = 0 | 1 | 2;
+type VerificationAction = "start" | "pending" | null;
 
 const CARD: CSSProperties = {
   borderRadius: "19.52px",
@@ -67,11 +70,64 @@ const PLACEHOLDER_STYLE = `
   .profile-code::placeholder { color: #9CA3AF; font-weight: 500; }
 `;
 
-export function PartnerProfileView({ data }: { data: PartnerProfileData }) {
+export function PartnerProfileView({
+  data,
+  initialTab = "profile",
+  initialVerificationAction = null,
+}: {
+  data: PartnerProfileData;
+  initialTab?: Tab;
+  initialVerificationAction?: VerificationAction;
+}) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("profile");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [verified, setVerified] = useState(data.account.verified);
-  const [modalStep, setModalStep] = useState<ModalStep>(0);
+  const [modalStep, setModalStep] = useState<ModalStep>(() => {
+    if (data.account.verified || !initialVerificationAction) return 0;
+    return initialVerificationAction === "pending" && data.account.verificationStatus === "PENDING"
+      ? 2
+      : 1;
+  });
+  const [pendingAccount, setPendingAccount] = useState<{ bankName: string; bankAccountNo: string } | null>(
+    initialVerificationAction === "pending" && data.account.verificationStatus === "PENDING"
+      ? data.account.pending
+      : null,
+  );
+  const [revoking, setRevoking] = useState(false);
+  const unverifiedStatus = data.account.verificationStatus === "VERIFIED"
+    ? "UNVERIFIED"
+    : data.account.verificationStatus;
+
+  function beginVerification() {
+    setTab("account");
+    if (data.account.verificationStatus === "PENDING" && data.account.pending) {
+      setPendingAccount(data.account.pending);
+      setModalStep(2);
+      return;
+    }
+    setPendingAccount(null);
+    setModalStep(1);
+  }
+
+  function closeVerification() {
+    setModalStep(0);
+    router.replace("/partner/profile?tab=account");
+  }
+
+  async function revokeVerification() {
+    if (revoking) return;
+    setRevoking(true);
+    try {
+      const res = await fetch("/api/partner/profile/bank-verification", { method: "DELETE" });
+      if (!res.ok) return;
+      setVerified(false);
+      router.refresh();
+    } catch {
+      return;
+    } finally {
+      setRevoking(false);
+    }
+  }
 
   return (
     <div>
@@ -82,38 +138,65 @@ export function PartnerProfileView({ data }: { data: PartnerProfileData }) {
           프로필 설정
         </h1>
         <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.4)", margin: "4.88px 0 0" }}>
-          기업 소개 및 정산 계좌 정보 관리
+          기업 소개, 직인 및 정산 계좌 정보 관리
         </p>
       </div>
 
-      {verified ? <VerifiedBanner /> : <UnverifiedBanner onVerify={() => { setTab("account"); setModalStep(1); }} />}
+      {verified ? <VerifiedBanner /> : <UnverifiedBanner status={unverifiedStatus} onVerify={beginVerification} />}
 
       <TabBar tab={tab} verified={verified} onChange={setTab} />
 
       {tab === "profile" ? (
         <ProfileTab data={data} onSaved={() => router.refresh()} />
+      ) : tab === "seal" ? (
+        <SealManagementTab seal={data.seal} onSaved={() => router.refresh()} />
       ) : verified ? (
-        <VerifiedAccountTab account={data.account} onChange={() => { setVerified(false); setModalStep(1); }} />
+        <VerifiedAccountTab
+          account={data.account}
+          onChange={() => {
+            setPendingAccount(null);
+            setModalStep(1);
+          }}
+          onRevoke={revokeVerification}
+          revoking={revoking}
+        />
       ) : (
-        <UnverifiedAccountTab onVerify={() => setModalStep(1)} />
+        <UnverifiedAccountTab status={unverifiedStatus} onVerify={beginVerification} />
       )}
 
       {modalStep === 1 && (
-        <AccountStep1Modal onClose={() => setModalStep(0)} onNext={() => setModalStep(2)} />
+        <AccountStep1Modal
+          onClose={closeVerification}
+          onNext={(account) => {
+            setPendingAccount(account);
+            setModalStep(2);
+          }}
+        />
       )}
       {modalStep === 2 && (
         <AccountStep2Modal
-          onClose={() => setModalStep(0)}
+          accountLabel={pendingAccount ? `${pendingAccount.bankName} ${pendingAccount.bankAccountNo}` : ""}
+          onClose={closeVerification}
           onBack={() => setModalStep(1)}
           onConfirm={async (code) => {
-            await fetch("/api/partner/profile", {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ verifyAccount: true, verifyCode: code }),
-            });
+            let res: Response;
+            try {
+              res = await fetch("/api/partner/profile/bank-otp/confirm", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ otp: code }),
+              });
+            } catch {
+              return "입력값을 확인해 주세요";
+            }
+            if (!res.ok) {
+              const d = (await res.json().catch(() => ({}))) as { message?: string };
+              return d.message ?? "입력값을 확인해 주세요";
+            }
             setVerified(true);
             setModalStep(0);
             router.refresh();
+            return null;
           }}
         />
       )}
@@ -121,22 +204,65 @@ export function PartnerProfileView({ data }: { data: PartnerProfileData }) {
   );
 }
 
-function UnverifiedBanner({ onVerify }: { onVerify: () => void }) {
+type UnverifiedAccountStatus = Exclude<
+  PartnerProfileData["account"]["verificationStatus"],
+  "VERIFIED"
+>;
+
+function accountActionCopy(status: UnverifiedAccountStatus) {
+  if (status === "PENDING") {
+    return {
+      title: "정산 계좌 인증 번호 확인이 필요합니다",
+      description: "입금자명에 표시된 4자리 인증 번호를 입력해 주세요.",
+      action: "인증 번호 입력",
+      background: "#FFFBEB",
+      border: "#FDE68A",
+      iconBackground: "#FEF3C7",
+      titleColor: "#92400E",
+      descriptionColor: "#B45309",
+    };
+  }
+  if (status === "ERROR") {
+    return {
+      title: "정산 계좌 인증을 다시 확인해 주세요",
+      description: "인증 유효 시간이 지났거나 요청을 완료하지 못했습니다.",
+      action: "다시 인증하기",
+      background: "#FEF2F2",
+      border: "#FECACA",
+      iconBackground: "#FEE2E2",
+      titleColor: "#B91C1C",
+      descriptionColor: "#EF4444",
+    };
+  }
+  return {
+    title: "정산 계좌 인증이 필요합니다",
+    description: "계좌 인증 완료 후 상품 등록 및 견적 대응이 가능합니다.",
+    action: "계좌 인증하기",
+    background: "#FEF2F2",
+    border: "#FECACA",
+    iconBackground: "#FEE2E2",
+    titleColor: "#B91C1C",
+    descriptionColor: "#EF4444",
+  };
+}
+
+function UnverifiedBanner({ status, onVerify }: { status: UnverifiedAccountStatus; onVerify: () => void }) {
+  const copy = accountActionCopy(status);
   return (
     <div
       className="flex items-center justify-between"
-      style={{ padding: "20.52px", borderRadius: "19.52px", background: "#FEF2F2", border: "1px solid #FECACA", marginBottom: "24.4px" }}
+      style={{ padding: "20.52px", borderRadius: "19.52px", background: copy.background, border: `1px solid ${copy.border}`, marginBottom: "24.4px" }}
     >
       <div className="flex items-center" style={{ gap: "14.64px" }}>
-        <div className="flex items-center justify-center" style={{ width: "44px", height: "44px", borderRadius: "14.64px", background: "#FEE2E2" }}>
+        <div className="flex items-center justify-center" style={{ width: "44px", height: "44px", borderRadius: "14.64px", background: copy.iconBackground }}>
           <AlertTriangleIcon />
         </div>
         <div>
-          <p style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.195px", lineHeight: "23.4px", color: "#B91C1C", margin: 0 }}>
-            정산 계좌 인증이 필요합니다
+          <p style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.195px", lineHeight: "23.4px", color: copy.titleColor, margin: 0 }}>
+            {copy.title}
           </p>
-          <p style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: "#EF4444", margin: "2.44px 0 0" }}>
-            계좌 인증 완료 후 상품 등록 및 견적 대응이 가능합니다.
+          <p style={{ fontSize: "11px", fontWeight: 400, letterSpacing: "-0.165px", lineHeight: "19.8px", color: copy.descriptionColor, margin: "2.44px 0 0" }}>
+            {copy.description}
           </p>
         </div>
       </div>
@@ -144,7 +270,7 @@ function UnverifiedBanner({ onVerify }: { onVerify: () => void }) {
         onClick={onVerify}
         style={{ padding: "9.76px 19.52px", borderRadius: "14.64px", background: NAVY, color: "#FFFFFF", fontSize: "12px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "21px", border: "none", cursor: "pointer", whiteSpace: "nowrap" }}
       >
-        계좌 인증하기
+        {copy.action}
       </button>
     </div>
   );
@@ -173,7 +299,7 @@ function VerifiedBanner() {
 
 function TabBar({ tab, verified, onChange }: { tab: Tab; verified: boolean; onChange: (t: Tab) => void }) {
   return (
-    <div className="flex" style={{ gap: "2.44px", borderBottom: "1px solid rgba(210,210,215,0.2)", marginBottom: "29.28px" }}>
+    <div className="flex" style={{ gap: "2.44px", borderBottom: "1px solid rgba(210,210,215,0.2)", marginBottom: "29.28px", overflowX: "auto", overflowY: "hidden" }}>
       <button
         onClick={() => onChange("profile")}
         className="flex items-center justify-center"
@@ -195,6 +321,158 @@ function TabBar({ tab, verified, onChange }: { tab: Tab; verified: boolean; onCh
         </span>
         {!verified && <span style={{ width: "10px", height: "10px", borderRadius: "9999px", background: "#EF4444" }} />}
       </button>
+      <button
+        onClick={() => onChange("seal")}
+        className="flex items-center justify-center"
+        style={{ gap: "7.32px", padding: "12.2px 24.4px 14.2px", borderBottom: tab === "seal" ? `2px solid ${NAVY}` : "2px solid transparent", background: "none", border: "none", cursor: "pointer", marginBottom: "-1px", whiteSpace: "nowrap" }}
+      >
+        <TabSealIcon active={tab === "seal"} />
+        <span style={{ fontSize: "13px", fontWeight: 500, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: tab === "seal" ? NAVY : "rgba(29,29,31,0.4)" }}>
+          직인 관리
+        </span>
+      </button>
+    </div>
+  );
+}
+
+const SEAL_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const SEAL_IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg"]);
+
+export function SealManagementTab({
+  seal,
+  onSaved,
+}: {
+  seal: PartnerProfileData["seal"];
+  onSaved: () => void;
+}) {
+  const [customImageUrl, setCustomImageUrl] = useState(seal.customImageUrl);
+  const [uploading, setUploading] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const usingCustomImage = customImageUrl !== null;
+  const previewUrl = customImageUrl ?? "/api/partner/profile/seal/preview";
+
+  async function onSealFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || uploading) return;
+
+    const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+    if (!SEAL_IMAGE_EXTENSIONS.has(extension)) {
+      setError("PNG 또는 JPG 이미지만 업로드할 수 있어요");
+      setMessage(null);
+      return;
+    }
+    if (file.size > SEAL_IMAGE_MAX_BYTES) {
+      setError("직인 이미지는 5MB 이하여야 해요");
+      setMessage(null);
+      return;
+    }
+
+    setUploading(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/partner/profile/seal", { method: "POST", body: form });
+      const result = (await res.json().catch(() => ({}))) as { message?: string; url?: string };
+      if (!res.ok || !result.url) {
+        setError(result.message ?? "직인 이미지 업로드에 실패했어요");
+        return;
+      }
+      setCustomImageUrl(`${result.url}${result.url.includes("?") ? "&" : "?"}v=${Date.now()}`);
+      setMessage("업로드한 직인이 견적서에 적용됐어요");
+      onSaved();
+    } catch {
+      setError("직인 이미지 업로드에 실패했어요");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function resetToDefault() {
+    if (resetting) return;
+    setResetting(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/partner/profile/seal", { method: "DELETE" });
+      const result = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) {
+        setError(result.message ?? "기본 직인으로 변경하지 못했어요");
+        return;
+      }
+      setCustomImageUrl(null);
+      setMessage("기본 자동 직인이 견적서에 적용됐어요");
+      onSaved();
+    } catch {
+      setError("기본 직인으로 변경하지 못했어요");
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  return (
+    <div style={{ maxWidth: "820px" }}>
+      <div style={{ ...CARD, padding: "30.28px" }}>
+        <SectionTitle icon={<SealNavyIcon />}>직인 관리</SectionTitle>
+
+        <div className="flex flex-col sm:flex-row" style={{ gap: "29.28px", marginTop: "24.4px", alignItems: "center" }}>
+          <div
+            className="flex items-center justify-center"
+            style={{ width: "220px", height: "220px", flex: "0 0 220px", borderRadius: "19.52px", border: "1px solid rgba(210,210,215,0.3)", background: "#FAFAFA", overflow: "hidden", padding: "19.52px" }}
+          >
+            {                                                        }
+            <img src={previewUrl} alt={`${seal.companyName} 직인`} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+          </div>
+
+          <div style={{ flex: 1, width: "100%" }}>
+            <div className="flex items-center" style={{ gap: "7.32px", marginBottom: "9.76px" }}>
+              <span style={{ display: "inline-flex", padding: "4.88px 9.76px", borderRadius: "9999px", background: usingCustomImage ? "#EFF6FF" : "#ECFDF5", color: usingCustomImage ? NAVY : "#047857", fontSize: "11px", fontWeight: 600, lineHeight: "19.8px" }}>
+                {usingCustomImage ? "업로드 직인" : "기본 자동 직인"}
+              </span>
+            </div>
+            <p style={{ fontSize: "15px", fontWeight: 700, letterSpacing: "-0.42px", lineHeight: "24px", color: INK, margin: 0 }}>
+              {seal.companyName}
+            </p>
+            <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.5)", margin: "7.32px 0 0" }}>
+              현재 견적서 발행 시 표시되는 직인입니다. 업로드한 직인이 없으면 업체명으로 자동 생성된 기본 직인이 사용됩니다.
+            </p>
+
+            <div className="flex flex-wrap" style={{ gap: "9.76px", marginTop: "19.52px" }}>
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                disabled={uploading}
+                className="flex items-center justify-center"
+                style={{ gap: "7.32px", padding: "10.76px 19.52px", borderRadius: "14.64px", background: NAVY, color: "#FFFFFF", fontSize: "12px", fontWeight: 600, lineHeight: "21px", border: "none", cursor: uploading ? "default" : "pointer", opacity: uploading ? 0.6 : 1 }}
+              >
+                <span style={{ display: "flex", filter: "brightness(0) invert(1)" }}><UploadIcon /></span>
+                {uploading ? "업로드 중…" : "직인 이미지 업로드"}
+              </button>
+              {usingCustomImage && (
+                <button
+                  type="button"
+                  onClick={resetToDefault}
+                  disabled={resetting}
+                  style={{ padding: "10.76px 19.52px", borderRadius: "14.64px", background: "#FFFFFF", color: NAVY, fontSize: "12px", fontWeight: 600, lineHeight: "21px", border: "1px solid rgba(30,58,95,0.25)", cursor: resetting ? "default" : "pointer", opacity: resetting ? 0.6 : 1 }}
+                >
+                  {resetting ? "변경 중…" : "기본 직인으로 복원"}
+                </button>
+              )}
+            </div>
+            <input ref={inputRef} type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" onChange={onSealFile} style={{ display: "none" }} />
+            <p style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "rgba(29,29,31,0.3)", margin: "9.76px 0 0" }}>
+              PNG, JPG · 최대 5MB · 투명 배경 PNG 권장
+            </p>
+            {message && <p role="status" style={{ fontSize: "12px", color: "#047857", margin: "9.76px 0 0" }}>{message}</p>}
+            {error && <p role="alert" style={{ fontSize: "12px", color: "#EF4444", margin: "9.76px 0 0" }}>{error}</p>}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -219,7 +497,8 @@ function ProfileTab({ data, onSaved }: { data: PartnerProfileData; onSaved: () =
   const [performances, setPerformances] = useState<Performance[]>(data.performances);
   const [equipments, setEquipments] = useState<Equipment[]>(data.equipments);
   const [saving, setSaving] = useState(false);
-  const [portfolioFileName, setPortfolioFileName] = useState<string | null>(null);
+  const [saveFeedback, setSaveFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+  const [portfolioFileName, setPortfolioFileName] = useState<string | null>(data.portfolioFileName);
   const [portfolioUploading, setPortfolioUploading] = useState(false);
   const portfolioRef = useRef<HTMLInputElement>(null);
 
@@ -233,15 +512,25 @@ function ProfileTab({ data, onSaved }: { data: PartnerProfileData; onSaved: () =
   async function onPortfolioFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setSaveFeedback(null);
     setPortfolioUploading(true);
     try {
       const result = await uploadFile(file);
-      setPortfolioFileName(result.name);
-      await fetch("/api/partner/profile", {
+      const res = await fetch("/api/partner/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ portfolioFileName: result.name }),
       });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        setSaveFeedback({ kind: "error", message: payload?.message ?? "포트폴리오 정보를 저장하지 못했습니다. 다시 시도해 주세요." });
+        return;
+      }
+      setPortfolioFileName(result.name);
+      setSaveFeedback({ kind: "success", message: "포트폴리오 정보를 저장했습니다." });
+      onSaved();
+    } catch {
+      setSaveFeedback({ kind: "error", message: "파일 업로드 또는 저장에 실패했습니다. 파일과 네트워크 연결을 확인해 주세요." });
     } finally {
       setPortfolioUploading(false);
       e.target.value = "";
@@ -250,6 +539,7 @@ function ProfileTab({ data, onSaved }: { data: PartnerProfileData; onSaved: () =
 
   async function save() {
     if (saving) return;
+    setSaveFeedback(null);
     setSaving(true);
     try {
       const res = await fetch("/api/partner/profile", {
@@ -263,7 +553,15 @@ function ProfileTab({ data, onSaved }: { data: PartnerProfileData; onSaved: () =
           equipments: equipments.map((e) => ({ name: e.name, quantity: e.quantity })),
         }),
       });
-      if (res.ok) onSaved();
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        setSaveFeedback({ kind: "error", message: payload?.message ?? "저장하지 못했습니다. 입력 내용을 확인한 뒤 다시 시도해 주세요." });
+        return;
+      }
+      setSaveFeedback({ kind: "success", message: "프로필 정보를 저장했습니다." });
+      onSaved();
+    } catch {
+      setSaveFeedback({ kind: "error", message: "저장에 실패했습니다. 네트워크 연결을 확인한 뒤 다시 시도해 주세요." });
     } finally {
       setSaving(false);
     }
@@ -388,8 +686,17 @@ function ProfileTab({ data, onSaved }: { data: PartnerProfileData; onSaved: () =
         disabled={saving}
         style={{ width: "100%", padding: "14.64px 0", borderRadius: "14.64px", background: NAVY, color: "#FFFFFF", fontSize: "14px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "24.5px", border: "none", cursor: saving ? "default" : "pointer", marginTop: "29.28px", opacity: saving ? 0.6 : 1 }}
       >
-        저장
+        {saving ? "저장 중…" : "저장"}
       </button>
+      {saveFeedback && (
+        <p
+          role={saveFeedback.kind === "error" ? "alert" : "status"}
+          aria-live="polite"
+          style={{ margin: "9.76px 0 0", textAlign: "center", fontSize: "12px", lineHeight: "21.6px", color: saveFeedback.kind === "error" ? "#DC2626" : "#047857" }}
+        >
+          {saveFeedback.message}
+        </p>
+      )}
     </div>
   );
 }
@@ -403,26 +710,33 @@ function AddButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function UnverifiedAccountTab({ onVerify }: { onVerify: () => void }) {
+function UnverifiedAccountTab({
+  status,
+  onVerify,
+}: {
+  status: UnverifiedAccountStatus;
+  onVerify: () => void;
+}) {
+  const copy = accountActionCopy(status);
   const steps = [
     { icon: <StepOneIcon />, text: '"계좌 인증하기" 버튼을 클릭해 정산 은행, 계좌번호, 예금주, 통장 사본을 입력합니다.' },
-    { icon: <StepTwoIcon />, text: "입력한 계좌로 1원이 송금됩니다. 입금자명에 표시된 6자리 인증 번호를 확인하세요." },
+    { icon: <StepTwoIcon />, text: "입력한 계좌로 1원이 송금됩니다. 입금자명에 표시된 4자리 인증 번호를 확인하세요." },
     { icon: <StepThreeIcon />, text: "인증 번호 입력 후 계좌 인증이 완료됩니다. 인증 완료 후 상품 등록 및 견적 대응이 가능합니다." },
   ];
   return (
     <div style={{ maxWidth: "820px" }}>
-      <div className="flex items-center justify-between" style={{ padding: "25.4px", borderRadius: "19.52px", background: "#FEF2F2", border: "1px solid #FECACA" }}>
+      <div className="flex items-center justify-between" style={{ padding: "25.4px", borderRadius: "19.52px", background: copy.background, border: `1px solid ${copy.border}` }}>
         <div className="flex items-center" style={{ gap: "14.64px" }}>
-          <div className="flex items-center justify-center" style={{ width: "49px", height: "49px", borderRadius: "14.64px", background: "#FEE2E2" }}>
+          <div className="flex items-center justify-center" style={{ width: "49px", height: "49px", borderRadius: "14.64px", background: copy.iconBackground }}>
             <AlertTriangleIcon />
           </div>
           <div>
-            <p style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "-0.21px", lineHeight: "25.2px", color: "#B91C1C", margin: 0 }}>정산 계좌 인증 미완료</p>
-            <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "#EF4444", margin: "2.44px 0 0" }}>계좌 인증 후 상품 등록 및 견적 대응이 가능합니다.</p>
+            <p style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "-0.21px", lineHeight: "25.2px", color: copy.titleColor, margin: 0 }}>{copy.title}</p>
+            <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: copy.descriptionColor, margin: "2.44px 0 0" }}>{copy.description}</p>
           </div>
         </div>
         <button onClick={onVerify} style={{ padding: "9.76px 19.52px", borderRadius: "14.64px", background: NAVY, color: "#FFFFFF", fontSize: "12px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "21px", border: "none", cursor: "pointer", whiteSpace: "nowrap" }}>
-          계좌 인증하기
+          {copy.action}
         </button>
       </div>
 
@@ -439,14 +753,38 @@ function UnverifiedAccountTab({ onVerify }: { onVerify: () => void }) {
           </div>
         ))}
         <button onClick={onVerify} style={{ width: "100%", padding: "14.64px 0", borderRadius: "14.64px", background: NAVY, color: "#FFFFFF", fontSize: "14px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "24.5px", border: "none", cursor: "pointer", marginTop: "24.4px" }}>
-          지금 계좌 인증하기
+          {status === "PENDING" ? "인증 번호 입력" : status === "ERROR" ? "다시 인증하기" : "지금 계좌 인증하기"}
         </button>
       </div>
     </div>
   );
 }
 
-function VerifiedAccountTab({ account, onChange }: { account: PartnerProfileData["account"]; onChange: () => void }) {
+const ACCOUNT_ACTION_BUTTON: React.CSSProperties = {
+  padding: "10.76px 20.52px",
+  borderRadius: "14.64px",
+  background: "#D1FAE5",
+  border: "1px solid #A7F3D0",
+  color: "#047857",
+  fontSize: "12px",
+  fontWeight: 600,
+  letterSpacing: "-0.2928px",
+  lineHeight: "21px",
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+};
+
+function VerifiedAccountTab({
+  account,
+  onChange,
+  onRevoke,
+  revoking,
+}: {
+  account: PartnerProfileData["account"];
+  onChange: () => void;
+  onRevoke: () => void;
+  revoking: boolean;
+}) {
   return (
     <div style={{ maxWidth: "820px" }}>
       <div className="flex items-center justify-between" style={{ padding: "25.4px", borderRadius: "19.52px", background: "#ECFDF5", border: "1px solid #A7F3D0" }}>
@@ -459,9 +797,16 @@ function VerifiedAccountTab({ account, onChange }: { account: PartnerProfileData
             <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "#059669", margin: "2.44px 0 0" }}>{account.summary}</p>
           </div>
         </div>
-        <button onClick={onChange} style={{ padding: "10.76px 20.52px", borderRadius: "14.64px", background: "#D1FAE5", border: "1px solid #A7F3D0", color: "#047857", fontSize: "12px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "21px", cursor: "pointer", whiteSpace: "nowrap" }}>
-          계좌 변경
-        </button>
+        <div className="flex items-center" style={{ gap: "14.64px" }}>
+          <button onClick={onChange} style={ACCOUNT_ACTION_BUTTON}>
+            계좌 변경
+          </button>
+          {account.canRevoke && (
+            <button onClick={onRevoke} disabled={revoking} style={ACCOUNT_ACTION_BUTTON}>
+              인증 해제
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={{ ...CARD, padding: "30.28px", marginTop: "29.28px" }}>
@@ -515,11 +860,12 @@ function ModalShell({ width, height, onClose, children }: { width: number; heigh
 
 const BANK_OPTIONS = ["국민은행", "신한은행", "우리은행", "하나은행", "농협은행", "기업은행", "카카오뱅크", "케이뱅크", "토스뱅크", "부산은행", "대구은행", "경남은행", "광주은행", "전북은행", "제주은행", "새마을금고", "우체국"];
 
-function AccountStep1Modal({ onClose, onNext }: { onClose: () => void; onNext: () => void }) {
+function AccountStep1Modal({ onClose, onNext }: { onClose: () => void; onNext: (account: { bankName: string; bankAccountNo: string }) => void }) {
   const [bankName, setBankName] = useState("");
   const [bankAccountNo, setBankAccountNo] = useState("");
   const [bankAccountHolder, setBankAccountHolder] = useState("");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [bankbookFileName, setBankbookFileName] = useState<string | null>(null);
   const [bankbookFileUrl, setBankbookFileUrl] = useState<string | null>(null);
   const [bankbookUploading, setBankbookUploading] = useState(false);
@@ -544,9 +890,10 @@ function AccountStep1Modal({ onClose, onNext }: { onClose: () => void; onNext: (
   async function handleNext() {
     if (!canSubmit) return;
     setSaving(true);
+    setError(null);
     try {
-      await fetch("/api/partner/profile", {
-        method: "PATCH",
+      const res = await fetch("/api/partner/profile/bank-otp", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bankName,
@@ -555,7 +902,14 @@ function AccountStep1Modal({ onClose, onNext }: { onClose: () => void; onNext: (
           ...(bankbookFileUrl ? { bankbookFileUrl } : {}),
         }),
       });
-      onNext();
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { message?: string };
+        setError(d.message ?? "입력값을 확인해 주세요");
+        return;
+      }
+      onNext({ bankName, bankAccountNo });
+    } catch {
+      setError("입력값을 확인해 주세요");
     } finally {
       setSaving(false);
     }
@@ -626,6 +980,10 @@ function AccountStep1Modal({ onClose, onNext }: { onClose: () => void; onNext: (
           <input ref={copyRef} type="file" accept=".pdf,.jpg,.jpeg,.png,image/*" onChange={onBankbookFile} style={{ display: "none" }} />
         </div>
 
+        {error && (
+          <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "#EF4444", margin: "14.64px 0 0" }}>{error}</p>
+        )}
+
         <button
           onClick={handleNext}
           disabled={!canSubmit}
@@ -638,16 +996,18 @@ function AccountStep1Modal({ onClose, onNext }: { onClose: () => void; onNext: (
   );
 }
 
-function AccountStep2Modal({ onClose, onBack, onConfirm }: { onClose: () => void; onBack: () => void; onConfirm: (code: string) => Promise<void> | void }) {
+function AccountStep2Modal({ accountLabel, onClose, onBack, onConfirm }: { accountLabel: string; onClose: () => void; onBack: () => void; onConfirm: (code: string) => Promise<string | null> }) {
   const [code, setCode] = useState("");
   const [saving, setSaving] = useState(false);
-  const enabled = code.length === 6 && !saving;
+  const [error, setError] = useState<string | null>(null);
+  const enabled = code.length === 4 && !saving;
 
   async function handleConfirm() {
     if (!enabled) return;
     setSaving(true);
+    setError(null);
     try {
-      await onConfirm(code);
+      setError(await onConfirm(code));
     } finally {
       setSaving(false);
     }
@@ -659,22 +1019,26 @@ function AccountStep2Modal({ onClose, onBack, onConfirm }: { onClose: () => void
           <div className="flex items-center justify-center" style={{ width: "59px", height: "59px", borderRadius: "9999px", background: "rgba(30,58,95,0.1)", marginBottom: "14.64px" }}>
             <ShieldCheckIcon />
           </div>
-          <p style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "-0.21px", lineHeight: "25.2px", color: INK, margin: "0 0 4.88px", textAlign: "center" }}>{REMITTANCE_ACCOUNT} 계좌로 1원을 송금했습니다</p>
-          <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.5)", margin: 0, textAlign: "center" }}>입금자명에 표시된 숫자 6자리를 입력하세요.</p>
+          <p style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "-0.21px", lineHeight: "25.2px", color: INK, margin: "0 0 4.88px", textAlign: "center" }}>{accountLabel} 계좌로 1원을 송금했습니다</p>
+          <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "rgba(29,29,31,0.5)", margin: 0, textAlign: "center" }}>입금자명에 표시된 숫자 4자리를 입력하세요.</p>
         </div>
 
         <div style={{ marginTop: "19.52px" }}>
-          <FieldLabel>인증 번호 (6자리)</FieldLabel>
+          <FieldLabel>인증 번호 (4자리)</FieldLabel>
           <input
             value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            placeholder="123456"
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
+            placeholder="1234"
             inputMode="numeric"
-            maxLength={6}
+            maxLength={4}
             style={{ width: "100%", padding: "15.625px 15.64px", borderRadius: "14.64px", background: "#FFFFFF", border: "1px solid rgba(210,210,215,0.3)", fontSize: "18px", fontWeight: 400, letterSpacing: "9px", lineHeight: "31.5px", color: INK, textAlign: "center", outline: "none" }}
             className="profile-code"
           />
         </div>
+
+        {error && (
+          <p style={{ fontSize: "12px", fontWeight: 400, letterSpacing: "-0.18px", lineHeight: "21.6px", color: "#EF4444", margin: "14.64px 0 0", textAlign: "center" }}>{error}</p>
+        )}
 
         <div className="flex" style={{ gap: "14.64px", marginTop: "19.52px" }}>
           <button onClick={onBack} style={{ flex: "1 1 0", padding: "13.2px 1px", borderRadius: "14.64px", background: "none", border: "1px solid rgba(210,210,215,0.3)", color: "rgba(29,29,31,0.6)", fontSize: "13px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "22.75px", cursor: "pointer" }}>

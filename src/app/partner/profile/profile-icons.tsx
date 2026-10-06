@@ -23,6 +23,30 @@ export function TabCardIcon({ active }: { active: boolean }) {
   );
 }
 
+export function TabSealIcon({ active }: { active: boolean }) {
+  const color = active ? "#1E3A5F" : "#1D1D1F";
+  const opacity = active ? 1 : 0.4;
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="12" cy="12" r="9" stroke={color} strokeOpacity={opacity} strokeWidth="2" />
+      <circle cx="12" cy="12" r="5" stroke={color} strokeOpacity={opacity} strokeWidth="1.5" />
+      <path d="M9.5 12H14.5" stroke={color} strokeOpacity={opacity} strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M12 9.5V14.5" stroke={color} strokeOpacity={opacity} strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function SealNavyIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="12" cy="12" r="9" stroke="#1E3A5F" strokeWidth="2" />
+      <circle cx="12" cy="12" r="5" stroke="#1E3A5F" strokeWidth="1.5" />
+      <path d="M9.5 12H14.5" stroke="#1E3A5F" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M12 9.5V14.5" stroke="#1E3A5F" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function BuildingIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">

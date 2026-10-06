@@ -29,7 +29,7 @@ export type QuoteRow = {
 
 export async function loadQuotes(officialId?: string | null): Promise<{ rows: QuoteRow[] }> {
   const reqs = await prisma.quoteRequest.findMany({
-    where: { status: { in: ["OPEN", "REVIEWING", "AWARDED", "CLOSED"] } },
+    where: { kind: "OPEN_BID", status: { in: ["OPEN", "REVIEWING", "AWARDED", "CLOSED"] } },
     orderBy: { createdAt: "desc" },
     include: {
       items: { select: { name: true, spec: true } },
@@ -119,6 +119,7 @@ export type QuoteDetailData = {
 export async function loadQuoteDetail(
   id: string,
   viewerId?: string | null,
+  viewerCompanyId?: string | null,
 ): Promise<QuoteDetailData | null> {
   const req = await prisma.quoteRequest.findUnique({
     where: { id },
@@ -136,6 +137,12 @@ export async function loadQuoteDetail(
   });
 
   if (!req || req.status === "DRAFT" || req.status === "CANCELLED") return null;
+
+  if (req.kind === "DIRECT") {
+    const isRequester = !!viewerId && req.officialId === viewerId;
+    const isTargetSupplier = !!viewerCompanyId && req.targetSupplierCompanyId === viewerCompanyId;
+    if (!isRequester && !isTargetSupplier) return null;
+  }
 
   const catParts: string[] = [];
   let cat = req.category as { id: string; name: string; parentId: string | null } | null;

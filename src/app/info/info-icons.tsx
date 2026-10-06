@@ -213,12 +213,17 @@ export function LinkIcon(p: SVGProps<SVGSVGElement>) {
   );
 }
 
-export function UploadIcon(p: SVGProps<SVGSVGElement>) {
+const UPLOAD_ICON_SRC = {
+  default: "/icons/info-upload-cloud.svg",
+  active: "/icons/info-upload-cloud-active.svg",
+  dim: "/icons/info-upload-cloud-dim.svg",
+} as const;
+
+export function UploadIcon({ state = "default" }: { state?: keyof typeof UPLOAD_ICON_SRC } = {}) {
   return (
-    <svg width={13} height={13} viewBox="0 0 14 14" {...stroke(p, 1.4)}>
-      <path d="M7 9V2m0 0L4.5 4.5M7 2l2.5 2.5" />
-      <path d="M2 9.5V11a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5" />
-    </svg>
+    <span style={{ display: "inline-flex", width: "13.359375px", height: "13px", flexShrink: 0 }}>
+      <img src={UPLOAD_ICON_SRC[state]} alt="" aria-hidden="true" style={{ width: "100%", height: "100%" }} />
+    </span>
   );
 }
 

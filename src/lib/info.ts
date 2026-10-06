@@ -114,6 +114,8 @@ export type InfoComment = {
 
 export type InfoDetailData = {
   id: string;
+  mine: boolean;
+  isPublished: boolean;
   category: string;
   title: string;
   subtitle: string;
@@ -130,10 +132,63 @@ export type InfoDetailData = {
   popularComments: InfoComment[];
 };
 
-export async function loadInfoDetail(id: string, currentUserId?: string | null): Promise<InfoDetailData | null> {
+export type InfoEditData = {
+  id: string;
+  category: string | null;
+  title: string;
+  videoUrl: string | null;
+  content: string;
+  attachments: { name: string; url: string }[];
+};
+
+export async function loadOwnedInfoEdit(
+  id: string,
+  userId: string,
+): Promise<InfoEditData | null> {
+  const post = await prisma.post.findFirst({
+    where: {
+      id,
+      boardType: "INFO",
+      isPublished: true,
+      authorId: userId,
+    },
+    select: {
+      id: true,
+      category: true,
+      title: true,
+      videoUrl: true,
+      content: true,
+      attachments: {
+        select: { fileName: true, fileUrl: true },
+      },
+    },
+  });
+  if (!post) return null;
+  return {
+    id: post.id,
+    category: post.category,
+    title: post.title,
+    videoUrl: post.videoUrl,
+    content: post.content,
+    attachments: post.attachments.map((attachment) => ({
+      name: attachment.fileName,
+      url: attachment.fileUrl,
+    })),
+  };
+}
+
+export function canViewInfoPost(isPublished: boolean, role?: string | null): boolean {
+  return isPublished || role === "ADMIN";
+}
+
+export async function loadInfoDetail(
+  id: string,
+  currentUserId?: string | null,
+  role?: string | null,
+): Promise<InfoDetailData | null> {
   const reactionFilter = { where: { userId: currentUserId ?? "__none__" }, select: { type: true } } as const;
-  const post = await prisma.post.findUnique({
-    where: { id, boardType: "INFO", isPublished: true },
+  const post = await prisma.post.findFirst({
+    where: { id, boardType: "INFO", ...(role === "ADMIN" ? {} : { isPublished: true }) },
     include: {
       attachments: true,
       _count: { select: { comments: true } },
@@ -150,7 +205,7 @@ export async function loadInfoDetail(id: string, currentUserId?: string | null):
     },
   });
 
-  if (!post) return null;
+  if (!post || !canViewInfoPost(post.isPublished, role)) return null;
 
   await prisma.post.update({ where: { id }, data: { views: { increment: 1 } } });
 
@@ -194,6 +249,8 @@ export async function loadInfoDetail(id: string, currentUserId?: string | null):
 
   return {
     id: post.id,
+    mine: Boolean(currentUserId && post.authorId === currentUserId),
+    isPublished: post.isPublished,
     category: post.category ?? "정보공유",
     title: post.title,
     subtitle,

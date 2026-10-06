@@ -1,5 +1,7 @@
 import PDFDocument from "pdfkit/js/pdfkit.standalone.js";
 import { getRegularFont, getBoldFont } from "./font";
+import { drawQuoteCompanySeal, resolveQuoteSealCompanyName } from "./seal";
+import { normalizePdfText } from "./text";
 
 const FONT_REGULAR = "KR";
 const FONT_BOLD = "KR-Bold";
@@ -26,6 +28,8 @@ export type QuotePdfData = {
   requestTitle: string;
   orgName: string;
   supplierName: string;
+  supplierSealCompanyName?: string | null;
+  supplierSealImageDataUri?: string | null;
   supplierRepresentative: string;
   supplierBusinessNo: string;
   supplierPhone: string;
@@ -84,11 +88,11 @@ function createDoc(): Doc {
   doc.font(FONT_REGULAR).fillColor(COLOR_TEXT);
   const baseText = doc.text.bind(doc) as (t: unknown, ...a: unknown[]) => Doc;
   doc.text = function (text: unknown, ...args: unknown[]) {
-    return baseText(typeof text === "string" ? text.normalize("NFKC") : text, ...args);
+    return baseText(typeof text === "string" ? normalizePdfText(text) : text, ...args);
   } as typeof doc.text;
   const baseHeightOfString = doc.heightOfString.bind(doc) as (t: unknown, ...a: unknown[]) => number;
   doc.heightOfString = function (text: unknown, ...args: unknown[]) {
-    return baseHeightOfString(typeof text === "string" ? text.normalize("NFKC") : text, ...args);
+    return baseHeightOfString(typeof text === "string" ? normalizePdfText(text) : text, ...args);
   } as typeof doc.heightOfString;
   return doc;
 }
@@ -107,9 +111,20 @@ function contentWidth(doc: Doc): number {
   return doc.page.width - PAGE_MARGIN * 2;
 }
 
-function drawTitle(doc: Doc, title: string): void {
-  doc.font(FONT_BOLD).fontSize(26).fillColor(COLOR_TEXT);
-  doc.text(title, PAGE_MARGIN, doc.y, { width: contentWidth(doc), align: "center", characterSpacing: 8 });
+function drawTitle(
+  doc: Doc,
+  title: string,
+  options: { fontSize?: number; characterSpacing?: number } = {},
+): void {
+  doc
+    .font(FONT_BOLD)
+    .fontSize(options.fontSize ?? 26)
+    .fillColor(COLOR_TEXT);
+  doc.text(title, PAGE_MARGIN, doc.y, {
+    width: contentWidth(doc),
+    align: "center",
+    characterSpacing: options.characterSpacing ?? 8,
+  });
   doc.moveDown(0.4);
   const y = doc.y;
   doc.lineWidth(2).strokeColor(COLOR_TEXT).moveTo(PAGE_MARGIN, y).lineTo(doc.page.width - PAGE_MARGIN, y).stroke();
@@ -123,7 +138,14 @@ function drawMeta(doc: Doc, label: string, value: string): void {
 }
 
 function drawInfoBlock(doc: Doc, heading: string, rows: [string, string][]): void {
-  doc.font(FONT_BOLD).fontSize(12).fillColor(COLOR_TEXT).text(heading);
+  doc
+    .font(FONT_BOLD)
+    .fontSize(12)
+    .fillColor(COLOR_TEXT)
+    .text(heading, PAGE_MARGIN, doc.y, {
+      width: contentWidth(doc),
+      align: "left",
+    });
   doc.moveDown(0.4);
   const labelW = 110;
   const startX = PAGE_MARGIN;
@@ -203,8 +225,78 @@ function drawFooterNote(doc: Doc, lines: string[]): void {
   doc.moveDown(1.5);
   doc.font(FONT_REGULAR).fontSize(9).fillColor(COLOR_MUTED);
   for (const line of lines) {
-    doc.text(line, { align: "center" });
+    doc.text(line, PAGE_MARGIN, doc.y, {
+      width: contentWidth(doc),
+      align: "center",
+    });
   }
+}
+
+function drawUploadedQuoteSeal(doc: Doc, dataUri: string, x: number, y: number, size: number): boolean {
+  const originalX = doc.x;
+  const originalY = doc.y;
+  try {
+    doc.save();
+    doc.image(dataUri, x, y, {
+      fit: [size, size],
+      align: "center",
+      valign: "center",
+    });
+    doc.restore();
+    return true;
+  } catch {
+    try { doc.restore(); } catch {}
+    return false;
+  } finally {
+    doc.x = originalX;
+    doc.y = originalY;
+  }
+}
+
+function drawQuoteFooter(
+  doc: Doc,
+  supplierName: string,
+  supplierSealCompanyName?: string | null,
+  supplierSealImageDataUri?: string | null,
+): void {
+  doc.moveDown(1.5);
+  const fontSize = 9;
+  const sealSize = 34;
+  const sealGap = 6;
+
+  if (doc.y + sealSize > doc.page.height - PAGE_MARGIN) {
+    doc.addPage();
+    doc.y = PAGE_MARGIN;
+  }
+
+  doc.font(FONT_REGULAR).fontSize(fontSize).fillColor(COLOR_MUTED);
+  doc.text("위와 같이 견적합니다.", PAGE_MARGIN, doc.y, {
+    width: contentWidth(doc),
+    align: "center",
+  });
+
+  const companyName = supplierName || "-";
+  const companyY = doc.y;
+  const companyWidth = doc.widthOfString(normalizePdfText(companyName));
+  const companyX = (doc.page.width - companyWidth) / 2;
+
+  doc.text(companyName, companyX, companyY, { width: companyWidth });
+  const sealX = companyX + companyWidth + sealGap;
+  const sealY = companyY - 11;
+  const uploadedSealDrawn = supplierSealImageDataUri
+    ? drawUploadedQuoteSeal(doc, supplierSealImageDataUri, sealX, sealY, sealSize)
+    : false;
+  if (!uploadedSealDrawn) {
+    drawQuoteCompanySeal(
+      doc,
+      resolveQuoteSealCompanyName(supplierSealCompanyName, supplierName),
+      sealX,
+      sealY,
+      sealSize,
+    );
+  }
+  doc.x = PAGE_MARGIN;
+  doc.y = Math.max(doc.y, companyY + sealSize - 11);
 }
 
 export async function buildQuotePdf(data: QuotePdfData): Promise<Buffer> {
@@ -260,7 +352,12 @@ export async function buildQuotePdf(data: QuotePdfData): Promise<Buffer> {
     ["비고", data.memo],
   ]);
 
-  drawFooterNote(doc, ["위와 같이 견적합니다.", `${data.supplierName}`]);
+  drawQuoteFooter(
+    doc,
+    data.supplierName,
+    data.supplierSealCompanyName,
+    data.supplierSealImageDataUri,
+  );
 
   return toBuffer(doc);
 }
@@ -268,7 +365,10 @@ export async function buildQuotePdf(data: QuotePdfData): Promise<Buffer> {
 export async function buildPurchaseConfirmPdf(data: PurchaseConfirmPdfData): Promise<Buffer> {
   const doc = createDoc();
 
-  drawTitle(doc, "구 매 확 인 서");
+  drawTitle(doc, "거래명세서(구매확인용)", {
+    fontSize: 21,
+    characterSpacing: 2,
+  });
 
   const headerTop = doc.y;
   doc.font(FONT_REGULAR).fontSize(10).fillColor(COLOR_MUTED);
@@ -316,7 +416,7 @@ export async function buildPurchaseConfirmPdf(data: PurchaseConfirmPdfData): Pro
     ["납품 기한", data.deliveryDeadline],
   ]);
 
-  drawFooterNote(doc, ["위 물품의 구매 사실을 확인합니다.", "KORINK 공공조달 플랫폼"]);
+  drawFooterNote(doc, ["위 물품의 구매 사실을 확인합니다.", "KORLINK 공공조달 플랫폼"]);
 
   return toBuffer(doc);
 }
@@ -426,7 +526,7 @@ export async function buildSubscriptionReceiptPdf(data: SubscriptionReceiptPdfDa
 
   drawTotalRow(doc, "결제 금액", data.amount);
 
-  drawFooterNote(doc, ["위 금액을 정히 영수합니다.", "KORINK 공공조달 플랫폼"]);
+  drawFooterNote(doc, ["위 금액을 정히 영수합니다.", "KORLINK 공공조달 플랫폼"]);
 
   return toBuffer(doc);
 }
@@ -515,7 +615,7 @@ export async function buildTaxInvoicePdf(data: TaxInvoicePdfData): Promise<Buffe
 
   drawInfoBlock(doc, "비고", [["품목 요약", data.remark]]);
 
-  drawFooterNote(doc, ["위와 같이 세금계산서를 발행합니다.", "KORINK 공공조달 플랫폼"]);
+  drawFooterNote(doc, ["위와 같이 세금계산서를 발행합니다.", "KORLINK 공공조달 플랫폼"]);
 
   return toBuffer(doc);
 }

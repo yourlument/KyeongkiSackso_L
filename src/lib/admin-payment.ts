@@ -78,6 +78,13 @@ export async function loadAdminPayment(nowMs: number): Promise<AdminPaymentData>
         include: {
           buyer: { select: { organization: true } },
           settlement: { select: { status: true, settleNote: true } },
+          sourceSettlements: {
+            select: {
+              status: true,
+              settleNote: true,
+              nicepayPayoutError: true,
+            },
+          },
           items: { take: 1, select: { supplierCompany: true } },
         },
       },
@@ -88,7 +95,16 @@ export async function loadAdminPayment(nowMs: number): Promise<AdminPaymentData>
     const o = p.order;
     const org = o.buyer?.organization ?? null;
     const sup = o.items[0]?.supplierCompany ?? null;
-    const settle: Settle = o.settlement?.status === "PAID" ? "정산완료" : "정산대기";
+    const payoutSettlements = o.sourceSettlements;
+    const settle: Settle =
+      o.settlement?.status === "PAID" ||
+      (payoutSettlements.length > 0 &&
+        payoutSettlements.every((row) => row.status === "PAID"))
+        ? "정산완료"
+        : "정산대기";
+    const payoutNotes = payoutSettlements
+      .map((row) => row.settleNote ?? row.nicepayPayoutError)
+      .filter((value): value is string => Boolean(value));
     return {
       orderId: o.id,
       date: ymdhm(p.paidAt ?? o.createdAt),
@@ -112,7 +128,11 @@ export async function loadAdminPayment(nowMs: number): Promise<AdminPaymentData>
         },
         supplierCeo: dash(decrypt(sup?.representativeName)),
         supplierPhone: dash(decrypt(sup?.phone)),
-        settleNote: dash(o.settlement?.settleNote),
+        settleNote: dash(
+          payoutNotes.length > 0
+            ? payoutNotes.join(" / ")
+            : o.settlement?.settleNote,
+        ),
       },
     };
   });

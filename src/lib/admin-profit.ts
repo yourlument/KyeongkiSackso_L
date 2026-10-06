@@ -35,7 +35,10 @@ export async function loadAdminProfit(nowMs: number): Promise<AdminProfitData> {
       include: { supplierCompany: { select: { id: true, name: true, isRestricted: true } } },
     }),
     prisma.subscriptionPayment.findMany({ select: { amount: true, billingMonth: true, paidAt: true } }),
-    prisma.settlement.findMany({ select: { fee: true, grossAmount: true, periodStart: true } }),
+    prisma.settlement.findMany({
+      where: { status: { not: "CANCELLED" } },
+      select: { fee: true, grossAmount: true, periodStart: true },
+    }),
   ]);
 
   const seen = new Set<string>();

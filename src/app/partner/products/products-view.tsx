@@ -9,7 +9,7 @@ import {
   DELIVERY_TERMS,
   SPEC_FIELDS,
 } from "./products-data";
-import type { NaraResult } from "@/lib/nara";
+import type { NaraSearchResult } from "@/lib/nara";
 import { uploadFile } from "@/lib/upload-client";
 import {
   PlusIcon,
@@ -26,6 +26,8 @@ import {
   EyeIcon,
   CheckIcon,
 } from "./products-icons";
+import { SettlementAccountVerificationBanner } from "@/components/settlement-account-verification-banner";
+import type { SettlementAccountVerificationStatus } from "@/lib/supplier-account-verification";
 
 const NAVY = "#1E3A5F";
 const INK = "#1D1D1F";
@@ -62,7 +64,17 @@ function findCatPath(tree: CatNode[], id: string): string[] {
   return [];
 }
 
-export function ProductsView({ initial, availableMarks }: { initial: ProductListItem[]; availableMarks: string[] }) {
+export function ProductsView({
+  initial,
+  availableMarks,
+  canTrade,
+  accountVerificationStatus,
+}: {
+  initial: ProductListItem[];
+  availableMarks: string[];
+  canTrade: boolean;
+  accountVerificationStatus: SettlementAccountVerificationStatus;
+}) {
   const router = useRouter();
   const [registerOpen, setRegisterOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -78,6 +90,10 @@ export function ProductsView({ initial, availableMarks }: { initial: ProductList
 
   return (
     <div>
+      {!canTrade && accountVerificationStatus !== "VERIFIED" && (
+        <SettlementAccountVerificationBanner status={accountVerificationStatus} />
+      )}
+
       <div className="flex items-center justify-between" style={{ paddingBottom: "29.28px" }}>
         <div>
           <h1 style={{ fontSize: "20px", fontWeight: 700, letterSpacing: "-0.56px", lineHeight: "25px", color: INK, margin: 0 }}>상품 관리</h1>
@@ -87,9 +103,14 @@ export function ProductsView({ initial, availableMarks }: { initial: ProductList
         </div>
         <button
           type="button"
-          onClick={() => setRegisterOpen(true)}
+          disabled={!canTrade}
+          onClick={() => {
+            if (!canTrade) return;
+            setEditId(null);
+            setRegisterOpen(true);
+          }}
           className="inline-flex items-center"
-          style={{ gap: "7.32px", borderRadius: "14.64px", background: NAVY, padding: "12.2px 19.52px", border: "none", cursor: "pointer" }}
+          style={{ gap: "7.32px", borderRadius: "14.64px", background: NAVY, padding: "12.2px 19.52px", border: "none", cursor: canTrade ? "pointer" : "not-allowed", opacity: canTrade ? 1 : 0.4 }}
         >
           <PlusIcon />
           <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#fff" }}>상품 등록</span>
@@ -110,7 +131,7 @@ export function ProductsView({ initial, availableMarks }: { initial: ProductList
       </div>
 
       {(registerOpen || editId) && (
-        <RegisterModal mode={editId ? "edit" : "create"} productId={editId} availableMarks={availableMarks} onClose={close} onSaved={saved} />
+        <RegisterModal key={editId ?? "create"} mode={editId ? "edit" : "create"} productId={editId} availableMarks={availableMarks} onClose={close} onSaved={saved} />
       )}
     </div>
   );
@@ -186,13 +207,14 @@ function RegisterModal({
   const [step, setStep] = useState<Step>(1);
   const [regType, setRegType] = useState<RegType>("물품 등록");
   const [naraOpen, setNaraOpen] = useState(false);
-  const [naraResults, setNaraResults] = useState<NaraResult[]>([]);
+  const [naraResults, setNaraResults] = useState<NaraSearchResult[]>([]);
   const [naraLoading, setNaraLoading] = useState(false);
   const [delivery, setDelivery] = useState<(typeof DELIVERY_TERMS)[number]>("상차도");
   const [deliveryApply, setDeliveryApply] = useState(true);
   const [detailMode, setDetailMode] = useState<DetailMode>("none");
   const [aiOpen, setAiOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [editLoading, setEditLoading] = useState(mode === "edit");
 
   const [name, setName] = useState("");
   const [npsCode, setNpsCode] = useState("");
@@ -201,23 +223,27 @@ function RegisterModal({
   const [unit, setUnit] = useState("개");
   const [deliveryDays, setDeliveryDays] = useState("");
   const [specs, setSpecs] = useState<Spec[]>(SPEC_FIELDS.map((l) => ({ label: l, value: "" })));
-  const [badges, setBadges] = useState<string[]>([]);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageName, setImageName] = useState("");
   const [detailImages, setDetailImages] = useState<string[]>([]);
 
   const [catTree, setCatTree] = useState<CatNode[]>([]);
+  const [catTreeType, setCatTreeType] = useState<RegType | null>(null);
   const [topId, setTopId] = useState("");
   const [midId, setMidId] = useState("");
   const [leafId, setLeafId] = useState("");
-  const pendingCatId = useRef<string | null>(null);
+  const [pendingCatId, setPendingCatId] = useState<string | null>(null);
 
   useEffect(() => {
     const type = regType === "물품 등록" ? "goods" : "service";
     const ac = new AbortController();
     fetch(`/api/categories?type=${type}`, { signal: ac.signal })
       .then((r) => r.json())
-      .then((d: { categories: CatNode[] }) => setCatTree(d.categories ?? []))
+      .then((d: { categories: CatNode[] }) => {
+        if (ac.signal.aborted) return;
+        setCatTree(d.categories ?? []);
+        setCatTreeType(regType);
+      })
       .catch(() => {});
     return () => ac.abort();
   }, [regType]);
@@ -229,7 +255,7 @@ function RegisterModal({
     const t = setTimeout(() => {
       fetch(`/api/nara?q=${encodeURIComponent(npsCode)}`, { signal: ac.signal })
         .then((r) => r.json())
-        .then((d: { results: NaraResult[] }) => setNaraResults(d.results ?? []))
+        .then((d: { results: NaraSearchResult[] }) => setNaraResults(d.results ?? []))
         .catch(() => {})
         .finally(() => { if (!ac.signal.aborted) setNaraLoading(false); });
     }, 300);
@@ -237,10 +263,19 @@ function RegisterModal({
   }, [naraOpen, npsCode]);
 
   useEffect(() => {
-    if (mode !== "edit" || !productId) return;
-    fetch(`/api/partner/products/${productId}`, { cache: "no-store" })
-      .then((r) => r.json())
+    if (mode !== "edit" || !productId) {
+      setEditLoading(false);
+      return;
+    }
+    const ac = new AbortController();
+    setEditLoading(true);
+    fetch(`/api/partner/products/${productId}`, { cache: "no-store", signal: ac.signal })
+      .then(async (r) => {
+        if (!r.ok) throw new Error("product fetch failed");
+        return r.json();
+      })
       .then((d) => {
+        if (ac.signal.aborted) return;
         if (d?.message) return;
         setRegType(d.itemType === "SERVICE" ? "용역(서비스) 등록" : "물품 등록");
         setName(d.name ?? "");
@@ -251,22 +286,25 @@ function RegisterModal({
         setDeliveryDays(d.deliveryDays != null ? String(d.deliveryDays) : "");
         if (d.deliveryCondition) { setDelivery(d.deliveryCondition); setDeliveryApply(true); } else setDeliveryApply(false);
         if (Array.isArray(d.specs) && d.specs.length) setSpecs(d.specs);
-        setBadges(Array.isArray(d.badges) ? d.badges : []);
         setImageUrl(d.imageUrl ?? null);
         const details: string[] = Array.isArray(d.detailImageUrls) ? d.detailImageUrls : [];
         setDetailImages(details);
         if (details.length) setDetailMode("직접 등록");
-        pendingCatId.current = d.categoryId ?? null;
+        setPendingCatId(d.categoryId ?? null);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!ac.signal.aborted) setEditLoading(false);
+      });
+    return () => ac.abort();
   }, [mode, productId]);
 
   useEffect(() => {
-    if (!pendingCatId.current || catTree.length === 0) return;
-    const [t, m, l] = findCatPath(catTree, pendingCatId.current);
+    if (!pendingCatId || catTree.length === 0 || catTreeType !== regType) return;
+    const [t, m, l] = findCatPath(catTree, pendingCatId);
     setTopId(t ?? ""); setMidId(m ?? ""); setLeafId(l ?? "");
-    pendingCatId.current = null;
-  }, [catTree]);
+    setPendingCatId(null);
+  }, [catTree, catTreeType, pendingCatId, regType]);
 
   function changeRegType(t: RegType) {
     if (t === regType) return;
@@ -289,7 +327,7 @@ function RegisterModal({
         deliveryDays: deliveryDays ? Number(deliveryDays.replace(/[^\d]/g, "")) : null,
         deliveryCondition: deliveryApply ? delivery : null,
         specs: specs.filter((s) => s.label.trim() || s.value.trim()),
-        badges,
+        badges: availableMarks,
         imageUrl: imageUrl || null,
         detailImageUrls: detailImages,
       };
@@ -308,13 +346,17 @@ function RegisterModal({
       <button type="button" aria-label="닫기" onClick={onClose} className="absolute inset-0" style={{ background: "rgba(0,0,0,0.4)", border: "none", cursor: "default" }} />
       <div className="relative flex flex-col" style={{ width: "820px", maxHeight: "calc(100vh - 39.04px)", borderRadius: "19.52px", background: "#fff", overflow: "hidden" }}>
         <div className="flex items-center justify-between" style={{ padding: "19.52px 29.28px 20.52px" }}>
-          <span style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "-0.448px", lineHeight: "20px", color: INK }}>상품 등록</span>
+          <span style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "-0.448px", lineHeight: "20px", color: INK }}>{mode === "edit" ? "상품 수정" : "상품 등록"}</span>
           <button type="button" aria-label="닫기" onClick={onClose} className="flex items-center justify-center" style={{ width: "39px", height: "39px", borderRadius: "9.76px", border: "none", background: "transparent", cursor: "pointer" }}>
             <CloseIcon size={10} opacity={0.4} />
           </button>
         </div>
 
-        <div className="flex flex-col" style={{ padding: "29.28px", overflowY: "auto" }}>
+        <div
+          className="flex flex-col"
+          aria-busy={editLoading}
+          style={{ padding: "29.28px", overflowY: "auto", visibility: editLoading ? "hidden" : "visible" }}
+        >
           <Stepper step={step} />
 
           {step === 1 && (
@@ -336,7 +378,7 @@ function RegisterModal({
               setNpsCode={setNpsCode}
               name={name}
               setName={setName}
-              onPickNara={(r) => { setNpsCode(r.code); if (!name) setName(r.name); setNaraOpen(false); }}
+              onPickNara={(r) => { setNpsCode(r.classNo ?? ""); if (!name) setName(r.name); setNaraOpen(false); }}
             />
           )}
           {step === 2 && (
@@ -362,8 +404,6 @@ function RegisterModal({
               onStartAi={() => setAiOpen(true)}
               specs={specs}
               setSpecs={setSpecs}
-              badges={badges}
-              setBadges={setBadges}
               availableMarks={availableMarks}
               imageUrl={imageUrl}
               imageName={imageName}
@@ -391,7 +431,7 @@ function RegisterModal({
                   onClick={() => (step === 3 ? submit() : setStep((s) => (s + 1) as Step))}
                   style={{ borderRadius: "14.64px", padding: "12.2px 29.28px", border: "none", background: NAVY, fontSize: "13px", fontWeight: 600, letterSpacing: "-0.2928px", lineHeight: "22.75px", color: "#fff", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.4 : 1 }}
                 >
-                  {step === 3 ? "등록 완료" : "다음"}
+                  {step === 3 ? (mode === "edit" ? "수정" : "등록 완료") : "다음"}
                 </button>
               );
             })()}
@@ -520,7 +560,7 @@ function StepOne({
   setRegType: (v: RegType) => void;
   naraOpen: boolean;
   setNaraOpen: (v: boolean) => void;
-  naraResults: NaraResult[];
+  naraResults: NaraSearchResult[];
   naraLoading: boolean;
   catTree: CatNode[];
   topId: string;
@@ -533,7 +573,7 @@ function StepOne({
   setNpsCode: (v: string) => void;
   name: string;
   setName: (v: string) => void;
-  onPickNara: (r: NaraResult) => void;
+  onPickNara: (r: NaraSearchResult) => void;
 }) {
   const npsInputRef = useRef<HTMLInputElement>(null);
   const [naraRect, setNaraRect] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -599,7 +639,7 @@ function StepOne({
       </div>
 
       <div className="relative" style={{ marginTop: "19.52px" }}>
-        <FieldLabel hintCaption="조달청 나라장터 데이터 연동">{"물품식별번호 ​"}</FieldLabel>
+        <FieldLabel hintCaption="조달청 나라장터 데이터 연동">{"분류번호 ​"}</FieldLabel>
         <input
           ref={npsInputRef}
           value={npsCode}
@@ -635,7 +675,7 @@ function StepOne({
   );
 }
 
-function NaraDropdown({ onPick, results, loading }: { onPick: (r: NaraResult) => void; results: NaraResult[]; loading: boolean }) {
+function NaraDropdown({ onPick, results, loading }: { onPick: (r: NaraSearchResult) => void; results: NaraSearchResult[]; loading: boolean }) {
   return (
     <div style={{ borderRadius: "9.76px", border: "1px solid #E5E7EB", background: "#fff", overflow: "hidden", boxShadow: "0 10px 30px rgba(0,0,0,0.12)" }}>
       <div style={{ padding: "9.76px 14.64px 10.76px", background: "#F9FAFB" }}>
@@ -649,7 +689,7 @@ function NaraDropdown({ onPick, results, loading }: { onPick: (r: NaraResult) =>
           </div>
         ) : results.map((r) => (
           <button
-            key={r.code}
+            key={r.classNo ?? r.name}
             type="button"
             onClick={() => onPick(r)}
             className="flex w-full items-start justify-between text-left"
@@ -657,11 +697,9 @@ function NaraDropdown({ onPick, results, loading }: { onPick: (r: NaraResult) =>
           >
             <span className="min-w-0">
               <span className="block" style={{ fontSize: "14.64px", fontWeight: 500, letterSpacing: "-0.2196px", lineHeight: "19.52px", color: "#111827" }}>{r.name}</span>
-              {r.spec && <span className="block" style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#6B7280", marginTop: "2.44px" }}>{r.spec}</span>}
             </span>
             <span className="shrink-0 text-right">
-              <span className="block" style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#6B7280" }}>{r.code}</span>
-              {r.category && <span className="block" style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#9CA3AF" }}>{r.category}</span>}
+              {r.classNo && <span className="block" style={{ fontSize: "10px", fontWeight: 400, letterSpacing: "-0.15px", lineHeight: "18px", color: "#9CA3AF" }}>{`분류번호 ${r.classNo}`}</span>}
             </span>
           </button>
         ))}
@@ -754,8 +792,6 @@ function StepThree({
   onStartAi,
   specs,
   setSpecs,
-  badges,
-  setBadges,
   availableMarks,
   imageUrl,
   imageName,
@@ -768,9 +804,7 @@ function StepThree({
   onStartAi: () => void;
   specs: Spec[];
   setSpecs: (s: Spec[]) => void;
-  badges: string[];
   availableMarks: string[];
-  setBadges: (b: string[]) => void;
   imageUrl: string | null;
   imageName: string;
   onImage: (url: string, fname: string) => void;
@@ -815,9 +849,6 @@ function StepThree({
   }
   function removeSpec(i: number) {
     setSpecs(specs.filter((_, idx) => idx !== i));
-  }
-  function toggleBadge(c: string) {
-    setBadges(badges.includes(c) ? badges.filter((b) => b !== c) : [...badges, c]);
   }
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -866,24 +897,21 @@ function StepThree({
         </div>
       </div>
 
-      <div style={{ marginTop: "19.52px" }}>
-        <FieldLabel>인증 마크</FieldLabel>
-        <div className="flex flex-wrap" style={{ gap: "9.76px" }}>
-          {Array.from(new Set([...availableMarks, ...badges])).map((c) => {
-            const on = badges.includes(c);
-            return (
-              <button
+      {availableMarks.length > 0 && (
+        <div style={{ marginTop: "19.52px" }}>
+          <FieldLabel>인증 마크</FieldLabel>
+          <div className="flex flex-wrap" style={{ gap: "9.76px" }}>
+            {availableMarks.map((c) => (
+              <span
                 key={c}
-                type="button"
-                onClick={() => toggleBadge(c)}
-                style={{ boxSizing: "border-box", height: "36px", borderRadius: "9999px", border: on ? `1px solid ${NAVY}` : "1px solid #E5E7EB", background: on ? "rgba(30,58,95,0.05)" : "transparent", padding: "0 15.64px", fontSize: "14.64px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "19.52px", color: on ? NAVY : "#4B5563", cursor: "pointer" }}
+                style={{ boxSizing: "border-box", height: "36px", display: "inline-flex", alignItems: "center", borderRadius: "9999px", border: `1px solid ${NAVY}`, background: "rgba(30,58,95,0.05)", padding: "0 15.64px", fontSize: "14.64px", fontWeight: 400, letterSpacing: "-0.2928px", lineHeight: "19.52px", color: NAVY }}
               >
                 {c}
-              </button>
-            );
-          })}
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div style={{ marginTop: "19.52px" }}>
         <FieldLabel>대표 이미지</FieldLabel>

@@ -19,7 +19,7 @@ const ST: Record<string, OrderStatus> = {
   SHIPPING: "배송중",
   DELIVERED: "납품완료",
   COMPLETED: "납품완료",
-  CANCELLED: "취소",
+  CANCELLED: "결제취소",
 };
 
 export type PartnerOrdersData = {
@@ -31,6 +31,31 @@ export async function loadPartnerOrders(companyId: string): Promise<PartnerOrder
   const orders = await prisma.order.findMany({
     where: {
       items: { some: { OR: [{ supplierCompanyId: companyId }, { product: { supplierCompanyId: companyId } }] } },
+      OR: [
+        {
+          status: { in: ["PAID", "CONTRACTED", "SHIPPING", "DELIVERED", "COMPLETED"] },
+          payments: { some: { status: "PAID", paidAt: { not: null } } },
+        },
+        {
+          status: "PENDING",
+          payments: {
+            some: {
+              status: "READY",
+              method: "가상계좌",
+              transactionId: { not: null },
+            },
+          },
+        },
+        {
+          status: "CANCELLED",
+          payments: {
+            some: {
+              status: { in: ["CANCELLED", "REFUNDED"] },
+              transactionId: { not: null },
+            },
+          },
+        },
+      ],
     },
     orderBy: { createdAt: "desc" },
     include: {
@@ -74,23 +99,67 @@ const dash = (v: string | null | undefined) => (v && v.trim() ? v : "-");
 
 export async function loadPartnerOrderDetail(companyId: string, orderNo: string): Promise<OrderDetail | null> {
   const o = await prisma.order.findFirst({
-    where: { orderNo, items: { some: { OR: [{ supplierCompanyId: companyId }, { product: { supplierCompanyId: companyId } }] } } },
+    where: {
+      orderNo,
+      items: { some: { OR: [{ supplierCompanyId: companyId }, { product: { supplierCompanyId: companyId } }] } },
+      OR: [
+        {
+          status: { in: ["PAID", "CONTRACTED", "SHIPPING", "DELIVERED", "COMPLETED"] },
+          payments: { some: { status: "PAID", paidAt: { not: null } } },
+        },
+        {
+          status: "PENDING",
+          payments: {
+            some: {
+              status: "READY",
+              method: "가상계좌",
+              transactionId: { not: null },
+            },
+          },
+        },
+        {
+          status: "CANCELLED",
+          payments: {
+            some: {
+              status: { in: ["CANCELLED", "REFUNDED"] },
+              transactionId: { not: null },
+            },
+          },
+        },
+      ],
+    },
     include: {
       items: { select: { name: true, spec: true, quantity: true, unitPrice: true, amount: true, product: { select: { unit: true } } } },
-      payments: { orderBy: { createdAt: "desc" }, take: 1 },
+      payments: { orderBy: { createdAt: "desc" } },
       buyer: { select: { organization: true } },
     },
   });
   if (!o) return null;
 
-  const pay = o.payments[0];
+  const pay =
+    o.payments.find(
+      (payment) =>
+        (payment.status === "CANCELLED" || payment.status === "REFUNDED") &&
+        payment.transactionId,
+    ) ??
+    o.payments.find(
+      (payment) =>
+        payment.status === "CANCELLED" || payment.status === "REFUNDED",
+    ) ??
+    o.payments.find((payment) => payment.status === "PAID") ??
+    o.payments.find(
+      (payment) =>
+        payment.status === "READY" &&
+        payment.method === "가상계좌" &&
+        payment.transactionId,
+    );
   const org = o.buyer?.organization ?? null;
   const recAddr = [o.deliveryAddress, o.deliveryAddressDetail].filter(Boolean).join(" ");
 
   return {
     id: o.id,
     orderNo: o.orderNo,
-    payDate: ymd(pay?.paidAt ?? o.createdAt),
+    payDate: ymd(pay?.paidAt),
     payMethod: dash(pay?.method),
     status: ST[o.status] ?? "결제완료",
     taxInvoiceStatus: o.taxInvoiceStatus,
